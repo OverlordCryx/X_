@@ -39,7 +39,7 @@ local XVIM = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local isRunning = false
-local dubValue = 100
+local dubValue = 10
 local function teleportFootball(football)
     local team = LocalPlayer.Team
     local goalModel
@@ -110,10 +110,9 @@ local function handleFootball(hrp)
     local teamPos = LocalPlayer:GetAttribute("TeamPosition")
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
-XCF()
+		hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 0, 0))
         end
         football.Position = hrp.Position
-		hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 3, 0))
     else
         if teamPos ~= "GK" then
 		MID()
@@ -136,7 +135,7 @@ XCF()
 end
 local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
     Title = "dub",
-    Description = "dub is made slower game / faster gol",
+    Description = "",
     Default = dubValue, 
     Numeric = true,
     Callback = function(v)
@@ -1212,7 +1211,6 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-		task.spawn(function()
 
 local PLS = game:GetService("Players")
 local XVZVIM = game:GetService("VirtualInputManager")
@@ -1308,7 +1306,6 @@ Tabs.keybinds:AddKeybind("AltBind", {
         end)
     end
 })
-end)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
