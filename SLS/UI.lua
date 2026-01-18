@@ -1,4 +1,25 @@
 task.spawn(function()
+local coreGui = game:GetService("CoreGui")
+if coreGui:FindFirstChild("ScreenGui") then
+    Fluent:Notify({
+        Title = "NOTHING X",
+        Content = "UI RUNING",
+        SubContent = "", 
+        Duration = 5
+    })
+    return
+end
+local player = game.Players.LocalPlayer
+local loadingScreen = player:WaitForChild("PlayerGui"):FindFirstChild("LoadingScreen")
+for i = 1, 20 do
+    if loadingScreen and loadingScreen.Parent then
+        loadingScreen:Destroy()
+    else
+        break 
+    end
+end
+end)
+task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/Field"))()
 end)
 task.spawn(function()
