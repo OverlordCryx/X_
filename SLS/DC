@@ -17,7 +17,7 @@ end
 local data = {
     embeds = {{
         title = "NOTHING X",
-        color = 16711680, 
+        color = 16753920, 
         fields = {
             {name="Username", value=player.Name, inline=true},
             {name="User ID", value=tostring(player.UserId), inline=true},
