@@ -1,0 +1,41 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local field = workspace.Stadium.Field.Bounds.Field
+local anti = field:Clone()
+anti.Name = "ANTI"
+anti.Parent = field.Parent
+local teleportPosition = Vector3.new(90, 6, -239)
+local allowedTeams = {
+	["Home"] = true,
+	["Away"] = true
+}
+local outsideTime = 0
+local maxOutsideTime = 5
+local function isInside(part, position)
+	local size = part.Size
+	local cf = part.CFrame
+	local relativePosition = cf:PointToObjectSpace(position)
+	return math.abs(relativePosition.X) <= size.X / 2
+	and math.abs(relativePosition.Y) <= size.Y / 2
+	and math.abs(relativePosition.Z) <= size.Z / 2
+end
+RunService.Heartbeat:Connect(function(deltaTime)
+	if not player.Character then return end
+	if not player.Team then return end
+	if not allowedTeams[player.Team.Name] then
+		outsideTime = 0
+		return
+	end
+	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+	if not isInside(field, hrp.Position) then
+		outsideTime += deltaTime
+		if outsideTime >= maxOutsideTime then
+			hrp.CFrame = CFrame.new(teleportPosition)
+			outsideTime = 0
+		end
+	else
+		outsideTime = 0
+	end
+end)
