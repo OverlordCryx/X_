@@ -725,69 +725,38 @@ local football = game.workspace.Misc.Football
 })
 end)
 task.spawn(function()
-local XVXvim = game:GetService("VirtualInputManager")
-local Players = game:GetService("Players")
-local workspace = game:GetService("Workspace")
-local p = Players.LocalPlayer
-local gameModes = {
-    ["4v4"] = {
-        Home = Vector3.new(-8, 11, -96),
-        Away = Vector3.new(-32, 11, -372)
-    },
-    ["7v7"] = {
-        Home = Vector3.new(-6, 11, -48),
-        Away = Vector3.new(-30, 11, -422)
-    }
-}
-local function getGameMode()
-    local XVZXplaceId = game.PlaceId
-    if XVZXplaceId == 12177325772 then
-        return "4v4"
-    elseif XVZXplaceId == 127060568647054 or XVZXplaceId == 126195208568849 then
-        return "7v7"
-    else
-        return "7v7" 
-    end
-end
-local currentMode = getGameMode()
-local aPos = gameModes[currentMode].Away
-local hPos = gameModes[currentMode].Home
-local function tpObj(o, pos)
-    if o and o:IsA("BasePart") then
-        o.CFrame = CFrame.new(pos)
-    end
-end
-local function checkAndTpFb()
-    local fb = workspace.Misc:FindFirstChild("Football")
-    if not fb or not fb:IsA("BasePart") then return end
-    if p:GetAttribute("HasBall") then
-        XVXvim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-        task.wait()
-        XVXvim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-        task.wait(0.4)
-        if p.Team then
-            tpObj(fb, p.Team.Name == "Home" and hPos or aPos)
-        end
+local player = game.Players.LocalPlayer
+local function TPGOL()
+    local football = workspace.Misc:FindFirstChild("Football")
+    if not football then
         return
     end
-    local owner = fb:GetAttribute("NetworkOwner")
-    if owner ~= p.Name then return end
-    if p.Team then
-        tpObj(fb, p.Team.Name == "Home" and hPos or aPos)
+    local team = player.Team
+    local goalModel
+    if team.Name == "Home" then
+        goalModel = workspace.Stadium.Teams.Away.Goal
+    elseif team.Name == "Away" then
+        goalModel = workspace.Stadium.Teams.Home.Goal
+    else
+        return
+    end
+    if goalModel.PrimaryPart then
+        football.CFrame = goalModel.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+    else
+        local firstPart = goalModel:FindFirstChildWhichIsA("BasePart")
+        if firstPart then
+            football.CFrame = firstPart.CFrame + Vector3.new(0, 3, 0)
+        else
+        end
     end
 end
 Tabs.keybinds:AddKeybind("Keybind", {
     Title = "Gol",
     Mode = "Toggle",
     Default = "G",
-    Callback = checkAndTpFb,
+    Callback = TPGOL,
     debounce = false
 })
-workspace.Misc.ChildAdded:Connect(function(c)
-    if c.Name == "Football" and c:IsA("BasePart") then
-        c:GetPropertyChangedSignal("Parent"):Connect()
-    end
-end)
 end)
 task.spawn(function()
 local istp = false
