@@ -170,6 +170,7 @@ Tabs.autogol:AddKeybind("Keybind", {
         end)
     end
 })
+end)
 task.spawn(function()
 
 Tabs.keybinds:AddKeybind("Keybind", {
