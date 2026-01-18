@@ -1220,44 +1220,52 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
+end)
+task.spawn(function()
 
-local PLS = game:GetService("Players")
+local Players = game:GetService("Players")
 local XVZVIM = game:GetService("VirtualInputManager")
-local WKS = game:GetService("Workspace")
-local LP = PLS.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
 local active = false
+
 local function isGK()
-    return LP:GetAttribute("TeamPosition") == "GK"
+    return LocalPlayer:GetAttribute("TeamPosition") == "GK"
 end
+
 local function tapE()
     XVZVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
     XVZVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
+
 local function enemyPlayerHRP(ownerName)
-    local p = PLS:FindFirstChild(ownerName)
-    if p and p ~= LP and p.Team ~= LP.Team then
-        local c = p.Character
-        if c and c:FindFirstChild("HumanoidRootPart") then
-            return c.HumanoidRootPart
+    local player = Players:FindFirstChild(ownerName)
+    if player and player ~= LocalPlayer and player.Team ~= LocalPlayer.Team then
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            return char.HumanoidRootPart
         end
     end
 end
+
 local function enemyAgentHRP()
-    local sys = WKS:FindFirstChild("Systems")
-    local ag = sys and sys:FindFirstChild("Agents")
-    if not ag then return end
-    local myTeam = LP.Team and LP.Team.Name
+    local sys = Workspace:FindFirstChild("Systems")
+    local agents = sys and sys:FindFirstChild("Agents")
+    if not agents then return end
+
+    local myTeam = LocalPlayer.Team and LocalPlayer.Team.Name
     if not myTeam then return end
-    for _, m in ipairs(ag:GetChildren()) do
-        if m:IsA("Model") and m:GetAttribute("HasBall") == true then
-            local side = m:GetAttribute("IsHomeOrAway")
+
+    for _, agent in ipairs(agents:GetChildren()) do
+        if agent:IsA("Model") and agent:GetAttribute("HasBall") == true then
+            local side = agent:GetAttribute("IsHomeOrAway")
             if side and side ~= myTeam then
-                return m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
+                return agent:FindFirstChild("HumanoidRootPart") or agent.PrimaryPart
             end
         end
     end
 end
-end)
 
 Tabs.keybinds:AddKeybind("AltBind", {
     Title = "Steal Ball",
@@ -1268,53 +1276,64 @@ Tabs.keybinds:AddKeybind("AltBind", {
             active = false
             return
         end
+
         active = not active
         if not active then return end
+
         task.spawn(function()
             while active do
                 if isGK() then
                     active = false
                     break
                 end
-                local char = LP.Character
+
+                local char = LocalPlayer.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                local misc = WKS:FindFirstChild("Misc")
+                local misc = Workspace:FindFirstChild("Misc")
                 local ball = misc and misc:FindFirstChild("Football")
+
                 if not hrp or not ball then
                     active = false
                     break
                 end
-                local teamName = LP.Team and LP.Team.Name
+
+                local teamName = LocalPlayer.Team and LocalPlayer.Team.Name
                 if teamName ~= "Home" and teamName ~= "Away" then
                     active = false
                     break
                 end
+
                 local owner = ball:GetAttribute("NetworkOwner")
-                if owner == LP.Name then
+                if owner == LocalPlayer.Name then
                     active = false
                     break
                 end
-                local tgt
+
+                local target
                 if typeof(owner) == "string" then
-                    tgt = enemyPlayerHRP(owner)
+                    target = enemyPlayerHRP(owner)
                 end
-                if not tgt then
-                    tgt = enemyAgentHRP()
+                if not target then
+                    target = enemyAgentHRP()
                 end
-                if tgt then
-                    hrp.CFrame = tgt.CFrame
+
+                if target then
+                    hrp.CFrame = target.CFrame
                     tapE()
                 end
-                if owner ~= LP.Name then
+
+                if owner ~= LocalPlayer.Name then
                     ball.CFrame = hrp.CFrame
                     ball.AssemblyLinearVelocity = Vector3.new()
                     ball.AssemblyAngularVelocity = Vector3.new()
                 end
-                task.wait(0.1)
+
+                task.wait(0.05)
             end
         end)
     end
 })
+end)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
@@ -1617,7 +1636,7 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end
 end)
 task.spawn(function()
---loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/pop"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/pop"))()
 end)
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
