@@ -88,21 +88,16 @@ end
 local function handleFootball(hrp)
     local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
     if not football then return end
-
     local team = LocalPlayer.Team
     if not team then return end
-
     local owner = football:GetAttribute("NetworkOwner")
     local teamPos = LocalPlayer:GetAttribute("TeamPosition")
     local player = game.Players.LocalPlayer
     local character = player.Character
     local Xfootball = Workspace.Misc:FindFirstChild("Football")
-
     if not (character and character:FindFirstChild("HumanoidRootPart")) then return end
-
     local hrpPos = character.HumanoidRootPart.Position
     local footballPos = football.Position
-
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
             hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 3.3, 0))
@@ -118,10 +113,8 @@ local function handleFootball(hrp)
         XVIM:SendMouseButtonEvent(0,0,0,false,game,0)
         teleportFootball(football)
     end
-
     football.AssemblyLinearVelocity = Vector3.zero
     football.AssemblyAngularVelocity = Vector3.zero
-
     if teamPos ~= "GK" then
         local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
                        or getEnemyAgentWithBall()
@@ -129,10 +122,8 @@ local function handleFootball(hrp)
             Xfootball.Position = hrpPos
             Xfootball.AssemblyLinearVelocity = Vector3.zero
             Xfootball.AssemblyAngularVelocity = Vector3.zero
-
             hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 3.3, 0))
             hrp.CFrame = target.CFrame
-
             local targetPlayer = Players:FindFirstChild(owner)
             if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
                 XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
@@ -141,7 +132,6 @@ local function handleFootball(hrp)
         end
     end
 end
-
 local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
     Title = "dub",
     Description = "",
@@ -177,7 +167,6 @@ Tabs.autogol:AddKeybind("Keybind", {
 })
 end)
 task.spawn(function()
-
 Tabs.keybinds:AddKeybind("Keybind", {
     Title = "not kick ball (GK)",
     Mode = "Toggle",
@@ -212,7 +201,6 @@ Tabs.keybinds:AddKeybind("Keybind", {
 })
 end)
 task.spawn(function()
-
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -299,7 +287,6 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 end)
 task.spawn(function()
-
 Tabs.all:AddSection("Jump / Hip Height / Spam / Pass")
 local coreGui = game:GetService("CoreGui")
 local sjp = 50
@@ -728,7 +715,6 @@ local moveFieldToggle = Tabs.all:AddToggle("MoveFieldToggle", {
 })
 end)
 task.spawn(function()
-
 Tabs.keybinds:AddKeybind("Keybind", {
     Title = "Tp ball",
     Mode = "Toggle",
@@ -829,7 +815,6 @@ if Tabs and Tabs.keybinds then
 end
 end)
 task.spawn(function()
-
 Tabs.XXX:AddButton({
     Title = "Join  Pro Server",
     Callback = function()
@@ -858,7 +843,6 @@ Tabs.XXX:AddButton({
 })
 end)
 task.spawn(function()
-
 local ks, vma = 80, 80
 local ce = false
 local p = game.Players.LocalPlayer
@@ -985,7 +969,6 @@ uis.InputBegan:Connect(function(i, gp)
 end)
 end)
 task.spawn(function()
-
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -1105,7 +1088,6 @@ Tabs.XXX:AddKeybind("Keybind", {
 setupFlyAnimation()
 end)
 task.spawn(function()
-
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -1222,23 +1204,18 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
 end)
 end)
 task.spawn(function()
-
 local Players = game:GetService("Players")
 local XVZVIM = game:GetService("VirtualInputManager")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-
 local active = false
-
 local function isGK()
     return LocalPlayer:GetAttribute("TeamPosition") == "GK"
 end
-
 local function tapE()
     XVZVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
     XVZVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
-
 local function enemyPlayerHRP(ownerName)
     local player = Players:FindFirstChild(ownerName)
     if player and player ~= LocalPlayer and player.Team ~= LocalPlayer.Team then
@@ -1248,15 +1225,12 @@ local function enemyPlayerHRP(ownerName)
         end
     end
 end
-
 local function enemyAgentHRP()
     local sys = Workspace:FindFirstChild("Systems")
     local agents = sys and sys:FindFirstChild("Agents")
     if not agents then return end
-
     local myTeam = LocalPlayer.Team and LocalPlayer.Team.Name
     if not myTeam then return end
-
     for _, agent in ipairs(agents:GetChildren()) do
         if agent:IsA("Model") and agent:GetAttribute("HasBall") == true then
             local side = agent:GetAttribute("IsHomeOrAway")
@@ -1266,7 +1240,6 @@ local function enemyAgentHRP()
         end
     end
 end
-
 Tabs.keybinds:AddKeybind("AltBind", {
     Title = "Steal Ball",
     Mode = "Toggle",
@@ -1276,39 +1249,32 @@ Tabs.keybinds:AddKeybind("AltBind", {
             active = false
             return
         end
-
         active = not active
         if not active then return end
-
         task.spawn(function()
             while active do
                 if isGK() then
                     active = false
                     break
                 end
-
                 local char = LocalPlayer.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 local misc = Workspace:FindFirstChild("Misc")
                 local ball = misc and misc:FindFirstChild("Football")
-
                 if not hrp or not ball then
                     active = false
                     break
                 end
-
                 local teamName = LocalPlayer.Team and LocalPlayer.Team.Name
                 if teamName ~= "Home" and teamName ~= "Away" then
                     active = false
                     break
                 end
-
                 local owner = ball:GetAttribute("NetworkOwner")
                 if owner == LocalPlayer.Name then
                     active = false
                     break
                 end
-
                 local target
                 if typeof(owner) == "string" then
                     target = enemyPlayerHRP(owner)
@@ -1316,18 +1282,15 @@ Tabs.keybinds:AddKeybind("AltBind", {
                 if not target then
                     target = enemyAgentHRP()
                 end
-
                 if target then
                     hrp.CFrame = target.CFrame
                     tapE()
                 end
-
                 if owner ~= LocalPlayer.Name then
                     ball.CFrame = hrp.CFrame
                     ball.AssemblyLinearVelocity = Vector3.new()
                     ball.AssemblyAngularVelocity = Vector3.new()
                 end
-
                 task.wait(0.05)
             end
         end)
@@ -1378,7 +1341,6 @@ end
 LocalPlayer.CharacterAdded:Connect(function(character)
     task.wait(1)
 end)
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeamsService = game:GetService("Teams")
 local CoreGui = game:GetService("CoreGui")
@@ -1509,7 +1471,6 @@ task.spawn(function()
         end
     end
 end)
-
 local dsx, dsy, dsz = 4.521276473999023, 5.7297587394714355, 2.397878408432007
 local dt, dc = 1, Color3.fromRGB(255, 255, 255)
 local hsx, hsy, hsz = dsx, dsy, dsz
