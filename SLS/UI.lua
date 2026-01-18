@@ -28,17 +28,46 @@ local XVIM = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local isRunning = false
-local PLACE_ID = game.PlaceId
-local dubValue = 150
-local goalPositions = {
-    ["4v4"] = {Home = Vector3.new(-8, 11, -96), Away = Vector3.new(-32, 11, -372)},
-    ["7v7"] = {Home = Vector3.new(-6, 11, -48), Away = Vector3.new(-30, 11, -422)},
-}
-local function getGoalPos(teamName)
-    if PLACE_ID == 12177325772 then
-        return teamName == "Home" and goalPositions["4v4"].Home or goalPositions["4v4"].Away
+local dubValue = 100
+local function teleportFootball(football)
+    local team = LocalPlayer.Team
+    local goalModel
+    if team.Name == "Home" then
+        goalModel = workspace.Stadium.Teams.Away.Goal
+    elseif team.Name == "Away" then
+        goalModel = workspace.Stadium.Teams.Home.Goal
     else
-        return teamName == "Home" and goalPositions["7v7"].Home or goalPositions["7v7"].Away
+        return
+    end
+    if goalModel.PrimaryPart then
+        football.CFrame = goalModel.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+    else
+        local firstPart = goalModel:FindFirstChildWhichIsA("BasePart")
+        if firstPart then
+            football.CFrame = firstPart.CFrame + Vector3.new(0, 3, 0)
+        end
+    end
+end
+local function teleportPlayer()
+    if LocalPlayer.Team then
+        local cf
+        if LocalPlayer.Team.Name == "Home" then
+            cf = workspace.Stadium.Teams.Away.Positions.CF.CFrame
+        elseif LocalPlayer.Team.Name == "Away" then
+            cf = workspace.Stadium.Teams.Home.Positions.CF.CFrame
+        end
+        if cf then
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local newCFrame = cf + Vector3.new(0, 4, 0)
+                LocalPlayer.Character.HumanoidRootPart.CFrame = newCFrame
+            end
+        end
+    end
+end
+local function MID()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local targetCFrame = workspace.Stadium.Field.Grass.CFrame + Vector3.new(0, 50, 0)
+        LocalPlayer.Character.HumanoidRootPart.CFrame = targetCFrame
     end
 end
 local function getChar()
@@ -66,24 +95,20 @@ local function handleFootball(hrp)
     if not football then return end
     local team = LocalPlayer.Team
     if not team then return end
-    local goalPos = getGoalPos(team.Name)
     local owner = football:GetAttribute("NetworkOwner")
     local teamPos = LocalPlayer:GetAttribute("TeamPosition")
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
-            local p = LocalPlayer
-            local t = p.Team and p.Team.Name
-            local c = PLACE_ID == 12177325772 and {CFrame.new(-17,11,-250), CFrame.new(-17,11,-217)} or {CFrame.new(-17,11,-255), CFrame.new(-16,11,-214)}
-            p.Character.HumanoidRootPart.CFrame = t == "Home" and c[2] or t == "Away" and c[1] or p.Character.HumanoidRootPart.CFrame
+teleportPlayer()
         end
         football.Position = hrp.Position
     else
-	        if teamPos ~= "GK" then
-	    hrp.CFrame = CFrame.new(-5, 40, -234)
-		end
-		XVIM:SendMouseButtonEvent(0,0,0,true,game,0)
+        if teamPos ~= "GK" then
+		MID()
+        end
+        XVIM:SendMouseButtonEvent(0,0,0,true,game,0)
         XVIM:SendMouseButtonEvent(0,0,0,false,game,0)
-        football.Position = goalPos
+        teleportFootball(football)
     end
     football.AssemblyLinearVelocity = Vector3.zero
     football.AssemblyAngularVelocity = Vector3.zero
@@ -92,13 +117,11 @@ local function handleFootball(hrp)
                        or getEnemyAgentWithBall()
         if target then
             hrp.CFrame = target.CFrame
-    XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-    XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
         end
     end
 end
-
-
 local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
     Title = "dub",
     Description = "dub is made slower game / faster gol",
@@ -108,7 +131,6 @@ local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
         dubValue = tonumber(v)
     end
 })
-
 Tabs.autogol:AddKeybind("Keybind", {
     Title = "Auto Gol :)",
     Mode = "Toggle",
@@ -133,7 +155,6 @@ Tabs.autogol:AddKeybind("Keybind", {
         end)
     end
 })
-end)
 task.spawn(function()
 
 Tabs.keybinds:AddKeybind("Keybind", {
