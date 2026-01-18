@@ -6,7 +6,7 @@ for _, bar in pairs(gui:GetChildren()) do
         bar.Size = UDim2.new(0.25, 0, 0.02, 0)  
         local gradient = bar:WaitForChild("ProgressBar"):WaitForChild("UIGradient")
         gradient.Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255,0,0)),  
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 165, 0)),  
             ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0))     
         }
     end
@@ -15,7 +15,7 @@ for _, bar in pairs(gui:GetChildren()) do
         local gradient = bar:WaitForChild("ProgressBar"):WaitForChild("UIGradient")
         gradient.Color = ColorSequence.new{
             ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),    
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255,0,0))   
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 165, 0))   
         }
     end
 end
