@@ -63,7 +63,7 @@ local function teleportFootball(football)
         end
     end
 end
-local function teleportPlayer()
+local function XCF()
     if LocalPlayer.Team then
         local cf
         if LocalPlayer.Team.Name == "Home" then
@@ -114,9 +114,10 @@ local function handleFootball(hrp)
     local teamPos = LocalPlayer:GetAttribute("TeamPosition")
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
-teleportPlayer()
+XCF()
         end
         football.Position = hrp.Position
+		hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 3, 0))
     else
         if teamPos ~= "GK" then
 		MID()
