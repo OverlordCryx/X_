@@ -39,7 +39,7 @@ local XVIM = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local isRunning = false
-local dubValue = 10
+local dubValue = 1
 local function teleportFootball(football)
     local team = LocalPlayer.Team
     local goalModel
@@ -56,22 +56,6 @@ local function teleportFootball(football)
         local firstPart = goalModel:FindFirstChildWhichIsA("BasePart")
         if firstPart then
             football.CFrame = firstPart.CFrame + Vector3.new(0, 3, 0)
-        end
-    end
-end
-local function XCF()
-    if LocalPlayer.Team then
-        local cf
-        if LocalPlayer.Team.Name == "Home" then
-            cf = workspace.Stadium.Teams.Away.Positions.CF.CFrame
-        elseif LocalPlayer.Team.Name == "Away" then
-            cf = workspace.Stadium.Teams.Home.Positions.CF.CFrame
-        end
-        if cf then
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local newCFrame = cf + Vector3.new(0, 3.5, 0)
-                LocalPlayer.Character.HumanoidRootPart.CFrame = newCFrame
-            end
         end
     end
 end
@@ -104,33 +88,51 @@ end
 local function handleFootball(hrp)
     local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
     if not football then return end
+
     local team = LocalPlayer.Team
     if not team then return end
+
     local owner = football:GetAttribute("NetworkOwner")
     local teamPos = LocalPlayer:GetAttribute("TeamPosition")
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    local Xfootball = Workspace.Misc:FindFirstChild("Football")
+
+    if not (character and character:FindFirstChild("HumanoidRootPart")) then return end
+
+    local hrpPos = character.HumanoidRootPart.Position
+    local footballPos = football.Position
+
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
-		hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 3.3, 0))
-		CF()
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 3.3, 0))
         end
-        football.Position = hrp.Position
+        Xfootball.Position = hrpPos
+        Xfootball.AssemblyLinearVelocity = Vector3.zero
+        Xfootball.AssemblyAngularVelocity = Vector3.zero
     else
         if teamPos ~= "GK" then
-		MID()
+            MID()
         end
         XVIM:SendMouseButtonEvent(0,0,0,true,game,0)
         XVIM:SendMouseButtonEvent(0,0,0,false,game,0)
         teleportFootball(football)
     end
+
     football.AssemblyLinearVelocity = Vector3.zero
     football.AssemblyAngularVelocity = Vector3.zero
+
     if teamPos ~= "GK" then
         local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
                        or getEnemyAgentWithBall()
         if target then
-		 football.Position = hrp.Position
-			hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 3.3, 0))
+            Xfootball.Position = hrpPos
+            Xfootball.AssemblyLinearVelocity = Vector3.zero
+            Xfootball.AssemblyAngularVelocity = Vector3.zero
+
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 3.3, 0))
             hrp.CFrame = target.CFrame
+
             local targetPlayer = Players:FindFirstChild(owner)
             if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
                 XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
@@ -139,6 +141,7 @@ local function handleFootball(hrp)
         end
     end
 end
+
 local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
     Title = "dub",
     Description = "",
