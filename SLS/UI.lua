@@ -762,24 +762,26 @@ task.spawn(function()
 local istp = false
 local p = game.Players.LocalPlayer
 local uis = game:GetService("UserInputService")
-local tpPos = Vector3.new(-16, 74, -237)
+local grass = workspace:WaitForChild("Stadium"):WaitForChild("Field"):WaitForChild("Grass")
 local cp = nil
 local function createPart()
     if not cp then
         cp = Instance.new("Part")
         cp.Name = "H"
-        cp.Size = Vector3.new(2, 0.5, 2)
+        cp.Size = Vector3.new(0, 0, 0)
         cp.Material = Enum.Material.Neon
         cp.Transparency = 1
         cp.Color = Color3.new(0, 0, 0)
-        cp.Position = tpPos
+		cp.Shape = Enum.PartType.Ball
+        cp.Position = grass.Position + Vector3.new(0, 60, 0)
         cp.Anchored = true
+        cp.CanCollide = true
         cp.Parent = workspace
     end
     return cp
 end
 local function tpFootball()
-local fb = workspace.Misc:FindFirstChild("Football")
+    local fb = workspace.Misc:FindFirstChild("Football")
     if not fb then
         return
     end
@@ -787,10 +789,10 @@ local fb = workspace.Misc:FindFirstChild("Football")
         istp = true
         fb.AssemblyLinearVelocity = Vector3.zero
         fb.AssemblyAngularVelocity = Vector3.zero
-        createPart()
-        local tp = createPart().Position + Vector3.new(0, 2, 0)
+        local part = createPart()
+        local tp = part.Position + Vector3.new(0, 2, 0)
         fb.CFrame = CFrame.new(tp)
-        task.wait(0.5)
+        task.wait(0.1)
         istp = false
     end
 end
