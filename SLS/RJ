@@ -1,0 +1,20 @@
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local GuiService = game:GetService("GuiService")
+local player = Players.LocalPlayer
+local placeId = game.PlaceId
+local rejoining = false
+local function rejoin()
+	if rejoining then return end
+	rejoining = true
+	task.wait()
+	TeleportService:Teleport(placeId, player)
+end
+GuiService.ErrorMessageChanged:Connect(function()
+	rejoin()
+end)
+player.OnTeleport:Connect(function(state)
+	if state == Enum.TeleportState.Failed then
+		rejoin()
+	end
+end)
