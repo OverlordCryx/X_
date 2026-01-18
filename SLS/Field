@@ -11,31 +11,37 @@ local allowedTeams = {
 	["Away"] = true
 }
 local outsideTime = 0
-local maxOutsideTime = 5
+local maxOutsideTime = 6
+local alreadyTeleported = false
 local function isInside(part, position)
 	local size = part.Size
 	local cf = part.CFrame
-	local relativePosition = cf:PointToObjectSpace(position)
-	return math.abs(relativePosition.X) <= size.X / 2
-	and math.abs(relativePosition.Y) <= size.Y / 2
-	and math.abs(relativePosition.Z) <= size.Z / 2
+	local relative = cf:PointToObjectSpace(position)
+	return math.abs(relative.X) <= size.X / 2
+	and math.abs(relative.Y) <= size.Y / 2
+	and math.abs(relative.Z) <= size.Z / 2
 end
 RunService.Heartbeat:Connect(function(deltaTime)
 	if not player.Character then return end
 	if not player.Team then return end
 	if not allowedTeams[player.Team.Name] then
 		outsideTime = 0
+		alreadyTeleported = false
 		return
 	end
 	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
 	if not hrp then return end
-	if not isInside(field, hrp.Position) then
+	if not isInside(anti, hrp.Position) then
 		outsideTime += deltaTime
-		if outsideTime >= maxOutsideTime then
-			hrp.CFrame = CFrame.new(teleportPosition)
-			outsideTime = 0
+		if outsideTime >= maxOutsideTime and not alreadyTeleported then
+			alreadyTeleported = true
+			for i = 1, 50 do
+				hrp.CFrame = CFrame.new(teleportPosition)
+				task.wait(0.02)
+			end
 		end
 	else
 		outsideTime = 0
+		alreadyTeleported = false
 	end
 end)
