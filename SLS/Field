@@ -35,7 +35,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
 		outsideTime += deltaTime
 		if outsideTime >= maxOutsideTime and not alreadyTeleported then
 			alreadyTeleported = true
-			for i = 1, 220 do
+			for i = 1, 120 do
 				hrp.CFrame = CFrame.new(teleportPosition)
 				task.wait(0.01)
 			end
