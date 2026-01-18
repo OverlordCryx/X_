@@ -1,4 +1,3 @@
-task.spawn(function()
 local coreGui = game:GetService("CoreGui")
 if coreGui:FindFirstChild("ScreenGui") then
     Fluent:Notify({
@@ -9,6 +8,7 @@ if coreGui:FindFirstChild("ScreenGui") then
     })
     return
 end
+task.spawn(function()
 local player = game.Players.LocalPlayer
 local loadingScreen = player:WaitForChild("PlayerGui"):FindFirstChild("LoadingScreen")
 for i = 1, 20 do
