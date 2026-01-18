@@ -1,1 +1,77 @@
 
+local player = game:GetService("Players").LocalPlayer
+local gui = player:WaitForChild("PlayerGui"):WaitForChild("GameGui"):WaitForChild("MatchHUD"):WaitForChild("EnergyBars")
+for _, bar in pairs(gui:GetChildren()) do
+    if bar.Name:sub(1,7) == "Stamina" then
+        bar.Size = UDim2.new(0.25, 0, 0.02, 0)  
+        local gradient = bar:WaitForChild("ProgressBar"):WaitForChild("UIGradient")
+        gradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255,0,0)),  
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0))     
+        }
+    end
+    if bar.Name == "Power" then
+        bar.Size = UDim2.new(0.25, 0, 0.02, 0)  
+        local gradient = bar:WaitForChild("ProgressBar"):WaitForChild("UIGradient")
+        gradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),    
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255,0,0))   
+        }
+    end
+end
+local player = game:GetService("Players").LocalPlayer
+local gui = player:WaitForChild("PlayerGui")
+local gameGui = gui:WaitForChild("GameGui")
+local lighting = game:GetService("Lighting")
+local workspace = game:GetService("Workspace")
+local function removeDuplicates(name)
+    local firstFound = nil
+    for _, v in ipairs(gameGui:GetChildren()) do
+        if v.Name == name then
+            if not firstFound then
+                firstFound = v 
+            else
+                v:Destroy() 
+            end
+        end
+    end
+end
+local function removeGUIs()
+    for _,g in pairs({
+        gui:FindFirstChild("StarterPackInterface"),
+        gameGui:FindFirstChild("Transition"),
+        gameGui:FindFirstChild("KeybindDisplays"),
+        gameGui:FindFirstChild("DailyRewards"),
+        gameGui:FindFirstChild("GoalPopup")
+    }) do
+        if g then g:Destroy() end
+    end
+end
+local function removeBlur()
+    for _, effect in ipairs(lighting:GetChildren()) do
+        if effect:IsA("BlurEffect") then
+            effect:Destroy()
+        end
+    end
+end
+local function removeArrows()
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj.Name == "Arrow" then
+            obj:Destroy()
+        end
+    end
+end
+while true do
+    removeDuplicates("Scoreboard")
+    removeDuplicates("PointsPopup")
+    removeDuplicates("Summary")
+    removeDuplicates("Penalties")
+    removeGUIs()
+    removeBlur()
+    removeArrows()
+    local scoreboard = gameGui:FindFirstChild("Scoreboard")
+    if scoreboard then
+        scoreboard.Size = UDim2.new(0.2, 0, 0.11, 0)
+    end
+    wait(2.2)
+end 
