@@ -69,7 +69,7 @@ local function XCF()
         end
         if cf then
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local newCFrame = cf + Vector3.new(0, 4, 0)
+                local newCFrame = cf + Vector3.new(0, 3.5, 0)
                 LocalPlayer.Character.HumanoidRootPart.CFrame = newCFrame
             end
         end
@@ -110,9 +110,11 @@ local function handleFootball(hrp)
     local teamPos = LocalPlayer:GetAttribute("TeamPosition")
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
-		hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 0, 0))
+		hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 3.3, 0))
+		CF()
         end
         football.Position = hrp.Position
+	 football.Position = hrp.Position
     else
         if teamPos ~= "GK" then
 		MID()
@@ -127,9 +129,15 @@ local function handleFootball(hrp)
         local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
                        or getEnemyAgentWithBall()
         if target then
+		 football.Position = hrp.Position
+        football.Position = hrp.Position
+			hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 3.3, 0))
             hrp.CFrame = target.CFrame
-            XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-            XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            local targetPlayer = Players:FindFirstChild(owner)
+            if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
+                XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            end
         end
     end
 end
@@ -1608,7 +1616,7 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end
 end)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/pop"))()
+--loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/pop"))()
 end)
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
