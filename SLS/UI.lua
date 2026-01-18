@@ -124,7 +124,7 @@ local function handleFootball(hrp)
     local footballPos = football.Position
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
-            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 3.3, 0))
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
         end
         Xfootball.Position = hrpPos
         Xfootball.AssemblyLinearVelocity = Vector3.zero
@@ -146,7 +146,7 @@ local function handleFootball(hrp)
             Xfootball.Position = hrpPos
             Xfootball.AssemblyLinearVelocity = Vector3.zero
             Xfootball.AssemblyAngularVelocity = Vector3.zero
-            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 3.3, 0))
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
             hrp.CFrame = target.CFrame
             local targetPlayer = Players:FindFirstChild(owner)
             if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
