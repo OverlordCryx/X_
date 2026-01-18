@@ -89,22 +89,6 @@ local function MID()
         LocalPlayer.Character.HumanoidRootPart.CFrame = targetCFrame
     end
 end
-local function XCF()
-    if LocalPlayer.Team then
-        local cf
-        if LocalPlayer.Team.Name == "Home" then
-            cf = workspace.Stadium.Teams.Away.Positions.CF.CFrame
-        elseif LocalPlayer.Team.Name == "Away" then
-            cf = workspace.Stadium.Teams.Home.Positions.CF.CFrame
-        end
-        if cf then
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local newCFrame = cf + Vector3.new(0, 3.5, 0)
-                LocalPlayer.Character.HumanoidRootPart.CFrame = newCFrame
-            end
-        end
-    end
-end
 local function getChar()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
@@ -141,7 +125,6 @@ local function handleFootball(hrp)
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
             hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
-			XCF()
         end
         Xfootball.Position = hrpPos
         Xfootball.AssemblyLinearVelocity = Vector3.zero
