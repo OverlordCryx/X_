@@ -114,7 +114,6 @@ local function handleFootball(hrp)
 		CF()
         end
         football.Position = hrp.Position
-	 football.Position = hrp.Position
     else
         if teamPos ~= "GK" then
 		MID()
@@ -130,7 +129,6 @@ local function handleFootball(hrp)
                        or getEnemyAgentWithBall()
         if target then
 		 football.Position = hrp.Position
-        football.Position = hrp.Position
 			hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 3.3, 0))
             hrp.CFrame = target.CFrame
             local targetPlayer = Players:FindFirstChild(owner)
