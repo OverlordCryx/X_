@@ -1,1 +1,11 @@
-loadstring(game:HttpGet("github.com/OverlordCryx/X_/raw/refs/heads/main/SLS/UI.lua"))()
+local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local str = "X_X"
+local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
+
+if not isLegacyChat then
+	TextChatService.TextChannels.RBXGeneral:SendAsync(str)
+else
+	ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(str, "All")
+end
