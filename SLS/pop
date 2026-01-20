@@ -1,7 +1,7 @@
 local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local str = "⊘_X"
+local str = "_X"
 local isLegacyChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 
 if not isLegacyChat then
