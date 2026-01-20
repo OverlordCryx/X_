@@ -156,6 +156,148 @@ local function handleFootball(hrp)
         end
     end
 end
+		local function xhandleFootball(hrp)
+    local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
+    if not football then return end
+    local team = LocalPlayer.Team
+    if not team then return end
+    local owner = football:GetAttribute("NetworkOwner")
+    local teamPos = LocalPlayer:GetAttribute("TeamPosition")
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    local Xfootball = Workspace.Misc:FindFirstChild("Football")
+    if not (character and character:FindFirstChild("HumanoidRootPart")) then return end
+    local hrpPos = character.HumanoidRootPart.Position
+    local footballPos = football.Position
+    if owner ~= LocalPlayer.Name then
+        if teamPos ~= "GK" then
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
+        end
+        Xfootball.Position = hrpPos
+        Xfootball.AssemblyLinearVelocity = Vector3.zero
+        Xfootball.AssemblyAngularVelocity = Vector3.zero
+    else
+        if teamPos ~= "GK" then
+            MID()
+        end
+        XVIM:SendMouseButtonEvent(0,0,0,true,game,0)
+        XVIM:SendMouseButtonEvent(0,0,0,false,game,0)
+        teleportFootball(football)
+    end
+    football.AssemblyLinearVelocity = Vector3.zero
+    football.AssemblyAngularVelocity = Vector3.zero
+    if teamPos ~= "GK" then
+        local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
+                       or getEnemyAgentWithBall()
+        if target then
+            Xfootball.Position = hrpPos
+            Xfootball.AssemblyLinearVelocity = Vector3.zero
+            Xfootball.AssemblyAngularVelocity = Vector3.zero
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
+            hrp.CFrame = target.CFrame
+            local targetPlayer = Players:FindFirstChild(owner)
+            if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
+                XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            end
+        end
+    end
+end
+		local function xxhandleFootball(hrp)
+    local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
+    if not football then return end
+    local team = LocalPlayer.Team
+    if not team then return end
+    local owner = football:GetAttribute("NetworkOwner")
+    local teamPos = LocalPlayer:GetAttribute("TeamPosition")
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    local Xfootball = Workspace.Misc:FindFirstChild("Football")
+    if not (character and character:FindFirstChild("HumanoidRootPart")) then return end
+    local hrpPos = character.HumanoidRootPart.Position
+    local footballPos = football.Position
+    if owner ~= LocalPlayer.Name then
+        if teamPos ~= "GK" then
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
+        end
+        Xfootball.Position = hrpPos
+        Xfootball.AssemblyLinearVelocity = Vector3.zero
+        Xfootball.AssemblyAngularVelocity = Vector3.zero
+    else
+        if teamPos ~= "GK" then
+            MID()
+        end
+        XVIM:SendMouseButtonEvent(0,0,0,true,game,0)
+        XVIM:SendMouseButtonEvent(0,0,0,false,game,0)
+        teleportFootball(football)
+    end
+    football.AssemblyLinearVelocity = Vector3.zero
+    football.AssemblyAngularVelocity = Vector3.zero
+    if teamPos ~= "GK" then
+        local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
+                       or getEnemyAgentWithBall()
+        if target then
+            Xfootball.Position = hrpPos
+            Xfootball.AssemblyLinearVelocity = Vector3.zero
+            Xfootball.AssemblyAngularVelocity = Vector3.zero
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
+            hrp.CFrame = target.CFrame
+            local targetPlayer = Players:FindFirstChild(owner)
+            if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
+                XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            end
+        end
+    end
+	task.wait(0.1)
+end
+		local function xxxhandleFootball(hrp)
+    local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
+    if not football then return end
+    local team = LocalPlayer.Team
+    if not team then return end
+    local owner = football:GetAttribute("NetworkOwner")
+    local teamPos = LocalPlayer:GetAttribute("TeamPosition")
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    local Xfootball = Workspace.Misc:FindFirstChild("Football")
+    if not (character and character:FindFirstChild("HumanoidRootPart")) then return end
+    local hrpPos = character.HumanoidRootPart.Position
+    local footballPos = football.Position
+    if owner ~= LocalPlayer.Name then
+        if teamPos ~= "GK" then
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
+        end
+        Xfootball.Position = hrpPos
+        Xfootball.AssemblyLinearVelocity = Vector3.zero
+        Xfootball.AssemblyAngularVelocity = Vector3.zero
+    else
+        if teamPos ~= "GK" then
+            MID()
+        end
+        XVIM:SendMouseButtonEvent(0,0,0,true,game,0)
+        XVIM:SendMouseButtonEvent(0,0,0,false,game,0)
+        teleportFootball(football)
+    end
+    football.AssemblyLinearVelocity = Vector3.zero
+    football.AssemblyAngularVelocity = Vector3.zero
+    if teamPos ~= "GK" then
+        local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
+                       or getEnemyAgentWithBall()
+        if target then
+            Xfootball.Position = hrpPos
+            Xfootball.AssemblyLinearVelocity = Vector3.zero
+            Xfootball.AssemblyAngularVelocity = Vector3.zero
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
+            hrp.CFrame = target.CFrame
+            local targetPlayer = Players:FindFirstChild(owner)
+            if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
+                XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            end
+        end
+    end
+end
 local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
     Title = "dub",
     Description = "",
@@ -185,6 +327,9 @@ Tabs.autogol:AddKeybind("Keybind", {
             for i = 1, dubValue do  
                 if not isRunning then break end  
                 handleFootball(hrp)
+				xhandleFootball(hrp)
+				xxhandleFootball(hrp)
+				xxxhandleFootball(hrp)
             end
         end)
     end
