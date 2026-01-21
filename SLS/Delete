@@ -79,5 +79,5 @@ while true do
     if scoreboard then
         scoreboard.Size = UDim2.new(0.17, 0, 0.1, 0)
     end
-    task.wait(1.8)
+    task.wait(5)
 end
