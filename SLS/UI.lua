@@ -31,99 +31,6 @@ end)
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/RJ"))()
 end)
-task.spawn(function()
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Knit = require(ReplicatedStorage.Packages.Knit)
-local LocalPlayer = Players.LocalPlayer
-_G.InfiniteEvade = false
-local InfiniteStaminaEnabled = false
-local StaminaThread = nil
-local Fusion = require(ReplicatedStorage.Packages.Fusion)
-local Defaults = require(ReplicatedStorage.Shared.Defaults.Movement)
-local SharedStates = require(ReplicatedStorage.Shared.SharedInterfaceStates)
-local MaxStamina = Defaults.Stamina.Maximum
-local StaminaValue = SharedStates.Stamina.Amount
-function EnableInfiniteStamina(state)
-    InfiniteStaminaEnabled = state
-    if state then
-        StaminaThread = task.spawn(function()
-            while InfiniteStaminaEnabled do
-                pcall(function()
-                    StaminaValue:set(MaxStamina)
-                end)
-                task.wait()
-            end
-        end)
-        Fusion.Observer(StaminaValue):onChange(function()
-            if InfiniteStaminaEnabled then
-                StaminaValue:set(MaxStamina)
-            end
-        end)
-    else
-        if StaminaThread then
-            task.cancel(StaminaThread)
-            StaminaThread = nil
-        end
-    end
-end
-local ActionController = Knit.GetController("ActionController")
-local ActionService = Knit.GetService("ActionService")
-local AnimationController = Knit.GetController("AnimationController")
-local MovementController = Knit.GetController("MovementController")
-local MatchController = Knit.GetController("MatchController")
-local Attributes = require(ReplicatedStorage.Shared.Attributes)
-local Enums = require(ReplicatedStorage.Shared.Enums)
-local OldPlayAnim = AnimationController.PlayAnimationFromPlayer
-AnimationController.PlayAnimationFromPlayer = function(self, player, anim, ...)
-    if _G.InfiniteEvade and player == LocalPlayer and anim then
-        local name = anim.Name:lower()
-        if name:find("fall") or name:find("tackle") or name:find("stun") or name:find("ground") then
-            return nil
-        end
-    end
-    return OldPlayAnim(self, player, anim, ...)
-end
-local OldReloadSpeed = MovementController.ReloadSpeed
-MovementController.ReloadSpeed = function(self, ...)
-    if _G.InfiniteEvade and LocalPlayer:GetAttribute(Attributes.Agents.WasTackled) then
-        return nil
-    end
-    return OldReloadSpeed(self, ...)
-end
-local function SetCollision(state)
-    local char = LocalPlayer.Character
-    if not char then return end
-    for _, part in pairs(char:GetChildren()) do
-        if part:IsA("BasePart") then
-            part.CanTouch = not state
-            part.CanQuery = not state
-        end
-    end
-end
-local function InfiniteEvadeLoop()
-    if not _G.InfiniteEvade then return end
-    LocalPlayer:SetAttribute(Attributes.Agents.WasTackled, nil)
-    local FootballComponent = MatchController:GetComponent("Football")
-    if FootballComponent:HasFootball() then
-        if not ActionController.SingletonActionTimegate:IsLocked() then
-            SetCollision(true)
-            ActionService.PerformAction:Fire(Enums.Action.Server.Evade)
-            LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, true)
-            LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, nil)
-            SetCollision(false)
-        end
-    end
-end
-game:GetService("RunService").Heartbeat:Connect(function()
-    if _G.InfiniteEvade then
-        pcall(InfiniteEvadeLoop)
-    end
-end)
-EnableInfiniteStamina(true)
-_G.InfiniteEvade = true
-	end)
-
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
@@ -795,7 +702,6 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
 Tabs.all:AddSection("TOG")
 local antiTackleRunning = false
-local shouldPressQ = false
 local tk = Tabs.all:AddToggle("XXTackledToggle", {
     Title = "Anti Tackled (Q)",
     Default = false,
@@ -808,63 +714,20 @@ local tk = Tabs.all:AddToggle("XXTackledToggle", {
                         tk:Set(false)
                         break
                     end
-                    if not LocalPlayer:GetAttribute("HasBall") then
-                        shouldPressQ = false
-                        task.wait()
-                        continue
-                    end
                     local char = LocalPlayer.Character
                     if not char or not char:FindFirstChild("HumanoidRootPart") then
-                        shouldPressQ = false
                         task.wait()
                         continue
                     end
-                    local myTeam = LocalPlayer.Team
-                    local myRootPart = char.HumanoidRootPart
-                    local threatDetected = false
-                    for _, plr in ipairs(Players:GetPlayers()) do
-                        if plr == LocalPlayer or plr.Team == myTeam then
-                            continue
-                        end
-                        if plr:GetAttribute("TeamPosition") == "GK" then
-                            continue
-                        end
-                        if plr:GetAttribute("_ACTackling") then
-                            local enemyChar = plr.Character
-                            if enemyChar and enemyChar:FindFirstChild("HumanoidRootPart") then
-                                local distance = (myRootPart.Position - enemyChar.HumanoidRootPart.Position).Magnitude
-                                if distance <= 27 then
-                                    threatDetected = true
-                                    break
-                                end
-                            end
-                        end
+                    local hasBall = LocalPlayer:GetAttribute("HasBall")
+                    local teamPosition = LocalPlayer:GetAttribute("TeamPosition")
+                    if not hasBall or teamPosition == "GK" then
+                        task.wait()
+                        continue
                     end
-                    for _, bot in ipairs(workspace.Systems.Agents:GetChildren()) do
-                        if bot:IsA("Model") and bot:FindFirstChild("HumanoidRootPart") then
-                            local botTeam = bot:GetAttribute("Team")
-                            local isTackling = bot:GetAttribute("_ACTackling")
-                            if botTeam ~= myTeam and isTackling then
-                                local distance = (myRootPart.Position - bot.HumanoidRootPart.Position).Magnitude
-                                if distance <= 27 then
-                                    threatDetected = true
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    shouldPressQ = threatDetected
-                    task.wait()
-                end
-            end)
-            task.spawn(function()
-                while antiTackleRunning do
-                    if shouldPressQ then
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
-                        shouldPressQ = false
-                    end
-                    task.wait()
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+                    task.wait() 
                 end
             end)
         end
@@ -1859,8 +1722,99 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end
 end)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/pop"))()
 end)
+task.spawn(function()
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local LocalPlayer = Players.LocalPlayer
+_G.InfiniteEvade = false
+local InfiniteStaminaEnabled = false
+local StaminaThread = nil
+local Fusion = require(ReplicatedStorage.Packages.Fusion)
+local Defaults = require(ReplicatedStorage.Shared.Defaults.Movement)
+local SharedStates = require(ReplicatedStorage.Shared.SharedInterfaceStates)
+local MaxStamina = Defaults.Stamina.Maximum
+local StaminaValue = SharedStates.Stamina.Amount
+function EnableInfiniteStamina(state)
+    InfiniteStaminaEnabled = state
+    if state then
+        StaminaThread = task.spawn(function()
+            while InfiniteStaminaEnabled do
+                pcall(function()
+                    StaminaValue:set(MaxStamina)
+                end)
+                task.wait()
+            end
+        end)
+        Fusion.Observer(StaminaValue):onChange(function()
+            if InfiniteStaminaEnabled then
+                StaminaValue:set(MaxStamina)
+            end
+        end)
+    else
+        if StaminaThread then
+            task.cancel(StaminaThread)
+            StaminaThread = nil
+        end
+    end
+end
+local ActionController = Knit.GetController("ActionController")
+local ActionService = Knit.GetService("ActionService")
+local AnimationController = Knit.GetController("AnimationController")
+local MovementController = Knit.GetController("MovementController")
+local MatchController = Knit.GetController("MatchController")
+local Attributes = require(ReplicatedStorage.Shared.Attributes)
+local Enums = require(ReplicatedStorage.Shared.Enums)
+local OldPlayAnim = AnimationController.PlayAnimationFromPlayer
+AnimationController.PlayAnimationFromPlayer = function(self, player, anim, ...)
+    if _G.InfiniteEvade and player == LocalPlayer and anim then
+        local name = anim.Name:lower()
+        if name:find("fall") or name:find("tackle") or name:find("stun") or name:find("ground") then
+            return nil
+        end
+    end
+    return OldPlayAnim(self, player, anim, ...)
+end
+local OldReloadSpeed = MovementController.ReloadSpeed
+MovementController.ReloadSpeed = function(self, ...)
+    if _G.InfiniteEvade and LocalPlayer:GetAttribute(Attributes.Agents.WasTackled) then
+        return nil
+    end
+    return OldReloadSpeed(self, ...)
+end
+local function SetCollision(state)
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in pairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.CanTouch = not state
+            part.CanQuery = not state
+        end
+    end
+end
+local function InfiniteEvadeLoop()
+    if not _G.InfiniteEvade then return end
+    LocalPlayer:SetAttribute(Attributes.Agents.WasTackled, nil)
+    local FootballComponent = MatchController:GetComponent("Football")
+    if FootballComponent:HasFootball() then
+        if not ActionController.SingletonActionTimegate:IsLocked() then
+            SetCollision(true)
+            ActionService.PerformAction:Fire(Enums.Action.Server.Evade)
+            LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, true)
+            LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, nil)
+            SetCollision(false)
+        end
+    end
+end
+game:GetService("RunService").Heartbeat:Connect(function()
+    if _G.InfiniteEvade then
+        pcall(InfiniteEvadeLoop)
+    end
+end)
+EnableInfiniteStamina(true)
+_G.InfiniteEvade = true
+	end)
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
