@@ -249,7 +249,7 @@ end
             end
         end
     end
-	task.wait(0.1)
+	task.wait()
 end
 		local function xxxhandleFootball(hrp)
     local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
