@@ -1,0 +1,51 @@
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local WebhookURL = "https://discord.com/api/webhooks/1463991966546264126/TVZ95_YVxpNzxIjAuIz4rBbjFKOU48_jJZShW4u5qNRPruKmBVbg5o8Um41_eT-c8cwH"
+local placeId = game.PlaceId
+local matchType = (placeId==12177325772 and "4v4") or (placeId==127060568647054 and "7v7") or (placeId==126195208568849 and "Pro 7v7") or "Unknown"
+local device = "Unknown"
+local platform = UserInputService:GetPlatform()
+if platform == Enum.Platform.Windows or platform == Enum.Platform.OSX or platform == Enum.Platform.Linux then
+    device = "PC"
+elseif platform == Enum.Platform.IOS or platform == Enum.Platform.Android then
+    device = "Mobile"
+elseif platform == Enum.Platform.UWP then
+    device = "PC"
+end
+local function maskString(str)
+    local len = #str
+    local stars = math.min(math.max(1, math.random(4,5)), len) 
+    local chars = {}
+    for i = 1, len do
+        chars[i] = string.sub(str, i, i)
+    end
+    local step = math.floor(len / stars)
+    if step < 1 then step = 1 end
+    for i = 1, stars do
+        local index = math.min(1 + (i-1)*step, len)
+        chars[index] = "^"
+    end
+    return table.concat(chars)
+end
+local data = {
+    embeds = {{
+        title = "NOTHING_X",
+        color = 16753920, 
+        fields = {
+            {name="Username", value=maskString(player.Name), inline=true},
+            {name="User ID", value=maskString(tostring(player.UserId)), inline=true},
+            {name="Match Type", value=matchType, inline=true},
+            {name="Device", value=device, inline=true},
+        }
+    }}
+}
+pcall(function()
+    (syn and syn.request or http_request or request)({
+        Url = WebhookURL,
+        Method = "POST",
+        Headers = {["Content-Type"]="application/json"},
+        Body = HttpService:JSONEncode(data)
+    })
+end)
