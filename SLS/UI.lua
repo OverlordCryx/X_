@@ -1318,7 +1318,7 @@ Tabs.keybinds:AddKeybind("AltBind", {
                     ball.AssemblyLinearVelocity = Vector3.new()
                     ball.AssemblyAngularVelocity = Vector3.new()
                 end
-                task.wait(0.05)
+                task.wait(0.1)
             end
         end)
     end
