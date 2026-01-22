@@ -200,7 +200,7 @@ end
             end
         end
     end
-task.wait(0.05)			
+task.wait(0)			
 end
 local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
     Title = "dub",
