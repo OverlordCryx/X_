@@ -46,7 +46,7 @@ while true do
     game:GetService("CoreGui").ScreenGui:GetChildren()[2]:GetChildren()[6]:GetChildren()[2].BackgroundColor3 = ORANGE
     game:GetService("CoreGui").ScreenGui:GetChildren()[2]:GetChildren()[4].Frame.BackgroundColor3 = ORANGE
 
-    game:GetService("CoreGui").ScreenGui:GetChildren()[2]:GetChildren()[6].Frame.TextLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+    game:GetService("CoreGui").ScreenGui:GetChildren()[2]:GetChildren()[6].Frame.TextLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
     game:GetService("CoreGui").ScreenGui:GetChildren()[2]:GetChildren()[6].Frame.TextLabel.TextSize = 18
 
     game:GetService("CoreGui").ScreenGui:GetChildren()[2].Frame:GetChildren()[7].UIStroke.Color = ORANGE
