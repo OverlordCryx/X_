@@ -14,7 +14,7 @@ local allowedTeams = {
 }
 local outsideTimeGK = 0
 local outsideTimePlayer = 0
-local maxOutsideTimeGK = 2.6
+local maxOutsideTimeGK = 2.2
 local maxOutsideTimePlayer = 6.6
 local alreadyTeleported = false
 local function isInside(part, position)
@@ -63,7 +63,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
 				targetCFrame = grass.CFrame + Vector3.new(0, 15, 0)
 			end
 			if targetCFrame then
-				for i = 1, 45 do
+				for i = 1, 40 do
 					hrp.CFrame = targetCFrame
 					task.wait(0.050)
 				end
