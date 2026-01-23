@@ -876,7 +876,7 @@ p.CharacterAdded:Connect(setupChar)
 if p.Character then setupChar(p.Character) end
 local s = Tabs.XXX:AddInput("SpeedInput", {
     Title = "Speed -/+",
-    Description = "",
+    Description = "10-250",
     Default = 80,
     Numeric = true,
     Callback = function(v)
@@ -887,8 +887,8 @@ local s = Tabs.XXX:AddInput("SpeedInput", {
     end
 })
 local vs = Tabs.XXX:AddInput("VerticalInput", {
-    Title = "up|down",
-    Description = "",
+    Title = "up (X)|down (Z)",
+    Description = "10-110",
     Default = 80,
     Numeric = true,
     Callback = function(v)
