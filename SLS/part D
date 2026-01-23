@@ -1,0 +1,15 @@
+local grass = workspace.Stadium.Field.Grass
+local partName = "NOTHING X"
+if not workspace:FindFirstChild(partName) then
+    local part = Instance.new("Part")
+    part.Anchored = true
+    part.Size = Vector3.new(1111, 50, 1111)
+    part.BrickColor = BrickColor.new("Really black")
+    part.Material = Enum.Material.ForceField
+    part.Transparency = 0.5
+    part.CanCollide = true
+    part.Name = partName
+    part.Position = grass.Position - Vector3.new(0, 25.1, 0)
+    part.Parent = workspace
+else
+end
