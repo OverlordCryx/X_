@@ -870,12 +870,37 @@ Tabs.XXX:AddButton({
 })
 end)
 task.spawn(function()
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local Window = Fluent:CreateWindow({
+    Title = "NOTHING_X",
+    SubTitle = "",
+    TabWidth = 30,
+    Size = UDim2.fromOffset(455, 415),
+    Acrylic = false,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.LeftAlt
+})
+local Tabs = {
+    all = Window:AddTab({Title = "", Icon = "list"}),
+        hitbox = Window:AddTab({Title = "", Icon = "box"}),
+                XXX = Window:AddTab({Title = "", Icon = "code"}),
+        XXXV = Window:AddTab({Title = "", Icon = "flag"}),
+    keybinds = Window:AddTab({Title = "", Icon = "keyboard"}),
+		autogol = Window:AddTab({Title = "", Icon = "menu"}),
+    save = Window:AddTab({Title = "", Icon = "save"})
+}
+Window:SelectTab()
 local ks, vma = 80, 80
 local ce = false
 local p = game.Players.LocalPlayer
 local h, hrp
 local uis = game:GetService("UserInputService")
 local ws = game:GetService("Workspace")
+local savedCFrame 
+local bp 
+local controlCoroutine
 local function setupChar(c)
     h = c:WaitForChild("Humanoid")
     hrp = c:WaitForChild("HumanoidRootPart")
@@ -887,43 +912,70 @@ local function setupChar(c)
 end
 p.CharacterAdded:Connect(setupChar)
 if p.Character then setupChar(p.Character) end
-local s = Tabs.XXX:AddSlider("Slider", {
+local s = Tabs.XXX:AddInput("SpeedInput", {
     Title = "Speed -/+",
     Description = "",
     Default = 80,
-    Min = 30,
-    Max = 700,
-    Rounding = 1,
-    Callback = function(v) ks = v end
+    Numeric = true,
+    Callback = function(v)
+        local value = tonumber(v)
+        if value then
+            ks = math.clamp(value, 10, 250)
+        end
+    end
 })
-local vs = Tabs.XXX:AddSlider("VerticalSlider", {
+local vs = Tabs.XXX:AddInput("VerticalInput", {
     Title = "up|down",
     Description = "",
     Default = 80,
-    Min = 30,
-    Max = 600,
-    Rounding = 1,
-    Callback = function(v) vma = v end
+    Numeric = true,
+    Callback = function(v)
+        local value = tonumber(v)
+        if value then
+            vma = math.clamp(value, 10, 110)
+        end
+    end
 })
 local function startControlLoop()
+    if not hrp then return end
+    bp = Instance.new("BodyPosition")
+    bp.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bp.P = 1e4
+    bp.D = 100
+    bp.Position = hrp.Position
+    bp.Parent = hrp
     controlCoroutine = coroutine.create(function()
         while ce do
-            if h then
+            if hrp and bp then
+                bp.Position = savedCFrame.Position 
                 h.WalkSpeed = 0
             end
-            wait(0.01)
+            wait(0.03)
         end
     end)
     coroutine.resume(controlCoroutine)
 end
+local function stopControlLoop()
+    ce = false
+    if bp then
+        bp:Destroy()
+        bp = nil
+    end
+    if h then
+        h.WalkSpeed = 16
+    end
+    savedCFrame = nil
+    controlCoroutine = nil
+end
 local function togControls()
-    ce = not ce
-    if ce then
-        if h then h.WalkSpeed = 0 end
+    if not ce then
+        if hrp then
+            savedCFrame = hrp.CFrame
+        end
+        ce = true
         startControlLoop()
     else
-        if h then h.WalkSpeed = 16 end
-        controlCoroutine = nil
+        stopControlLoop()
     end
 end
 local function getValidFootballs()
