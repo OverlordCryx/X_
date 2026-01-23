@@ -9,57 +9,69 @@ local grass = workspace.Stadium.Field.Grass
 local homeGK = workspace.Stadium.Teams.Home.Positions.GK
 local awayGK = workspace.Stadium.Teams.Away.Positions.GK
 local allowedTeams = {
-    ["Home"] = true,
-    ["Away"] = true
+	["Home"] = true,
+	["Away"] = true
 }
-local outsideTime = 0
-local maxOutsideTime = 6
+local outsideTimeGK = 0
+local outsideTimePlayer = 0
+local maxOutsideTimeGK = 2.6
+local maxOutsideTimePlayer = 6.6
 local alreadyTeleported = false
 local function isInside(part, position)
-    local size = part.Size
-    local cf = part.CFrame
-    local relative = cf:PointToObjectSpace(position)
-    return math.abs(relative.X) <= size.X / 2
-       and math.abs(relative.Y) <= size.Y / 2
-       and math.abs(relative.Z) <= size.Z / 2
+	local size = part.Size
+	local cf = part.CFrame
+	local relative = cf:PointToObjectSpace(position)
+	return math.abs(relative.X) <= size.X / 2
+	and math.abs(relative.Y) <= size.Y / 2
+	and math.abs(relative.Z) <= size.Z / 2
 end
 local function isGK()
-    local teamPos = player:GetAttribute("TeamPosition")
-    return teamPos == "GK"
+	local teamPos = player:GetAttribute("TeamPosition")
+	return teamPos == "GK"
 end
 RunService.Heartbeat:Connect(function(deltaTime)
-    if not player.Character then return end
-    if not player.Team then return end
-    if not allowedTeams[player.Team.Name] then
-        outsideTime = 0
-        alreadyTeleported = false
-        return
-    end
-    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    if not isInside(anti, hrp.Position) then
-        outsideTime += deltaTime
-        if outsideTime >= maxOutsideTime and not alreadyTeleported then
-            alreadyTeleported = true
-            local targetCFrame
-            if isGK() then
-                if player.Team.Name == "Home" then
-                    targetCFrame = homeGK.CFrame + Vector3.new(0, 5.3, 0)
-                elseif player.Team.Name == "Away" then
-                    targetCFrame = awayGK.CFrame + Vector3.new(0, 5.3, 0)
-                end
-            else
-                    targetCFrame = grass.CFrame + Vector3.new(0, 15, 0)
-            end
-            if targetCFrame then
-                for i = 1, 100 do
-                    hrp.CFrame = targetCFrame
-                    task.wait(0.01)
-                end
-            end
-        end
-    else
-        outsideTime = 0
-        alreadyTeleported = false
-    end
+	if not player.Character then return end
+	if not player.Team then return end
+	if not allowedTeams[player.Team.Name] then
+		outsideTimeGK = 0
+		outsideTimePlayer = 0
+		alreadyTeleported = false
+		return
+	end
+	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+	local inside = isInside(anti, hrp.Position)
+	local gk = isGK()
+	if not inside then
+		if gk then
+			outsideTimeGK += deltaTime
+		else
+			outsideTimePlayer += deltaTime
+		end
+		local limit = gk and maxOutsideTimeGK or maxOutsideTimePlayer
+		local currentTime = gk and outsideTimeGK or outsideTimePlayer
+		if currentTime >= limit and not alreadyTeleported then
+			alreadyTeleported = true
+			local targetCFrame
+			if gk then
+				if player.Team.Name == "Home" then
+					targetCFrame = homeGK.CFrame + Vector3.new(0, 5.3, 0)
+				elseif player.Team.Name == "Away" then
+					targetCFrame = awayGK.CFrame + Vector3.new(0, 5.3, 0)
+				end
+			else
+				targetCFrame = grass.CFrame + Vector3.new(0, 15, 0)
+			end
+			if targetCFrame then
+				for i = 1, 45 do
+					hrp.CFrame = targetCFrame
+					task.wait(0.050)
+				end
+			end
+		end
+	else
+		outsideTimeGK = 0
+		outsideTimePlayer = 0
+		alreadyTeleported = false
+	end
 end)
