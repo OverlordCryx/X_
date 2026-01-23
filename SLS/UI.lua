@@ -839,28 +839,6 @@ Tabs.XXX:AddButton({
 })
 end)
 task.spawn(function()
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Window = Fluent:CreateWindow({
-    Title = "NOTHING_X",
-    SubTitle = "",
-    TabWidth = 30,
-    Size = UDim2.fromOffset(455, 415),
-    Acrylic = false,
-    Theme = "Darker",
-    MinimizeKey = Enum.KeyCode.LeftAlt
-})
-local Tabs = {
-    all = Window:AddTab({Title = "", Icon = "list"}),
-        hitbox = Window:AddTab({Title = "", Icon = "box"}),
-                XXX = Window:AddTab({Title = "", Icon = "code"}),
-        XXXV = Window:AddTab({Title = "", Icon = "flag"}),
-    keybinds = Window:AddTab({Title = "", Icon = "keyboard"}),
-		autogol = Window:AddTab({Title = "", Icon = "menu"}),
-    save = Window:AddTab({Title = "", Icon = "save"})
-}
-Window:SelectTab()
 local ks, vma = 80, 80
 local ce = false
 local p = game.Players.LocalPlayer
