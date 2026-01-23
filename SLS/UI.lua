@@ -658,6 +658,18 @@ local mct = Tabs.all:AddToggle("MoveCharacterToggle", {
         end
     end
 })
+local mctX = Tabs.all:AddToggle("MoveBX", { 
+    Title = "Delete Barriers X", 
+    Default = false,
+    Callback = function(value)
+        local barriersFolder = workspace.Stadium.Field.Barriers
+        for _, obj in ipairs(barriersFolder:GetChildren()) do
+            if obj.Name == "Character" and obj:IsA("BasePart") then
+                obj.CanCollide = not value
+            end
+        end
+    end
+})
 local alw = Tabs.all:AddToggle("TackledToggle", { Title = "Tackled Anti Stay", Default = false })
 local ft = Tabs.all:AddToggle("FreezeToggle", { Title = "Disable Freeze", Default = false })
 local cuat = Tabs.all:AddToggle("CanUseAbilitiesToggle", { Title = "Enable Controls", Default = false })
