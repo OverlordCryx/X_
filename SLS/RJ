@@ -3,18 +3,24 @@ local TeleportService = game:GetService("TeleportService")
 local GuiService = game:GetService("GuiService")
 local player = Players.LocalPlayer
 local placeId = game.PlaceId
+local targetServerId = game.JobId
 local rejoining = false
 local function rejoin()
-	if rejoining then return end
-	rejoining = true
-	task.wait()
-	TeleportService:Teleport(placeId, player)
+    if rejoining then return end
+    rejoining = true
+    if targetServerId then
+        player:Kick("| NOTHING X    |ANTI KICK|     Rejoin Server |")
+        wait(2.3)
+        TeleportService:TeleportToPlaceInstance(placeId, targetServerId, player)
+    end
 end
+warn("> Server ID:", targetServerId)
+warn("> NOTHING X")
 GuiService.ErrorMessageChanged:Connect(function()
-	rejoin()
+    rejoin()
 end)
 player.OnTeleport:Connect(function(state)
-	if state == Enum.TeleportState.Failed then
-		rejoin()
-	end
+    if state == Enum.TeleportState.Failed then
+        rejoin()
+    end
 end)
