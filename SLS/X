@@ -10,7 +10,6 @@ if coreGui:FindFirstChild("ScreenGui") then
 end
 task.spawn(function()
 loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/SLS/DC"))()
-loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/SLS/DC-PB"))()
 end)
 task.spawn(function()
 loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/SLS/UI.lua"))()
