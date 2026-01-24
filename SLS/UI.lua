@@ -88,14 +88,17 @@ local function teleportFootball(football)
 end
 
 local function TPTowardPlayer()
+    local teamPos = LocalPlayer:GetAttribute("TeamPosition") 
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
     if not (char and hrp and football) then return end
-    football.Position = hrp.Position + Vector3.new(0, 0, 0)
+    football.Position = hrp.Position
     football.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
     football.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-    hrp.CFrame = CFrame.new(football.Position + Vector3.new(0, 0, 0))
+    if teamPos ~= "GK" then
+        hrp.CFrame = CFrame.new(football.Position)
+    end
 end
 local function MID()
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -138,7 +141,7 @@ local function handleFootball(hrp)
     local footballPos = football.Position
     if owner ~= LocalPlayer.Name then
         if teamPos ~= "GK" then
-            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0.5, 0))
+            hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0, 0))
         end
         Xfootball.Position = hrpPos
         Xfootball.AssemblyLinearVelocity = Vector3.zero
