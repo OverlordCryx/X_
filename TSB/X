@@ -128,7 +128,7 @@ task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
 end)
 local speaker = game.Players.LocalPlayer
-local speed = 22
+local speed = 25
 local jpower = 50
 local HumanModCons = {}
 local function SetupWalkSpeed(Char, Human)
@@ -327,9 +327,10 @@ local function getClosestTrashCan()
 	return closest
 end
 local function click()
+			if not hasTrash() then
 	vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-	task.wait(0.03)
 	vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+	end
 end
 local function useTrashCan()
 	if debounce then return end
@@ -340,22 +341,18 @@ local function useTrashCan()
 	end
 	local savedCFrame = hrp.CFrame
 	local tries = 0
-	local maxTries = 20
+	local maxTries = 45
 	while tries < maxTries and running do
 		if hasTrash() then break end
 		local trash = getClosestTrashCan()
 		if trash then
-			            for i = 1, 7 do
                 hrp.CFrame = trash:GetModelCFrame() * CFrame.new(0, 0, 0)
-                wait()
-            end
-			task.wait(0.05)
+					task.wait()
 			if not hasTrash() then
 				click()
 			end
 		end
 		tries += 1
-		task.wait(0.08)
 	end
 	if hrp then
 		hrp.CFrame = savedCFrame
@@ -377,7 +374,7 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
 			task.spawn(function()
 				while running do
 					useTrashCan()
-					task.wait(0.1)
+					task.wait()
 				end
 			end)
 		else
