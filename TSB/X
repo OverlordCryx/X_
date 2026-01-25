@@ -1,0 +1,390 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local Window = Fluent:CreateWindow({
+    Title = "NOTHING_X",
+    SubTitle = "",
+    TabWidth = 0,
+    Size = UDim2.fromOffset(333, 300),
+    Acrylic = false,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.LeftAlt
+})
+local Tabs = {
+    XXX = Window:AddTab({Title = "", Icon = ""}),
+}
+Window:SelectTab()
+local speaker = game.Players.LocalPlayer
+local speed = 22
+local jpower = 50
+local HumanModCons = {}
+local function SetupWalkSpeed(Char, Human)
+    local function WalkSpeedChange()
+        if Char and Human then
+            Human.WalkSpeed = speed
+        end
+    end
+    WalkSpeedChange() 
+    HumanModCons.wsLoop = (HumanModCons.wsLoop and HumanModCons.wsLoop:Disconnect() and false) or nil
+    HumanModCons.wsCA = (HumanModCons.wsCA and HumanModCons.wsCA:Disconnect() and false) or nil
+    HumanModCons.wsLoop = Human:GetPropertyChangedSignal("WalkSpeed"):Connect(WalkSpeedChange)
+    HumanModCons.wsCA = speaker.CharacterAdded:Connect(function(nChar)
+        Char, Human = nChar, nChar:WaitForChild("Humanoid")
+        SetupWalkSpeed(Char, Human) 
+    end)
+end
+local function SetupJumpPower(Char, Human)
+    local function JumpPowerChange()
+        if Char and Human then
+            if Human.UseJumpPower then
+                Human.JumpPower = jpower
+            else
+                Human.JumpHeight = jpower
+            end
+        end
+    end
+    JumpPowerChange() 
+    HumanModCons.jpLoop = (HumanModCons.jpLoop and HumanModCons.jpLoop:Disconnect() and false) or nil
+    HumanModCons.jpCA = (HumanModCons.jpCA and HumanModCons.jpCA:Disconnect() and false) or nil
+    HumanModCons.jpLoop = Human:GetPropertyChangedSignal(Human.UseJumpPower and "JumpPower" or "JumpHeight"):Connect(JumpPowerChange)
+    HumanModCons.jpCA = speaker.CharacterAdded:Connect(function(nChar)
+        Char, Human = nChar, nChar:WaitForChild("Humanoid")
+        SetupJumpPower(Char, Human) 
+    end)
+end
+if speaker.Character and speaker.Character:FindFirstChildWhichIsA("Humanoid") then
+    local Char = speaker.Character
+    local Human = Char:FindFirstChildWhichIsA("Humanoid")
+    SetupWalkSpeed(Char, Human)
+    SetupJumpPower(Char, Human)
+end
+speaker.CharacterAdded:Connect(function(Char)
+    local Human = Char:WaitForChild("Humanoid")
+    SetupWalkSpeed(Char, Human)
+    SetupJumpPower(Char, Human)
+end)
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local holdingWKey = false
+local holdingSKey = false
+local holdingAKey = false
+local holdingDKey = false
+local Speed = 1
+local state = {
+    active = false,
+    heartbeat = nil,
+    statusParagraph = nil,
+    inputBeganConnection = nil,
+    inputEndedConnection = nil
+}
+local function updateMovement()
+    if not state.active then return end
+    local moveVector = Vector3.new(0, 0, 0)
+    if holdingWKey then
+        moveVector = moveVector + Vector3.new(0, 0, -Speed)
+    end
+    if holdingSKey then
+        moveVector = moveVector + Vector3.new(0, 0, Speed)
+    end
+    if holdingAKey then
+        moveVector = moveVector + Vector3.new(-Speed, 0, 0)
+    end
+    if holdingDKey then
+        moveVector = moveVector + Vector3.new(Speed, 0, 0)
+    end
+    if moveVector.Magnitude > 0 then
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = hrp.CFrame * CFrame.new(moveVector)
+        end
+    end
+end
+state.toggle = function()
+    state.active = not state.active
+    if state.statusParagraph then
+        state.statusParagraph:SetTitle(state.active and "ON" or "OFF")
+    end
+    if state.active then
+        if not state.heartbeat then
+            state.heartbeat = RunService.Heartbeat:Connect(updateMovement)
+        end
+    else
+        if state.heartbeat then
+            state.heartbeat:Disconnect()
+            state.heartbeat = nil
+        end
+    end
+end
+state.cleanup = function()
+    if state.heartbeat then
+        state.heartbeat:Disconnect()
+        state.heartbeat = nil
+    end
+    if state.inputBeganConnection then
+        state.inputBeganConnection:Disconnect()
+        state.inputBeganConnection = nil
+    end
+    if state.inputEndedConnection then
+        state.inputEndedConnection:Disconnect()
+        state.inputEndedConnection = nil
+    end
+    if state.statusParagraph then
+        state.statusParagraph:Destroy()
+        state.statusParagraph = nil
+    end
+    state.active = false
+end
+Tabs.XXX:AddKeybind("SpeedToggle", {
+    Title = "Speed",
+    Mode = "Toggle",
+    Default = "E",
+    Callback = function()
+        state.toggle()
+    end
+})
+Tabs.XXX:AddSlider("SpeedSlider", {
+    Title = "Speed +/-",
+    Default = Speed,
+    Min = 0.1,
+    Max = 3,
+    Rounding = 1.1,
+    Callback = function(value)
+        Speed = value
+    end
+})
+if not state.statusParagraph then
+    state.statusParagraph = Tabs.XXX:AddParagraph({
+        Title = "OFF",
+        Content = ""
+    })
+end
+state.inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    local key = input.KeyCode
+    if key == Enum.KeyCode.W then holdingWKey = true
+    elseif key == Enum.KeyCode.S then holdingSKey = true
+    elseif key == Enum.KeyCode.A then holdingAKey = true
+    elseif key == Enum.KeyCode.D then holdingDKey = true
+    end
+end)
+state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+    local key = input.KeyCode
+    if key == Enum.KeyCode.W then holdingWKey = false
+    elseif key == Enum.KeyCode.S then holdingSKey = false
+    elseif key == Enum.KeyCode.A then holdingAKey = false
+    elseif key == Enum.KeyCode.D then holdingDKey = false
+    end
+end)
+local player = game.Players.LocalPlayer
+local vim = game:GetService("VirtualInputManager")
+local character
+local hrp
+local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
+local running = false
+local debounce = false
+local function setupCharacter(char)
+	character = char
+	hrp = character:WaitForChild("HumanoidRootPart")
+end
+if player.Character then
+	setupCharacter(player.Character)
+end
+player.CharacterAdded:Connect(function(char)
+	task.wait(1)
+	setupCharacter(char)
+end)
+local function hasTrash()
+	local value = character:GetAttribute("HasTrashcan")
+	return value and value ~= ""
+end
+local function getClosestTrashCan()
+	local closest
+	local shortest = math.huge
+	for _, model in ipairs(trashFolder:GetChildren()) do
+		if model.Name == "Trashcan" and not model:GetAttribute("Broken") then
+			local dist = (hrp.Position - model:GetModelCFrame().Position).Magnitude
+			if dist < shortest then
+				shortest = dist
+				closest = model
+			end
+		end
+	end
+	return closest
+end
+local function click()
+	vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+	task.wait(0.03)
+	vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+end
+local function useTrashCan()
+	if debounce then return end
+	debounce = true
+	if hasTrash() then
+		debounce = false
+		return
+	end
+	local savedCFrame = hrp.CFrame
+	local tries = 0
+	local maxTries = 20
+	while tries < maxTries and running do
+		if hasTrash() then break end
+		local trash = getClosestTrashCan()
+		if trash then
+			            for i = 1, 7 do
+                hrp.CFrame = trash:GetModelCFrame() * CFrame.new(0, 0, 0)
+                wait()
+            end
+			task.wait(0.05)
+			if not hasTrash() then
+				click()
+			end
+		end
+		tries += 1
+		task.wait(0.08)
+	end
+	if hrp then
+		hrp.CFrame = savedCFrame
+	end
+	debounce = false
+end
+Tabs.XXX:AddKeybind("TrashKeybind", {
+	Title = "Get Trash Can",
+	Mode = "Toggle",
+	Default = "LeftControl",
+	Callback = function(state)
+		running = state
+		if state then
+			Fluent:Notify({
+				Title = "X_^",
+				Content = "AUTO TRASH ON",
+				Duration = 3
+			})
+			task.spawn(function()
+				while running do
+					useTrashCan()
+					task.wait(0.1)
+				end
+			end)
+		else
+			Fluent:Notify({
+				Title = "X_^",
+				Content = "AUTO TRASH OFF",
+				Duration = 3
+			})
+		end
+	end
+})
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace        = game:GetService("Workspace")
+local LocalPlayer      = Players.LocalPlayer
+local Camera           = Workspace.CurrentCamera
+local CamlockEnabled   = false
+local Prediction       = 0.135
+local FOV              = 150
+local CamlockTarget    = nil
+local function IsAlive(character)
+    if not character then return false end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+local function GetClosestTarget()
+    local closestDistance = math.huge
+    local screenCenter    = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local nearest         = nil
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            local hum  = player.Character:FindFirstChild("Humanoid")
+            if root and hum and hum.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if dist < closestDistance and dist <= FOV then
+                        closestDistance = dist
+                        nearest = root
+                    end
+                end
+            end
+        end
+    end
+    local live = Workspace:FindFirstChild("Live")
+    if live then
+        local dummy = live:FindFirstChild("Weakest Dummy")
+        if dummy and dummy:FindFirstChild("HumanoidRootPart") then
+            local root = dummy.HumanoidRootPart
+            local hum  = dummy:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if dist < closestDistance and dist <= FOV then
+                        nearest = root
+                    end
+                end
+            end
+        end
+    end
+    return nearest
+end
+RunService.RenderStepped:Connect(function()
+    if not CamlockEnabled then
+        CamlockTarget = nil
+        return
+    end
+    if not IsAlive(LocalPlayer.Character) then
+        CamlockEnabled = false
+        CamlockTarget = nil
+        Fluent:Notify({
+            Title = "X_^",
+            Content = "Cam Lock: OFF (you died)",
+            Duration = 4
+        })
+        return
+    end
+    if CamlockTarget and (not CamlockTarget.Parent or not CamlockTarget:IsDescendantOf(Workspace)) then
+        CamlockTarget = nil
+    end
+    if CamlockTarget and not IsAlive(CamlockTarget.Parent) then
+        CamlockTarget = nil
+    end
+    if not CamlockTarget then
+        CamlockTarget = GetClosestTarget()
+    end
+    if CamlockTarget then
+        local targetPos = CamlockTarget.Position + (CamlockTarget.AssemblyLinearVelocity * Prediction)
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+    end
+end)
+Tabs.XXX:AddKeybind("camKeybind", {
+    Title = "Lock Cam",
+    Mode = "Toggle",
+    Default = "Z",           
+    Callback = function(value)    
+        if value and not IsAlive(LocalPlayer.Character) then
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "Cannot enable Cam Lock - you are dead",
+                Duration = 3
+            })
+            return
+        end
+        CamlockEnabled = value
+        if value then
+            CamlockTarget = GetClosestTarget()
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "Cam Lock: ON",
+                Duration = 3
+            })
+        else
+            CamlockTarget = nil
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "Cam Lock: OFF",
+                Duration = 3
+            })
+        end
+    end
+})
