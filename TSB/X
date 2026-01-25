@@ -15,6 +15,7 @@ Window:SelectTab()
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
 end)
+task.spawn(function()
 local speaker = game.Players.LocalPlayer
 local speed = 25
 local jpower = 50
@@ -64,6 +65,8 @@ speaker.CharacterAdded:Connect(function(Char)
     SetupWalkSpeed(Char, Human)
     SetupJumpPower(Char, Human)
 end)
+end)
+task.spawn(function()
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -178,6 +181,8 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
+end)
+task.spawn(function()
 local player = game.Players.LocalPlayer
 local vim = game:GetService("VirtualInputManager")
 local character
@@ -274,6 +279,8 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
         end
     end
 })
+end)
+task.spawn(function()
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -388,6 +395,8 @@ Tabs.XXX:AddKeybind("camKeybind", {
         end
     end
 })
+end)
+task.spawn(function()
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -479,6 +488,8 @@ Toggle:OnChanged(function(value)
         end
     end
 end)
+end)
+task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
@@ -501,6 +512,14 @@ RunService.RenderStepped:Connect(function()
                         and workspace.Cutscenes["Death Cutscene"]:FindFirstChild("Camm")
         if deathCam and cam.CameraSubject == deathCam then
             checking = true
+if running then
+    running = false
+end
+if CamlockEnabled then
+    CamlockEnabled = false
+    CamlockTarget = nil
+end
+
             if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 local hrp = player.Character.HumanoidRootPart
                 local originalCFrame = hrp.CFrame
@@ -516,6 +535,8 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+end)
+task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
@@ -593,7 +614,7 @@ local function CheckForDeathCounter()
             if not LastNotified[player] or (now - LastNotified[player] > NOTIFICATION_COOLDOWN) then
                 LastNotified[player] = now
                 CreateHighlight(char)
-                SendNotification("Death Counter", player.Name .. " used Death Counter!", 2.8)
+                SendNotification("Death Counter", player.Name .. " used Death Counter", 2.8)
                 task.delay(13, function()
                     if char and char.Parent then
                         RemoveHighlight(char)
@@ -614,4 +635,5 @@ LocalPlayer.CharacterAdded:Connect(function()
     task.wait()
     Highlights = {}
     LastNotified = {}
+end)
 end)
