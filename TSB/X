@@ -542,7 +542,7 @@ end
 Tabs.XXX:AddKeybind("WalkFlingKeybind", {
     Title = "Walk Fling",
     Mode = "Toggle",
-    Default = "E",
+    Default = "X",
     Callback = toggleWalkFling
 })
 Tabs.XXX:AddInput("WalkPowerInput", {
