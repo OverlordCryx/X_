@@ -12,6 +12,9 @@ local Tabs = {
     XXX = Window:AddTab({Title = "", Icon = ""}),
 }
 Window:SelectTab()
+task.spawn(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
+end)
 local speaker = game.Players.LocalPlayer
 local speed = 22
 local jpower = 50
