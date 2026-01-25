@@ -1,115 +1,116 @@
-local Players           = game:GetService("Players")
-local RunService        = game:GetService("RunService")
-local StarterGui        = game:GetService("StarterGui")
-local LocalPlayer       = Players.LocalPlayer
-local DETECTION_RANGE   = 45       
-local SHOW_HIGHLIGHT    = true      
-local NOTIFY_DURATION   = 1.8       
-local DEATH_COUNTER_ANIMATION = "rbxassetid://11343250001"   
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local StarterGui  = game:GetService("StarterGui")
+local Debris      = game:GetService("Debris")
+local LocalPlayer = Players.LocalPlayer
+local DETECTION_RANGE = 45
+local SHOW_HIGHLIGHT = true
+local NOTIFY_DURATION = 1.8
+local DEATH_COUNTER_ANIMATION = "rbxassetid://11343250001"
+local running = false
+local bypassCooldown = false
+local activeDC = {}
 local function sendNotification(title, text, duration)
     StarterGui:SetCore("SendNotification", {
-        Title = title or "Death Counter",
-        Text = text,
-        Duration = duration or 2.5
+        Title = title or "System",
+        Text = text or "",
+        Duration = duration or 2
     })
 end
 local function createHighlight(character, color)
     if not character then return end
+    if character:FindFirstChild("DeathCounterHighlight") then
+        character.DeathCounterHighlight:Destroy()
+    end
     local highlight = Instance.new("Highlight")
     highlight.Name = "DeathCounterHighlight"
-    highlight.FillColor = color or Color3.fromRGB(255, 40, 40)
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillColor = color or Color3.fromRGB(255,40,40)
+    highlight.OutlineColor = Color3.fromRGB(255,255,255)
     highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 0
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = character
-    game:GetService("Debris"):AddItem(highlight, 12)   
+    Debris:AddItem(highlight, 10)
+end
+local function removeHighlight(character)
+    if character and character:FindFirstChild("DeathCounterHighlight") then
+        character.DeathCounterHighlight:Destroy()
+    end
 end
 local function checkForDeathCounter()
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
-        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then continue end
-        local backpack = player:FindFirstChild("Backpack")
-        if not backpack then continue end
-        local deathCounterTool = backpack:FindFirstChild("Death Counter")
-        if not deathCounterTool then continue end
-        if deathCounterTool.Parent == backpack then continue end
-        task.wait(0.18) 
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
-        local humanoid = player.Character:FindFirstChild("Humanoid")
+        local char = player.Character
+        if not char then continue end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChild("Humanoid")
         if not root or not humanoid then continue end
-        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not myRoot then continue end
-        if (myRoot.Position - root.Position).Magnitude > DETECTION_RANGE then
-            continue
-        end
-        local wasBlocked = false
+        if (myRoot.Position - root.Position).Magnitude > DETECTION_RANGE then continue end
+        local isDCActive = false
         for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            if track.Animation and (
-                track.Animation.AnimationId == "rbxassetid://12983333733" or
-                track.Animation.AnimationId == "rbxassetid://11365563255" or
-                track.Animation.AnimationId == "rbxassetid://13927612951"
-            ) then
-                wasBlocked = true
+            if track.Animation and track.Animation.AnimationId == DEATH_COUNTER_ANIMATION then
+                isDCActive = true
                 break
             end
         end
-        if not wasBlocked then
-            if SHOW_HIGHLIGHT then
-                createHighlight(player.Character, Color3.fromRGB(220, 20, 20))
-            end
-            sendNotification("Death Counter", player.Name .. " used Death Counter!", NOTIFY_DURATION)
-            task.delay(10.2, function()
-                if player.Character then
-                    sendNotification("Death Counter", player.Name .. "'s Death Counter has ended", 2.2)
-                end
-            end)
+        if isDCActive and not activeDC[player] then
+            activeDC[player] = true
+            if SHOW_HIGHLIGHT then createHighlight(char, Color3.fromRGB(220,20,20)) end
+            sendNotification("Death Counter", player.Name .. " activated Death Counter!", NOTIFY_DURATION)
+        end
+        if not isDCActive and activeDC[player] then
+            activeDC[player] = nil
+            removeHighlight(char)
+            sendNotification("Death Counter", player.Name .. "'s Death Counter ended!", NOTIFY_DURATION)
         end
     end
 end
 local function tryBypassDeathCounter()
+    if not running then return end
+    if bypassCooldown then return end
+    bypassCooldown = true
     local character = LocalPlayer.Character
     if not character then return end
     local root = character:FindFirstChild("HumanoidRootPart")
     local humanoid = character:FindFirstChild("Humanoid")
-    if not root or not humanoid then return end
-    local originalCFrame = root.CFrame
-    sendNotification("Anti DC", "Trying to bypass Death Counter...", 2.8)
-    task.wait(1.4)
+    if not root or not humanoid then bypassCooldown = false return end
+    sendNotification("Anti DC", "Trying Death Counter bypass...", 2)
+    local oldCFrame = root.CFrame
     pcall(function()
-        root.CFrame = CFrame.new(-91234, -420, -56789)
+        root.CFrame = CFrame.new(999999, -500, 999999)
     end)
-    local voidFloor = Instance.new("Part")
-    voidFloor.Name = "VoidFloor"
-    voidFloor.Size = Vector3.new(2048, 4, 2048)
-    voidFloor.Position = Vector3.new(root.Position.X, workspace.FallenPartsDestroyHeight + 2, root.Position.Z)
-    voidFloor.Anchored = true
-    voidFloor.Transparency = 1
-    voidFloor.CanCollide = false
-    voidFloor.Parent = workspace
-    task.wait(2.8)
     pcall(function()
-        root.CFrame = originalCFrame
+        root.CFrame = oldCFrame
     end)
-    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
     workspace.CurrentCamera.CameraSubject = humanoid
-    sendNotification("Anti DC", "Bypass attempt finished", 2)
+    sendNotification("Anti DC", "Bypass finished", 2)
+    task.delay(6, function()
+        bypassCooldown = false
+    end)
 end
-RunService.Heartbeat:Connect(checkForDeathCounter)
-local function setupAntiDC(char)
-    local humanoid = char:WaitForChild("Humanoid", 8)
+local function setupCharacter(char)
+    local humanoid = char:WaitForChild("Humanoid", 10)
     if not humanoid then return end
     humanoid.AnimationPlayed:Connect(function(track)
-        if track.Animation.AnimationId == DEATH_COUNTER_ANIMATION then
+        if track.Animation and track.Animation.AnimationId == DEATH_COUNTER_ANIMATION then
             task.spawn(tryBypassDeathCounter)
         end
     end)
 end
-if LocalPlayer.Character then
-    setupAntiDC(LocalPlayer.Character)
-end
-LocalPlayer.CharacterAdded:Connect(setupAntiDC)
-sendNotification("Loaded", "Death Counter Notifier", 4.5)
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0)
+    end)
+end)
+if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
+RunService.Heartbeat:Connect(function()
+    if running then
+        checkForDeathCounter()
+    end
+end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
@@ -360,31 +361,39 @@ local function useTrashCan()
 	debounce = false
 end
 Tabs.XXX:AddKeybind("TrashKeybind", {
-	Title = "Get Trash Can",
-	Mode = "Toggle",
-	Default = "LeftControl",
-	Callback = function(state)
-		running = state
-		if state then
-			Fluent:Notify({
-				Title = "X_^",
-				Content = "AUTO TRASH ON",
-				Duration = 3
-			})
-			task.spawn(function()
-				while running do
-					useTrashCan()
-					task.wait()
-				end
-			end)
-		else
-			Fluent:Notify({
-				Title = "X_^",
-				Content = "AUTO TRASH OFF",
-				Duration = 3
-			})
-		end
-	end
+    Title = "Get Trash Can",
+    Mode = "Toggle",
+    Default = "LeftControl",
+
+    Callback = function(state)
+
+        running = state
+
+        if state then
+
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "AUTO TRASH ON",
+                Duration = 3
+            })
+
+            task.spawn(function()
+                while running do
+                    useTrashCan()
+                    task.wait()
+                end
+            end)
+
+        else
+
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "AUTO TRASH OFF",
+                Duration = 3
+            })
+
+        end
+    end
 })
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
