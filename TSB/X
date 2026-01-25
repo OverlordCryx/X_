@@ -115,7 +115,7 @@ local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
     SubTitle = "",
     TabWidth = 0,
-    Size = UDim2.fromOffset(333, 300),
+    Size = UDim2.fromOffset(333, 430),
     Acrylic = false,
     Theme = "Darker",
     MinimizeKey = Enum.KeyCode.LeftAlt
@@ -503,3 +503,94 @@ Tabs.XXX:AddKeybind("camKeybind", {
         end
     end
 })
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+local walkFlingEnabled = false
+local walkPower = 100
+local character, humanoidRootPart
+local function updateCharacter(newCharacter)
+    character = newCharacter
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+end
+if localPlayer.Character then
+    updateCharacter(localPlayer.Character)
+end
+localPlayer.CharacterAdded:Connect(updateCharacter)
+local function getRoot(char)
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+local function toggleWalkFling()
+    walkFlingEnabled = not walkFlingEnabled
+    Fluent:Notify({
+        Title = "X_^",
+        Content = "Walk Fling: " .. (walkFlingEnabled and "ON" or "OFF"),
+        Duration = 3
+    })
+    if not walkFlingEnabled then return end
+    local root = getRoot(character)
+    local vel, movel = nil, 0.1
+    while walkFlingEnabled and character and character.Parent and root and root.Parent do
+        vel = root.Velocity
+        root.Velocity = vel * walkPower + Vector3.new(0, walkPower, 0)
+        RunService.RenderStepped:Wait()
+        root.Velocity = vel
+        RunService.Stepped:Wait()
+        root.Velocity = vel + Vector3.new(0, movel, 0)
+        movel = movel * -1
+        RunService.Heartbeat:Wait()
+    end
+end
+Tabs.XXX:AddKeybind("WalkFlingKeybind", {
+    Title = "Walk Fling",
+    Mode = "Toggle",
+    Default = "E",
+    Callback = toggleWalkFling
+})
+Tabs.XXX:AddInput("WalkPowerInput", {
+    Title = "",
+    Default = tostring(walkPower),
+    Placeholder = "Enter Walk Power",
+    Numeric = true,
+    Callback = function(value)
+        walkPower = tonumber(value) or walkPower
+    end
+})
+local Toggle = Tabs.XXX:AddToggle("antiflingtog", {Title = "Anti Fling", Default = false})
+local connection
+Toggle:OnChanged(function(value)
+    if value then
+        connection = RunService.Stepped:Connect(function()
+            local localCharacter = localPlayer.Character
+            if not localCharacter or not localCharacter.PrimaryPart then return end
+            local localPosition = localCharacter.PrimaryPart.Position
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= localPlayer and player.Character and player.Character.PrimaryPart then
+                    local distance = (player.Character.PrimaryPart.Position - localPosition).Magnitude
+                    if distance <= 20 then
+                        for _, v in pairs(player.Character:GetDescendants()) do
+                            if v:IsA("BasePart") then
+                                v.CanCollide = false
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    else
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= localPlayer and player.Character then
+                for _, v in pairs(player.Character:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.CanCollide = true
+                    end
+                end
+            end
+        end
+    end
+end)
