@@ -1,116 +1,4 @@
-local Players     = game:GetService("Players")
-local RunService  = game:GetService("RunService")
-local StarterGui  = game:GetService("StarterGui")
-local Debris      = game:GetService("Debris")
-local LocalPlayer = Players.LocalPlayer
-local DETECTION_RANGE = 45
-local SHOW_HIGHLIGHT = true
-local NOTIFY_DURATION = 1.8
-local DEATH_COUNTER_ANIMATION = "rbxassetid://11343250001"
-local running = false
-local bypassCooldown = false
-local activeDC = {}
-local function sendNotification(title, text, duration)
-    StarterGui:SetCore("SendNotification", {
-        Title = title or "System",
-        Text = text or "",
-        Duration = duration or 2
-    })
-end
-local function createHighlight(character, color)
-    if not character then return end
-    if character:FindFirstChild("DeathCounterHighlight") then
-        character.DeathCounterHighlight:Destroy()
-    end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "DeathCounterHighlight"
-    highlight.FillColor = color or Color3.fromRGB(255,40,40)
-    highlight.OutlineColor = Color3.fromRGB(255,255,255)
-    highlight.FillTransparency = 0.7
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = character
-    Debris:AddItem(highlight, 10)
-end
-local function removeHighlight(character)
-    if character and character:FindFirstChild("DeathCounterHighlight") then
-        character.DeathCounterHighlight:Destroy()
-    end
-end
-local function checkForDeathCounter()
-    local myChar = LocalPlayer.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local char = player.Character
-        if not char then continue end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local humanoid = char:FindFirstChild("Humanoid")
-        if not root or not humanoid then continue end
-        if (myRoot.Position - root.Position).Magnitude > DETECTION_RANGE then continue end
-        local isDCActive = false
-        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            if track.Animation and track.Animation.AnimationId == DEATH_COUNTER_ANIMATION then
-                isDCActive = true
-                break
-            end
-        end
-        if isDCActive and not activeDC[player] then
-            activeDC[player] = true
-            if SHOW_HIGHLIGHT then createHighlight(char, Color3.fromRGB(220,20,20)) end
-            sendNotification("Death Counter", player.Name .. " activated Death Counter!", NOTIFY_DURATION)
-        end
-        if not isDCActive and activeDC[player] then
-            activeDC[player] = nil
-            removeHighlight(char)
-            sendNotification("Death Counter", player.Name .. "'s Death Counter ended!", NOTIFY_DURATION)
-        end
-    end
-end
-local function tryBypassDeathCounter()
-    if not running then return end
-    if bypassCooldown then return end
-    bypassCooldown = true
-    local character = LocalPlayer.Character
-    if not character then return end
-    local root = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not root or not humanoid then bypassCooldown = false return end
-    sendNotification("Anti DC", "Trying Death Counter bypass...", 2)
-    local oldCFrame = root.CFrame
-    pcall(function()
-        root.CFrame = CFrame.new(999999, -500, 999999)
-    end)
-    pcall(function()
-        root.CFrame = oldCFrame
-    end)
-    workspace.CurrentCamera.CameraSubject = humanoid
-    sendNotification("Anti DC", "Bypass finished", 2)
-    task.delay(6, function()
-        bypassCooldown = false
-    end)
-end
-local function setupCharacter(char)
-    local humanoid = char:WaitForChild("Humanoid", 10)
-    if not humanoid then return end
-    humanoid.AnimationPlayed:Connect(function(track)
-        if track.Animation and track.Animation.AnimationId == DEATH_COUNTER_ANIMATION then
-            task.spawn(tryBypassDeathCounter)
-        end
-    end)
-end
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        task.wait(0)
-    end)
-end)
-if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
-LocalPlayer.CharacterAdded:Connect(setupCharacter)
-RunService.Heartbeat:Connect(function()
-    if running then
-        checkForDeathCounter()
-    end
-end)
+
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
@@ -600,3 +488,128 @@ Toggle:OnChanged(function(value)
         end
     end
 end)
+local Players       = game:GetService("Players")
+local RunService    = game:GetService("RunService")
+local StarterGui    = game:GetService("StarterGui")
+local LocalPlayer   = Players.LocalPlayer
+local DEATH_COUNTER_NAME = "Death Counter"
+local DEATH_COUNTER_ANIM = "rbxassetid://11343250001"   
+local ESP_COLOR = Color3.fromRGB(255, 140, 0)          
+local ESP_DURATION = 8                                  
+local highlights = {}    
+local function notify(title, text, time)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = time or 3
+    })
+end
+local function createESP(character)
+    if highlights[character] then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "DeathCounterESP"
+    hl.FillColor       = ESP_COLOR
+    hl.OutlineColor    = Color3.fromRGB(255, 200, 80)
+    hl.FillTransparency   = 0.35
+    hl.OutlineTransparency = 0.1
+    hl.DepthMode       = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee         = character
+    hl.Parent          = character
+    highlights[character] = hl
+    task.delay(ESP_DURATION, function()
+        if hl and hl.Parent then
+            hl:Destroy()
+        end
+        highlights[character] = nil
+    end)
+end
+local function removeESP(character)
+    local hl = highlights[character]
+    if hl then
+        hl:Destroy()
+        highlights[character] = nil
+    end
+end
+local function checkDeathCounter()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        local char = plr.Character
+        if not char then continue end
+        local backpack = plr:FindFirstChild("Backpack")
+        if not backpack then continue end
+        local tool = backpack:FindFirstChild(DEATH_COUNTER_NAME)
+        if not tool then continue end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then continue end
+        local playingDeath = false
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            if track.Animation and track.Animation.AnimationId == DEATH_COUNTER_ANIM then
+                playingDeath = true
+                break
+            end
+        end
+        if playingDeath then
+            createESP(char)
+            notify("Death Counter", plr.Name .. " → Death Counter !", 2.5)
+        end
+    end
+end
+local antiEnabled = true   
+local function tryBypassDeathCounter()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root  = char:FindFirstChild("HumanoidRootPart")
+    local hum   = char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+    local originalCFrame = root.CFrame
+    task.spawn(function()
+        notify("Anti DC", "Trying to bypass Death Counter...", 2)
+        root.CFrame = CFrame.new(-91234, -420, -91234)
+        task.wait(0.8)
+        local part = Instance.new("Part")
+        part.Anchored = true
+        part.Transparency = 1
+        part.Size = Vector3.new(40, 1, 40)
+        part.Position = Vector3.new(0, workspace.FallenPartsDestroyHeight - 200, 0)
+        part.Parent = workspace
+        root.CFrame = part.CFrame + Vector3.new(0, 6, 0)
+        task.wait(1.4)
+        root.CFrame = originalCFrame   
+        task.delay(0.5, function()
+            if part then part:Destroy() end
+        end)
+        notify("Anti DC", "Bypass attempt finished", 2.5)
+    end)
+end
+local function setupAntiDC()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hum = char:WaitForChild("Humanoid")
+    hum.AnimationPlayed:Connect(function(track)
+        if not antiEnabled then return end
+        if track.Animation.AnimationId == DEATH_COUNTER_ANIM then
+		if running then
+    running = false
+end
+if CamlockEnabled then
+    CamlockEnabled = false
+    CamlockTarget = nil
+end
+
+            tryBypassDeathCounter()
+        end
+    end)
+end
+LocalPlayer.CharacterAdded:Connect(setupAntiDC)
+if LocalPlayer.Character then
+    setupAntiDC()
+end
+RunService.Heartbeat:Connect(function()
+    checkDeathCounter()
+end)
+task.spawn(function()
+    while true do
+        checkDeathCounter()
+        task.wait(0.13)
+    end
+end)
+notify("Loaded", "Death Counter", 4.5)
