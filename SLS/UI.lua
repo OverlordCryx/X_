@@ -140,9 +140,13 @@ local function handleFootball(hrp)
         local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
                        or getEnemyAgentWithBall()
         if target then
-            Xfootball.Position = hrpPos
-            hrp.CFrame = target.CFrame
-            local targetPlayer = Players:FindFirstChild(owner)
+			 local targetPlayer = Players:FindFirstChild(owner)
+            local targetTeamPos = targetPlayer and targetPlayer:GetAttribute("TeamPosition")
+            Xfootball.Position = hrpPos	
+            if targetTeamPos ~= "GK" then
+                hrp.CFrame = target.CFrame
+            end            
+					local targetPlayer = Players:FindFirstChild(owner)
             if not targetPlayer or targetPlayer.Team ~= LocalPlayer.Team then
                 XVIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
                 XVIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
