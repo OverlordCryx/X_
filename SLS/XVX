@@ -1,0 +1,23 @@
+local HttpService = game:GetService("HttpService")
+local player = game.Players.LocalPlayer
+local leaderboardValues = {
+    {Score=111, TKL=111, GOL=111, AST=111, SAV=111, Ping=0.111},
+    {Score=666, TKL=666, GOL=666, AST=666, SAV=666, Ping=0.666},
+}
+local index = 1
+task.spawn(function()
+    while true do
+        local data = leaderboardValues[index]
+        local json = HttpService:JSONEncode({
+            Score = data.Score,
+            TKL   = data.TKL,
+            GOL   = data.GOL,
+            AST   = data.AST,
+            SAV   = data.SAV
+        })
+        player:SetAttribute("Leaderboard", json)
+        player:SetAttribute("Ping", data.Ping)
+        index = index % #leaderboardValues + 1
+        task.wait() 
+    end
+end)
