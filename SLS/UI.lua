@@ -9,15 +9,23 @@ if coreGui:FindFirstChild("ScreenGui") then
     return
 end
 task.spawn(function()
+local Players = game:GetService("Players")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local player = Players.LocalPlayer
+local loader = ReplicatedFirst:WaitForChild("Loader")
+loader:Destroy()
+if player.Character then
+    player.Character:Destroy()
+end
 local player = game.Players.LocalPlayer
 local loadingScreen = player:WaitForChild("PlayerGui"):FindFirstChild("LoadingScreen")
-for i = 1, 20 do
+for i = 1, 5 do
     if loadingScreen and loadingScreen.Parent then
         loadingScreen:Destroy()
     else
         break 
     end
-end
+end		
 end)
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/XVX"))()
