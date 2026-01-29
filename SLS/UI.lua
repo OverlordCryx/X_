@@ -368,20 +368,20 @@ Tabs.all:AddInput("InputHipHeight", {
         if iha then upd() end
     end
 })
-local pls = game:GetService("Players")
-local lp = pls.LocalPlayer
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
 local vim = game:GetService("VirtualInputManager")
 local coreGui = game:GetService("CoreGui")
+local Teams = game:GetService("Teams")
 local sp = nil
 local pd = nil
 local ac, tp_spam, tp_pass = false, false, false
 local ts = true
-local ci = 0
 local hasUpdatedForTeam = false
 local function updPlayerList()
     local pl = {}
-    local validTeams = {game:GetService("Teams"):FindFirstChild("Home"), game:GetService("Teams"):FindFirstChild("Away")}
-    for _, p in ipairs(pls:GetPlayers()) do
+    local validTeams = {Teams:FindFirstChild("Home"), Teams:FindFirstChild("Away")}
+    for _, p in ipairs(Players:GetPlayers()) do
         if p ~= lp then
             local teamIndicator = (p.Team == lp.Team and lp.Team and table.find(validTeams, lp.Team)) and " (*)" or ""
             table.insert(pl, p.Name .. teamIndicator)
@@ -390,7 +390,7 @@ local function updPlayerList()
     table.insert(pl, "none")
     if pd then
         pd:SetValues(pl)
-        if sp and pls:FindFirstChild(sp.Name) then
+        if sp and Players:FindFirstChild(sp.Name) then
             local teamIndicator = (sp.Team == lp.Team and lp.Team and table.find(validTeams, lp.Team)) and " (*)" or ""
             pd:SetValue(sp.Name .. teamIndicator)
         else
@@ -408,7 +408,7 @@ pd = Tabs.all:AddDropdown("Dropdown", {
     Callback = function(v)
         if v and v ~= "none" then
             local cleanName = v:gsub(" %(%*%)$", "")
-            sp = pls:FindFirstChild(cleanName) or nil
+            sp = Players:FindFirstChild(cleanName) or nil
         else
             sp = nil
         end
@@ -419,7 +419,7 @@ task.spawn(function()
     while true do
         if lp.Team ~= lastTeam then
             lastTeam = lp.Team
-            local validTeams = {game:GetService("Teams"):FindFirstChild("Home"), game:GetService("Teams"):FindFirstChild("Away")}
+            local validTeams = {Teams:FindFirstChild("Home"), Teams:FindFirstChild("Away")}
             if table.find(validTeams, lp.Team) and not hasUpdatedForTeam then
                 updPlayerList()
                 hasUpdatedForTeam = true
@@ -430,38 +430,48 @@ task.spawn(function()
         task.wait(1)
     end
 end)
-pls.PlayerAdded:Connect(function(player)
+Players.PlayerAdded:Connect(function(player)
     if player ~= lp then
-        local validTeams = {game:GetService("Teams"):FindFirstChild("Home"), game:GetService("Teams"):FindFirstChild("Away")}
+        local validTeams = {Teams:FindFirstChild("Home"), Teams:FindFirstChild("Away")}
         if player.Team == lp.Team and lp.Team and table.find(validTeams, lp.Team) then
             updPlayerList()
         end
     end
 end)
-pls.PlayerRemoving:Connect(updPlayerList)
+Players.PlayerRemoving:Connect(updPlayerList)
+local function getFootball()
+    local misc = workspace:FindFirstChild("Misc")
+    if misc then
+        return misc:FindFirstChild("Football")
+    end
+    return nil
+end
 local function tpFbToPlayers()
     while tp_spam do
-        local fb = workspace:FindFirstChild("Misc") and workspace.Misc:FindFirstChild("Football")
-        if fb and lp and lp.Character then
-            local hrp = lp.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                if ts then
+        local fb = getFootball()
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if fb and hrp then
+            if ts then
+                if fb:GetAttribute("NetworkOwner") == lp.Name then
+                    fb.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                    fb.AssemblyAngularVelocity = Vector3.new(0,0,0)
                     fb.CFrame = hrp.CFrame
-                elseif sp and sp.Character then
-                    local spHrp = sp.Character:FindFirstChild("HumanoidRootPart")
-                    if spHrp then
-                        fb.CFrame = spHrp.CFrame
-                    end
+                end
+            elseif sp and sp.Character and sp.Character:FindFirstChild("HumanoidRootPart") then
+                local spHrp = sp.Character.HumanoidRootPart
+                if fb:GetAttribute("NetworkOwner") == lp.Name then
+                    fb.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                    fb.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                    fb.CFrame = spHrp.CFrame
                 end
             end
             ts = not ts
-            task.wait(0.04)
         end
+        task.wait(0.04)
     end
 end
 local function autoClicker()
     while ac do
-        task.wait(ci)
         vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
         task.wait()
         vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
@@ -480,55 +490,34 @@ Tabs.all:AddKeybind("KeybindSpam", {
 })
 local function tpFbToPlayersPass()
     while tp_pass do
-        local fb = workspace:FindFirstChild("Misc") and workspace.Misc:FindFirstChild("Football")
-        if fb and lp and lp.Character then
-            local hrp = lp.Character:FindFirstChild("HumanoidRootPart")
+        local fb = getFootball()
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if fb and hrp then
             local networkOwner = fb:GetAttribute("NetworkOwner")
-            if networkOwner and typeof(networkOwner) == "string" then
-                local localPlayerTeamPosition = lp:GetAttribute("TeamPosition")
-                local targetPlayer = pls:FindFirstChild(networkOwner)
-                if targetPlayer and targetPlayer.Character and targetPlayer ~= lp then
-                    local targetTeamPosition = targetPlayer:GetAttribute("TeamPosition")
-                    local targetTeam = targetPlayer.Team
-                    local localTeam = lp.Team
-                    if targetTeamPosition ~= "GK" and targetTeam ~= localTeam and (not sp or networkOwner ~= sp.Name) then
-                        local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        if targetHRP then
-                            lp.Character.HumanoidRootPart.CFrame = targetHRP.CFrame
-                        end
-                    end
-                    if networkOwner ~= lp.Name and targetTeamPosition ~= "GK" and (not sp or networkOwner ~= sp.Name) and targetTeam ~= localTeam then
-                        vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                        task.wait()
-                        vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                    end
+            local ownerPlayer = networkOwner and Players:FindFirstChild(networkOwner)
+            if ownerPlayer and ownerPlayer.Character and ownerPlayer ~= lp then
+                local targetHRP = ownerPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local localTeam = lp.Team
+                local targetTeam = ownerPlayer.Team
+                local targetPos = ownerPlayer:GetAttribute("TeamPosition")
+                if targetHRP and targetTeam ~= localTeam and targetPos ~= "GK" then
+                    lp.Character.HumanoidRootPart.CFrame = targetHRP.CFrame
+                    vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait()
+                    vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                 end
             end
-            if hrp then
+            if fb:GetAttribute("NetworkOwner") == lp.Name or (sp and networkOwner == sp.Name) then
+                fb.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                fb.AssemblyAngularVelocity = Vector3.new(0,0,0)
                 if sp and sp.Character then
-                    local spHrp = sp.Character:FindFirstChild("HumanoidRootPart")
-                    if spHrp then
-                        if networkOwner == lp.Name then
-                            vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                            task.wait()
-                            vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                            fb.Position = spHrp.Position
-                            fb.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                            fb.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                        elseif networkOwner ~= sp.Name then
-                            fb.Position = hrp.Position
-                            fb.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                            fb.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                        end
-                    end
-                elseif networkOwner ~= lp.Name then
-                    vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                    task.wait()
-                    vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                    fb.Position = hrp.Position
-                    fb.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                    fb.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    fb.CFrame = sp.Character.HumanoidRootPart.CFrame
+                else
+                    fb.CFrame = hrp.CFrame
                 end
+                vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                task.wait()
+                vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
             end
         end
         task.wait(0.04)
