@@ -1,13 +1,3 @@
-local coreGui = game:GetService("CoreGui")
-if coreGui:FindFirstChild("ScreenGui") then
-    Fluent:Notify({
-        Title = "NOTHING X",
-        Content = "UI RUNING",
-        SubContent = "", 
-        Duration = 5
-    })
-    return
-end
 task.spawn(function()
 local loader = game:GetService("ReplicatedFirst"):FindFirstChild("Loader")
 if loader then
@@ -23,6 +13,16 @@ for i = 1, 5 do
     end
 end		
 end)
+local coreGui = game:GetService("CoreGui")
+if coreGui:FindFirstChild("ScreenGui") then
+    Fluent:Notify({
+        Title = "NOTHING X",
+        Content = "UI RUNING",
+        SubContent = "", 
+        Duration = 5
+    })
+    return
+end
 task.spawn(function()
 loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/SLS/DC"))()
 end)
