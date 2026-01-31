@@ -847,7 +847,7 @@ end
 end)
 task.spawn(function()
 Tabs.XXX:AddButton({
-    Title = "Join  Pro Server",
+    Title = "Join  7v7 Pro Server",
     Callback = function()
         local id =  126195208568849
         local p = game.Players.LocalPlayer
