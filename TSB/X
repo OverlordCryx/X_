@@ -1,6 +1,47 @@
 task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local cam = workspace.CurrentCamera
+local voidPart = Instance.new("Part")
+voidPart.Name = "Void Part"
+voidPart.Size = Vector3.new(9e9, 1.5, 9e9)
+voidPart.Anchored = true
+voidPart.CanCollide = true
+voidPart.Material = Enum.Material.Plastic
+voidPart.Color = Color3.new(0, 0, 0)
+voidPart.CFrame = CFrame.new(-363.407135, -501.227661, 643.748657)
+voidPart.Parent = workspace
+local antiDeathEnabled = true
+local checking = false
+RunService.RenderStepped:Connect(function()
+    if antiDeathEnabled and not checking then
+        local deathCam = workspace:FindFirstChild("Cutscenes")
+                        and workspace.Cutscenes:FindFirstChild("Death Cutscene")
+                        and workspace.Cutscenes["Death Cutscene"]:FindFirstChild("Camm")
+        if deathCam and cam.CameraSubject == deathCam then
+            checking = true
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local hrp = player.Character.HumanoidRootPart
+                local originalCFrame = hrp.CFrame
+                task.wait(2)
+                if cam.CameraSubject == deathCam then
+                    hrp.CFrame = voidPart.CFrame + Vector3.new(0,5,0)
+                    cam.CameraSubject = player.Character:FindFirstChild("Humanoid")
+                    task.wait(0.1)
+                    hrp.CFrame = originalCFrame
+                end
+            end
+            checking = false
+        end
+    end
+end)
+end)
+
+
+task.spawn(function()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
     ["Omni Directional Punch"] = true,
