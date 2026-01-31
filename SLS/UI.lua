@@ -856,16 +856,32 @@ Tabs.XXX:AddButton({
         end
     end
 })
-Tabs.XXX:AddButton({
-    Title = "Join  7v7 Server",
-    Callback = function()
-        local iid =  127060568647054
-        local pp = game.Players.LocalPlayer
-        if pp then
-            game:GetService("TeleportService"):Teleport(iid, pp)
-        end
+local function setupButton(currentServerId)
+    if currentServerId == 127060568647054 then
+        Tabs.XXX:AddButton({
+            Title = "Join 4v4 Server",
+            Callback = function()
+                local pp = game.Players.LocalPlayer
+                if pp then
+                    game:GetService("TeleportService"):Teleport(12177325772, pp)
+                end
+            end
+        })
+    elseif currentServerId == 12177325772 then
+        Tabs.XXX:AddButton({
+            Title = "Join 7v7 Server",
+            Callback = function()
+                local pp = game.Players.LocalPlayer
+                if pp then
+                    game:GetService("TeleportService"):Teleport(127060568647054, pp)
+                end
+            end
+        })
     end
-})
+end
+
+local currentPlaceId = game.PlaceId
+setupButton(currentPlaceId)
 Tabs.XXX:AddButton({
     Title = "Respawn",
     Callback = function()
