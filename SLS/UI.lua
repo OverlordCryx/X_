@@ -552,7 +552,6 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
 Tabs.all:AddSection("TOG")
 local antiTackleRunning = false
-local shouldPressQ = false
 local tk = Tabs.all:AddToggle("XXTackledToggle", {
     Title = "Anti Tackled (Q)",
     Default = false,
@@ -565,63 +564,20 @@ local tk = Tabs.all:AddToggle("XXTackledToggle", {
                         tk:Set(false)
                         break
                     end
-                    if not LocalPlayer:GetAttribute("HasBall") then
-                        shouldPressQ = false
-                        task.wait()
-                        continue
-                    end
                     local char = LocalPlayer.Character
                     if not char or not char:FindFirstChild("HumanoidRootPart") then
-                        shouldPressQ = false
                         task.wait()
                         continue
                     end
-                    local myTeam = LocalPlayer.Team
-                    local myRootPart = char.HumanoidRootPart
-                    local threatDetected = false
-                    for _, plr in ipairs(Players:GetPlayers()) do
-                        if plr == LocalPlayer or plr.Team == myTeam then
-                            continue
-                        end
-                        if plr:GetAttribute("TeamPosition") == "GK" then
-                            continue
-                        end
-                        if plr:GetAttribute("_ACTackling") then
-                            local enemyChar = plr.Character
-                            if enemyChar and enemyChar:FindFirstChild("HumanoidRootPart") then
-                                local distance = (myRootPart.Position - enemyChar.HumanoidRootPart.Position).Magnitude
-                                if distance <= 22 then
-                                    threatDetected = true
-                                    break
-                                end
-                            end
-                        end
+                    local hasBall = LocalPlayer:GetAttribute("HasBall")
+                    local teamPosition = LocalPlayer:GetAttribute("TeamPosition")
+                    if not hasBall or teamPosition == "GK" then
+                        task.wait()
+                        continue
                     end
-                    for _, bot in ipairs(workspace.Systems.Agents:GetChildren()) do
-                        if bot:IsA("Model") and bot:FindFirstChild("HumanoidRootPart") then
-                            local botTeam = bot:GetAttribute("Team")
-                            local isTackling = bot:GetAttribute("_ACTackling")
-                            if botTeam ~= myTeam and isTackling then
-                                local distance = (myRootPart.Position - bot.HumanoidRootPart.Position).Magnitude
-                                if distance <= 23 then
-                                    threatDetected = true
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    shouldPressQ = threatDetected
-                    task.wait()
-                end
-            end)
-            task.spawn(function()
-                while antiTackleRunning do
-                    if shouldPressQ then
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
-                        shouldPressQ = false
-                    end
-                    task.wait()
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+                    task.wait() 
                 end
             end)
         end
