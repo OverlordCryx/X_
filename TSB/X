@@ -40,6 +40,7 @@ end)
 
 
 task.spawn(function()
+local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -55,81 +56,132 @@ local weakSkills = {
     ["Shove"] = true,
     ["Uppercut"] = true
 }
-local state = {}   
-local function createBillboard(char, text)
-    if not (char and char:FindFirstChild("Head")) then return end
-    local head = char.Head
-    local existing = head:FindFirstChild("SkillTag")
-    if existing then existing:Destroy() end
-    local bb = Instance.new("BillboardGui")
-    bb.Name = "SkillTag"
-    bb.Size = UDim2.new(0, 90, 0, 35)
-    bb.StudsOffset = Vector3.new(0, 2.8, 0)
-    bb.AlwaysOnTop = true
-    bb.Adornee = head
-    bb.Parent = head
-    local label = Instance.new("TextLabel", bb)
-    label.Size = UDim2.new(1,0,1,0)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamBold
-    label.TextScaled = true
-    label.TextColor3 = Color3.new(1,1,1)
-    label.TextStrokeTransparency = 0.4
-    label.TextStrokeColor3 = Color3.new(0,0,0)
-    label.Text = text
+local playerStates = {}
+local function sendNotification(title, text, duration)
+    StarterGui:SetCore("SendNotification", {
+        Title = title or "Skill Alert",
+        Text = text or "",
+        Duration = duration or 5
+    })
 end
-local function removeBillboard(char)
-    if char and char:FindFirstChild("Head") then
-        local tag = char.Head:FindFirstChild("SkillTag")
+local function createGlowingBillboard(character, emoji, glowColor)
+    if not (character and character:FindFirstChild("Head")) then return end
+    local head = character.Head
+    local existingTag = head:FindFirstChild("SkillTag")
+    if existingTag then existingTag:Destroy() end
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "SkillTag"
+    billboard.Size = UDim2.new(0, 120, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3.4, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = head
+    billboard.LightInfluence = 0
+    billboard.MaxDistance = 130
+    billboard.Parent = head
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = glowColor
+    frame.BackgroundTransparency = 0.7          
+    frame.BorderSizePixel = 0
+    frame.Parent = billboard
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2.8
+    stroke.Transparency = 0.15
+    stroke.Color = Color3.fromRGB(255, 255, 255)   
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = frame
+    local glowImage = Instance.new("ImageLabel")
+    glowImage.Size = UDim2.new(1.6, 0, 1.6, 0)
+    glowImage.Position = UDim2.new(-0.3, 0, -0.3, 0)
+    glowImage.BackgroundTransparency = 1
+    glowImage.Image = "rbxassetid://4996891970"   
+    glowImage.ImageTransparency = 0.35
+    glowImage.ImageColor3 = glowColor             
+    glowImage.ZIndex = 0
+    glowImage.Parent = frame
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Font = Enum.Font.GothamBlack
+    textLabel.TextScaled = true
+    textLabel.TextColor3 = Color3.new(1, 1, 1)
+    textLabel.TextStrokeTransparency = 0.6
+    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    textLabel.Text = emoji
+    textLabel.Parent = frame
+    task.spawn(function()
+        while textLabel.Parent do
+            textLabel.TextTransparency = 0
+            task.wait(0.7)
+            textLabel.TextTransparency = 0.2
+            task.wait(0.7)
+        end
+    end)
+end
+local function removeBillboard(character)
+    if character and character:FindFirstChild("Head") then
+        local tag = character.Head:FindFirstChild("SkillTag")
         if tag then tag:Destroy() end
     end
 end
-local function getSkillType(backpack)
-    for _, tool in backpack:GetChildren() do
-        local name = tool.Name
-        if strongSkills[name] then return "strong" end
-        if weakSkills[name] then return "weak" end
+local function getCurrentSkillType(backpack)
+    for _, tool in ipairs(backpack:GetChildren()) do
+        local toolName = tool.Name
+        if strongSkills[toolName] then return "strong" end
+        if weakSkills[toolName] then return "weak" end
     end
     return nil
 end
 RunService.Heartbeat:Connect(function()
-    for _, plr in Players:GetPlayers() do
-        if plr == LocalPlayer then continue end
-        local char = plr.Character
-        local backpack = plr:FindFirstChildOfClass("Backpack")
-        if not (char and backpack) then
-            removeBillboard(char)
-            state[plr] = nil
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        local character = player.Character
+        local backpack = player:FindFirstChildOfClass("Backpack")
+        if not (character and backpack and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0) then
+            removeBillboard(character)
+            playerStates[player] = nil
             continue
         end
-        local skill = getSkillType(backpack)
-        local prev = state[plr]
-        if skill == "strong" then
-            if prev ~= "strong" then
-                createBillboard(char, "💢")
+        local currentSkill = getCurrentSkillType(backpack)
+        local previousState = playerStates[player]
+        if currentSkill == "strong" then
+            if previousState ~= "strong" then
+                createGlowingBillboard(character, "💢", Color3.fromRGB(255, 140, 0))   
+                sendNotification("STRONG SKILL DETECTED", player.Name .. "  ON SERIOUS MODE", 4)
             end
-            state[plr] = "strong"
-        elseif skill == "weak" then
-            if prev == "strong" then
-                createBillboard(char, "☠")
-                state[plr] = "weak"
-                task.delay(math.random(8,9), function()
-                    if state[plr] == "weak" and plr.Parent then
-                        removeBillboard(plr.Character)
-                        state[plr] = nil
+            playerStates[player] = "strong"
+        elseif currentSkill == "weak" then
+            if previousState == "strong" then
+                createGlowingBillboard(character, "☠", Color3.fromRGB(220, 20, 60))   
+                sendNotification("DANGER", player.Name .. " Death Counter", 5)
+                playerStates[player] = "weak"
+                task.delay(math.random(8, 10), function()
+                    if playerStates[player] == "weak" and player.Parent and character == player.Character then
+                        removeBillboard(character)
+                        playerStates[player] = nil
                     end
                 end)
             end
         else
-            if prev then
-                removeBillboard(char)
-                state[plr] = nil
+            if previousState then
+                removeBillboard(character)
+                playerStates[player] = nil
             end
         end
     end
 end)
-Players.PlayerRemoving:Connect(function(plr)
-    state[plr] = nil
+Players.PlayerRemoving:Connect(function(player)
+    playerStates[player] = nil
+end)
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1.5)
+    for plr, _ in pairs(playerStates) do
+        removeBillboard(plr.Character)
+    end
+    table.clear(playerStates)
 end)
 end)
 
