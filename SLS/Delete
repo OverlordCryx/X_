@@ -4,9 +4,74 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local gui = player:WaitForChild("PlayerGui")
 local gameGui = gui:WaitForChild("GameGui")
-local energyBars = gameGui
-    :WaitForChild("MatchHUD")
-    :WaitForChild("EnergyBars")
+local lobby = Workspace:WaitForChild("Lobby")
+local miscFolder = Workspace:WaitForChild("Misc")
+local function clearFolder(folder)
+    for _, obj in pairs(folder:GetChildren()) do
+        obj:Destroy()
+    end
+end
+local contentFolder = lobby:WaitForChild("Content")
+clearFolder(contentFolder)
+local buildFolder = lobby:WaitForChild("Build")
+local foldersToDelete = {
+    "Plants probably temp",
+    "Model",
+    "PacksStage",
+    "Banner_02"
+}
+for _, folderName in pairs(foldersToDelete) do
+    local folder = buildFolder:FindFirstChild(folderName)
+    if folder then
+        folder:Destroy()
+    end
+end
+local objectsToRemove = {
+    "Accessory",
+    "Ball Theme",
+    "ItemStand",
+    "Taunt"
+}
+for _, objName in pairs(objectsToRemove) do
+    for _, obj in pairs(miscFolder:GetChildren()) do
+        if obj.Name == objName then
+            obj:Destroy()
+        end
+    end
+end
+local museumFolder = lobby:FindFirstChild("Museum")
+if museumFolder then
+    local topText = museumFolder:FindFirstChild("TopText")
+    if topText then
+        topText:Destroy()
+    end
+end
+local guiToRemove = {
+    gameGui.LobbyHUD.BottomNavigationBar,
+    gameGui.Store,
+    gameGui.LobbyHUD.Topbar.Leaderstats.Coins,
+    gameGui.Party
+}
+for _, guiElement in pairs(guiToRemove) do
+    if guiElement then
+        guiElement:Destroy()
+    end
+end
+local workspaceToClear = {
+    Workspace:FindFirstChild("Stadium") and Workspace.Stadium.Banners,
+    Workspace:FindFirstChild("Environment"),
+    Workspace:FindFirstChild("Stadium") and Workspace.Stadium.Flashes,
+    Workspace:FindFirstChild("Stadium") and Workspace.Stadium.Build,
+    workspace.Stadium.Teams.Home.Audience,
+    workspace.Stadium.Teams.Away.Audience,
+    workspace.Stadium.Sponsors
+}
+for _, obj in pairs(workspaceToClear) do
+    if obj then
+        obj:Destroy()
+    end
+end
+local energyBars = gameGui:WaitForChild("MatchHUD"):WaitForChild("EnergyBars")
 local function deleteStamina()
     for _, bar in pairs(energyBars:GetChildren()) do
         if bar.Name:sub(1,7) == "Stamina" then
