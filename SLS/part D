@@ -13,3 +13,18 @@ if not workspace:FindFirstChild(partName) then
     part.Parent = workspace
 else
 end
+local LB = workspace.Lobby.Build.Floor.SpawnCircle.LogoFIFA
+local partName = "NOTHING XX"
+if not workspace:FindFirstChild(partName) then
+    local part = Instance.new("Part")
+    part.Anchored = true
+    part.Size = Vector3.new(130, 60, 250)
+    part.BrickColor = BrickColor.new("Really black")
+    part.Material = Enum.Material.ForceField
+    part.Transparency = 0.9
+    part.CanCollide = false
+    part.Name = partName
+    part.Position = LB.Position + Vector3.new(0, 15, 0)
+    part.Parent = workspace
+else
+end
