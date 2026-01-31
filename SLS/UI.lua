@@ -68,7 +68,6 @@ local function teleportFootball(football)
         end
     end
 end
-
 local function TPTowardPlayer()
     local teamPos = LocalPlayer:GetAttribute("TeamPosition") 
     local char = LocalPlayer.Character
@@ -154,7 +153,6 @@ local function handleFootball(hrp)
         end
     end
 end
-
 local dubautogol = Tabs.autogol:AddInput("Inputautogol", {
     Title = "dub",
     Description = "",
@@ -655,6 +653,50 @@ local function setupShiftLogic()
 end
 setupShiftLogic()
 LocalPlayer.CharacterAdded:Connect(setupShiftLogic)
+local player = Players.LocalPlayer
+local enabled = false
+local RETURN_DELAY = 1
+local ZONE_PART = workspace:WaitForChild("NOTHING XX")
+local SPAWN = workspace:WaitForChild("Spawning"):WaitForChild("SpawnLocation")
+local function isInsidePart(part, position)
+    local localPos = part.CFrame:PointToObjectSpace(position)
+    local size = part.Size / 2
+    return math.abs(localPos.X) <= size.X
+       and math.abs(localPos.Y) <= size.Y
+       and math.abs(localPos.Z) <= size.Z
+end
+local function startCheck()
+    task.spawn(function()
+        while enabled do
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local team = player.Team and player.Team.Name
+            if hrp and (team == "Home" or team == "Away") then
+                hrp.CFrame = SPAWN.CFrame * CFrame.new(0, 2, 0) 
+                while enabled and hrp do
+                    if not isInsidePart(ZONE_PART, hrp.Position) then
+                        task.wait(RETURN_DELAY)
+                        if enabled and hrp and not isInsidePart(ZONE_PART, hrp.Position) then
+                            hrp.CFrame = SPAWN.CFrame * CFrame.new(0, 2, 0)
+                        end
+                    end
+                    task.wait(0.1)
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+Tabs.all:AddToggle("PartLockToggle", {
+    Title = "Back Lobby (on Match)",
+    Default = false,
+    Callback = function(value)
+        enabled = value
+        if value then
+            startCheck()
+        end
+    end
+})
 local mctRunning = false
 local mct = Tabs.all:AddToggle("MoveCharacterToggle", { 
     Title = "Delete any Block from the pitch", 
