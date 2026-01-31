@@ -583,32 +583,6 @@ local tk = Tabs.all:AddToggle("XXTackledToggle", {
         end
     end
 })
-local Toggle = Tabs.all:AddToggle("tog2xspeed", {
-    Title = "2x speed",
-    Description = "Leftshift",
-    Default = false,
-    Callback = function(Value) end
-})
-local defaultSpeed = 16
-local speedX = 54
-local function setSpeed(speed)
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.WalkSpeed = speed
-    end
-end
-local function setupShiftLogic()
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if input.KeyCode == Enum.KeyCode.LeftShift and not gameProcessed and Toggle.Value then
-            while UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and Toggle.Value do
-                setSpeed(speedX)
-                task.wait()
-            end
-            setSpeed(defaultSpeed)
-        end
-    end)
-end
-setupShiftLogic()
-LocalPlayer.CharacterAdded:Connect(setupShiftLogic)
 local player = Players.LocalPlayer
 local enabled = false
 local RETURN_DELAY = 1
@@ -639,7 +613,7 @@ local function startCheck()
                     task.wait(0.1)
                 end
             end
-            task.wait(0.5)
+            task.wait(0.1)
         end
     end)
 end
