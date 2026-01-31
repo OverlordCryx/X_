@@ -846,42 +846,34 @@ if Tabs and Tabs.keybinds then
 end
 end)
 task.spawn(function()
-Tabs.XXX:AddButton({
-    Title = "Join  7v7 Pro Server",
-    Callback = function()
-        local id =  126195208568849
-        local p = game.Players.LocalPlayer
-        if p then
-            game:GetService("TeleportService"):Teleport(id, p)
-        end
+local servers = {
+    ["4v4"] = 12177325772,
+    ["7v7"] = 127060568647054,
+    ["7v7 Pro"] = 126195208568849
+}
+local function setupTeleportButtons()
+    local currentPlace = game.PlaceId
+    local options = {}
+    if currentPlace == servers["4v4"] then
+        options = { {name="Join 7v7 Server", id=servers["7v7"]}, {name="Join 7v7 Pro Server", id=servers["7v7 Pro"]} }
+    elseif currentPlace == servers["7v7"] then
+        options = { {name="Join 7v7 Pro Server", id=servers["7v7 Pro"]}, {name="Join 4v4 Server", id=servers["4v4"]} }
+    elseif currentPlace == servers["7v7 Pro"] then
+        options = { {name="Join 7v7 Server", id=servers["7v7"]}, {name="Join 4v4 Server", id=servers["4v4"]} }
     end
-})
-local function setupButton(currentServerId)
-    if currentServerId == 127060568647054 then
+    for _, option in pairs(options) do
         Tabs.XXX:AddButton({
-            Title = "Join 4v4 Server",
+            Title = option.name,
             Callback = function()
-                local pp = game.Players.LocalPlayer
-                if pp then
-                    game:GetService("TeleportService"):Teleport(12177325772, pp)
-                end
-            end
-        })
-    elseif currentServerId == 12177325772 then
-        Tabs.XXX:AddButton({
-            Title = "Join 7v7 Server",
-            Callback = function()
-                local pp = game.Players.LocalPlayer
-                if pp then
-                    game:GetService("TeleportService"):Teleport(127060568647054, pp)
+                local player = game.Players.LocalPlayer
+                if player then
+                    game:GetService("TeleportService"):Teleport(option.id, player)
                 end
             end
         })
     end
 end
-
-local currentPlaceId = game.PlaceId
-setupButton(currentPlaceId)
+setupTeleportButtons()
 Tabs.XXX:AddButton({
     Title = "Respawn",
     Callback = function()
