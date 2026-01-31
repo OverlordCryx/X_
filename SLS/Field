@@ -15,7 +15,7 @@ local allowedTeams = {
 local outsideTimeGK = 0
 local outsideTimePlayer = 0
 local maxOutsideTimeGK = 2.5
-local maxOutsideTimePlayer = 7.5
+local maxOutsideTimePlayer = 7.7
 local alreadyTeleported = false
 local function isInside(part, position)
 	local size = part.Size
