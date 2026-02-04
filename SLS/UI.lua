@@ -829,11 +829,24 @@ local function setupTeleportButtons()
     local currentPlace = game.PlaceId
     local options = {}
     if currentPlace == servers["4v4"] then
-        options = { {name="Join 7v7 Server", id=servers["7v7"]}, {name="Join 7v7 Pro Server", id=servers["7v7 Pro"]} }
+        options = {
+            {name="Join 7v7 Server", id=servers["7v7"]},
+            {name="Join 7v7 Pro Server", id=servers["7v7 Pro"]}
+        }
     elseif currentPlace == servers["7v7"] then
-        options = { {name="Join 7v7 Pro Server", id=servers["7v7 Pro"]}, {name="Join 4v4 Server", id=servers["4v4"]} }
+        options = {
+            {name="Join 7v7 Pro Server", id=servers["7v7 Pro"]},
+            {name="Join 4v4 Server", id=servers["4v4"]}
+        }
     elseif currentPlace == servers["7v7 Pro"] then
-        options = { {name="Join 7v7 Server", id=servers["7v7"]}, {name="Join 4v4 Server", id=servers["4v4"]} }
+        options = {
+            {name="Join 7v7 Server", id=servers["7v7"]},
+            {name="Join 4v4 Server", id=servers["4v4"]}
+        }
+    else
+        for name, id in pairs(servers) do
+            table.insert(options, {name="Join "..name.." Server", id=id})
+        end
     end
     for _, option in pairs(options) do
         Tabs.XXX:AddButton({
