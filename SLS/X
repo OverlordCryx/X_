@@ -2,7 +2,9 @@ task.spawn(function()
 local loader = game:GetService("ReplicatedFirst"):FindFirstChild("Loader")
 if loader then
     loader:Destroy()
-end
+end	
+end)
+task.spawn(function()
 local player = game.Players.LocalPlayer
 local loadingScreen = player:WaitForChild("PlayerGui"):FindFirstChild("LoadingScreen")
 for i = 1, 5 do
@@ -11,7 +13,7 @@ for i = 1, 5 do
     else
         break 
     end
-end		
+end	
 end)
 local coreGui = game:GetService("CoreGui")
 if coreGui:FindFirstChild("ScreenGui") then
