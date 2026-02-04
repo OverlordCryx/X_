@@ -4,8 +4,6 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local pathsToDelete = {
     function() return ReplicatedStorage.__GamemodeComm and ReplicatedStorage.__GamemodeComm.RE and ReplicatedStorage.__GamemodeComm.RE.RequestGoalkeeperJoinPopup end,
-    function() return StarterPlayerScripts.Client and StarterPlayerScripts.Client.Controllers.Match.Components and StarterPlayerScripts.Client.Controllers.Match.Components.Goalkeeper end,
-    function() return player.PlayerScripts.Client and player.PlayerScripts.Client.Controllers.Match.Components and player.PlayerScripts.Client.Controllers.Match.Components.Goalkeeper end,
     function() 
         local packages = ReplicatedStorage.Packages and ReplicatedStorage.Packages._Index
         return packages and packages["sleitnick_knit@1.7.0"] 
