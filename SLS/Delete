@@ -165,6 +165,9 @@ while true do
         and Workspace.Lobby.Museum:FindFirstChild("Trophy") 
         and Workspace.Lobby.Museum.Trophy:FindFirstChild("TrophyParticles")
     removeIfExists(trophyParticles)
+    local grass = Workspace:FindFirstChild("Stadium") 
+        and Workspace.Stadium:FindFirstChild("Grass")
+    removeIfExists(grass)
     removeGUIs()
     removeBlur()
     removeArrows()
@@ -173,5 +176,5 @@ while true do
     if scoreboard then
         scoreboard.Size = UDim2.new(0.17, 0, 0.1, 0)
     end
-    task.wait(5)
+    task.wait(4.5)
 end
