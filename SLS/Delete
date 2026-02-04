@@ -141,13 +141,30 @@ local function removeMiscArrows()
         end
     end
 end
-
+local function removeFolderIfExists(folderName)
+    local folder = Workspace:FindFirstChild(folderName)
+    if folder then
+        folder:Destroy()
+    end
+end
+local function removeIfExists(object)
+    if object and object.Parent then
+        object:Destroy()
+    end
+end
 while true do
     deleteStamina()
     removeDuplicates("Scoreboard")
     removeDuplicates("PointsPopup")
     removeDuplicates("Summary")
     removeDuplicates("Penalties")
+     removeFolderIfExists("Customization")
+    removeFolderIfExists("Packs")
+        local trophyParticles = Workspace:FindFirstChild("Lobby") 
+        and Workspace.Lobby:FindFirstChild("Museum") 
+        and Workspace.Lobby.Museum:FindFirstChild("Trophy") 
+        and Workspace.Lobby.Museum.Trophy:FindFirstChild("TrophyParticles")
+    removeIfExists(trophyParticles)
     removeGUIs()
     removeBlur()
     removeArrows()
