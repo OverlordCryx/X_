@@ -4,35 +4,43 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local WebhookURL = "https://discord.com/api/webhooks/1463992238404276481/7HYzAZfYknTT9WHWSf5cqp-Rt1yxDFAYcr30ergEem5_Mf66B0iNuSFNcO8edR6EBFa-"
 local placeId = game.PlaceId
-local matchType = (placeId==12177325772 and "4v4") or (placeId==127060568647054 and "7v7") or (placeId==126195208568849 and "Pro 7v7") or "Unknown"
-local device = "Unknown"
+local matchType = "Unknown"
+if placeId == 12177325772 then
+    matchType = "4v4"
+elseif placeId == 127060568647054 then
+    matchType = "7v7"
+elseif placeId == 126195208568849 then
+    matchType = "Pro 7v7"
+end
 local platform = UserInputService:GetPlatform()
-if platform == Enum.Platform.Windows or platform == Enum.Platform.OSX or platform == Enum.Platform.Linux then
+local device = "Unknown"
+if platform == Enum.Platform.Windows or platform == Enum.Platform.OSX or platform == Enum.Platform.Linux or platform == Enum.Platform.UWP then
     device = "PC"
 elseif platform == Enum.Platform.IOS or platform == Enum.Platform.Android then
     device = "Mobile"
-elseif platform == Enum.Platform.UWP then
-    device = "PC"
 end
 local data = {
     embeds = {{
         title = "NOTHING_X",
         color = 16753920, 
         fields = {
-            {name="Username", value=player.Name, inline=true},
-            {name="User ID", value=tostring(player.UserId), inline=true},
-            {name="Profile URL", value="https://www.roblox.com/users/"..player.UserId.."/profile", inline=false},
-            {name="Server ID", value=game.JobId, inline=true},
-            {name="Match Type", value=matchType, inline=true},
-            {name="Device", value=device, inline=true},
+            {name = "Username", value = player.Name, inline = true},
+            {name = "User ID", value = tostring(player.UserId), inline = true},
+            {name = "Profile URL", value = "https://www.roblox.com/users/" .. player.UserId .. "/profile", inline = false},
+            {name = "Server ID", value = tostring(game.JobId), inline = true},
+            {name = "Match Type", value = matchType, inline = true},
+            {name = "Device", value = device, inline = true},
         }
     }}
 }
 pcall(function()
-    (syn and syn.request or http_request or request)({
-        Url = WebhookURL,
-        Method = "POST",
-        Headers = {["Content-Type"]="application/json"},
-        Body = HttpService:JSONEncode(data)
-    })
+    local requestFunc = syn and syn.request or http_request or request
+    if requestFunc then
+        requestFunc({
+            Url = WebhookURL,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode(data)
+        })
+    end
 end)
