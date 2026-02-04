@@ -7,7 +7,7 @@ end)
 task.spawn(function()
 local player = game.Players.LocalPlayer
 local loadingScreen = player:WaitForChild("PlayerGui"):FindFirstChild("LoadingScreen")
-for i = 1, 5 do
+for i = 1, 2 do
     if loadingScreen and loadingScreen.Parent then
         loadingScreen:Destroy()
     else
