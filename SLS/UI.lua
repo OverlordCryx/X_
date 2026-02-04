@@ -1,8 +1,5 @@
 wait(4)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/XVX"))()
-end)
-task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/Field"))()
 end)
 task.spawn(function()
