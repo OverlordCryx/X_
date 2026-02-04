@@ -3,7 +3,7 @@ local partName = "NOTHING X"
 if not workspace:FindFirstChild(partName) then
     local part = Instance.new("Part")
     part.Anchored = true
-    part.Size = Vector3.new(1111, 50, 1111)
+    part.Size = Vector3.new(2048, 50, 2048)
     part.BrickColor = BrickColor.new("Really black")
     part.Material = Enum.Material.ForceField
     part.Transparency = 0.9
@@ -21,7 +21,7 @@ if not workspace:FindFirstChild(partName) then
     part.Size = Vector3.new(130, 60, 250)
     part.BrickColor = BrickColor.new("Really black")
     part.Material = Enum.Material.ForceField
-    part.Transparency = 0.9
+    part.Transparency = 0.93
     part.CanCollide = false
     part.Name = partName
     part.Position = LB.Position + Vector3.new(0, 15, 0)
