@@ -1,0 +1,37 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterPlayerScripts = game:GetService("StarterPlayer").StarterPlayerScripts
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local pathsToDelete = {
+    function() return ReplicatedStorage.__GamemodeComm and ReplicatedStorage.__GamemodeComm.RE and ReplicatedStorage.__GamemodeComm.RE.RequestGoalkeeperJoinPopup end,
+    function() return StarterPlayerScripts.Client and StarterPlayerScripts.Client.Controllers.Match.Components and StarterPlayerScripts.Client.Controllers.Match.Components.Goalkeeper end,
+    function() return player.PlayerScripts.Client and player.PlayerScripts.Client.Controllers.Match.Components and player.PlayerScripts.Client.Controllers.Match.Components.Goalkeeper end,
+    function() 
+        local packages = ReplicatedStorage.Packages and ReplicatedStorage.Packages._Index
+        return packages and packages["sleitnick_knit@1.7.0"] 
+            and packages["sleitnick_knit@1.7.0"].knit 
+            and packages["sleitnick_knit@1.7.0"].knit.Services 
+            and packages["sleitnick_knit@1.7.0"].knit.Services.AntiCheatService
+    end,
+    function() return StarterPlayerScripts.Client and StarterPlayerScripts.Client.Controllers and StarterPlayerScripts.Client.Controllers.AntiCheat end,
+    function() return player.PlayerScripts.Client and player.PlayerScripts.Client.Controllers and player.PlayerScripts.Client.Controllers.Data end,
+    function() return StarterPlayerScripts.Client and StarterPlayerScripts.Client.Controllers and StarterPlayerScripts.Client.Controllers.Data end,
+}
+local function safeDestroy(obj)
+    if obj and obj.Parent then
+        obj:Destroy()
+        return true
+    end
+    return false
+end
+local anythingDeleted
+repeat
+    anythingDeleted = false
+    for _, getObj in ipairs(pathsToDelete) do
+        local obj = getObj()
+        if safeDestroy(obj) then
+            anythingDeleted = true
+        end
+    end
+    wait() 
+until not anythingDeleted
