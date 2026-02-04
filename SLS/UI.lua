@@ -931,7 +931,7 @@ local function startControlLoop()
                 bp.Position = savedCFrame.Position 
                 h.WalkSpeed = 0
             end
-            wait(0.03)
+            wait()
         end
     end)
     coroutine.resume(controlCoroutine)
