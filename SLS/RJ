@@ -9,6 +9,10 @@ local function rejoin()
     if rejoining then return end
     rejoining = true
     if targetServerId then
+        player:Kick("| NOTHING X    |ANTI KICK|     Rejoin Server |")
+        player:Kick("| NOTHING X    |ANTI KICK|     Rejoin Server |")
+        player:Kick("| NOTHING X    |ANTI KICK|     Rejoin Server |")
+        player:Kick("| NOTHING X    |ANTI KICK|     Rejoin Server |")
         TeleportService:TeleportToPlaceInstance(placeId, targetServerId, player)
     end
 end
