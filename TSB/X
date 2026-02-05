@@ -3,205 +3,130 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
-local SERIOUS_MODE_TOOL = "Serious Mode"
-local DEATH_COUNTER_TOOL = "Death Counter"
-local strongSkills = {
-    ["Omni Directional Punch"] = true,
-    ["Death Counter"] = true,
-    ["Serious Punch"] = true,
-    ["Table Flip"] = true,
-}
-local weakSkills = {
-    ["Consecutive Punches"] = true,
-    ["Normal Punch"] = true,
-    ["Shove"] = true,
-    ["Uppercut"] = true,
-}
-local function SendNotif(title, text, duration)
+local function SendNotif(title, text, dur)
     StarterGui:SetCore("SendNotification", {
         Title = title,
         Text = text,
-        Duration = duration or 2.5
+        Duration = dur or 2.5
     })
 end
-local highlights = {}
-local function UpdateHighlight(char, fillColor)
-    if not char then return end
-    local hl = highlights[char]
-    if not hl then
-        hl = Instance.new("Highlight")
-        hl.Name = "TSBGlow"
-        hl.Adornee = char
-        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-        hl.OutlineTransparency = 0.15
-        hl.FillTransparency = 0.38
-        hl.DepthMode = Enum.HighlightDepthMode.Occluded
-        hl.Parent = char
-        highlights[char] = hl
-    end
-    hl.FillColor = fillColor
-end
-local function RemoveHighlight(char)
-    if highlights[char] then
-        highlights[char]:Destroy()
-        highlights[char] = nil
-    end
-end
-local playerStates = {}
-local stateTimers = {}
-local function hasSeriousTool(backpack)
-    return backpack and backpack:FindFirstChild(SERIOUS_MODE_TOOL) ~= nil
-end
-local dcConns = {}
-local function SetupDCWatch(plr)
-    local backpack = plr:FindFirstChild("Backpack")
-    if not backpack then return end
-    local dcTool = backpack:FindFirstChild(DEATH_COUNTER_TOOL)
-    if not dcTool or dcConns[plr] then return end
-    local conn
-    conn = dcTool.AncestryChanged:Connect(function()
-        if dcTool.Parent ~= backpack then
-            conn:Disconnect()
-            dcConns[plr] = nil
-            local char = plr.Character
-            if not char then return end
-            local color = Color3.fromRGB(255, 40, 40)
-            UpdateHighlight(char, color)
-            SendNotif("Death Counter", plr.Name .. " → DEATH COUNTER", 1.5)
-            playerStates[plr] = "dc"
-            if stateTimers[plr] then task.cancel(stateTimers[plr]) end
-            stateTimers[plr] = task.delay(10, function()
-                if playerStates[plr] == "dc" then
-                    local char2 = plr.Character
-                    if char2 then RemoveHighlight(char2) end
-                    playerStates[plr] = nil
-                end
-                stateTimers[plr] = nil
-            end)
-        end
-    end)
-    dcConns[plr] = conn
-    task.delay(12, function()
-        if dcConns[plr] then
-            dcConns[plr]:Disconnect()
-            dcConns[plr] = nil
-        end
-    end)
-end
-local function CheckEquippedMove(char)
-    local tool = char:FindFirstChildOfClass("Tool")
-    if not tool then return nil end
-    local name = tool.Name
-    if strongSkills[name] then
-        return "strong", Color3.fromRGB(50, 255, 50)
-    elseif weakSkills[name] then
-        return "weak", Color3.fromRGB(100, 100, 255)
-    end
-    return nil
-end
-RunService.Heartbeat:Connect(function()
+local SPECIAL_ITEMS = {
+    ["Omni Directional Punch"] = true,
+    ["Death Counter"] = true,
+    ["Serious Punch"] = true,
+    ["Table Flip"] = true
+}
+local lastESPTime = {}   
+RunService.RenderStepped:Connect(function()
     for _, plr in Players:GetPlayers() do
         if plr == LocalPlayer then continue end
         local char = plr.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then
-            RemoveHighlight(char)
-            playerStates[plr] = nil
-            if stateTimers[plr] then task.cancel(stateTimers[plr]) end
-            stateTimers[plr] = nil
-            continue
+        if not char then continue end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        if not root or not hum or hum.Health <= 0 then continue end
+        for _, part in char:GetChildren() do
+            if (part:IsA("BasePart") or part:IsA("MeshPart")) and part.Name ~= "HumanoidRootPart" then
+                local black = part:FindFirstChild("AlwaysBlackESP")
+                if not black then
+                    black = Instance.new("SelectionBox")
+                    black.Name = "AlwaysBlackESP"
+                    black.Adornee = part
+                    black.LineThickness = 0.038
+                    black.Color3 = Color3.new(0,0,0)
+                    black.Transparency = 0.08
+                    black.AlwaysOnTop = true
+                    black.Parent = part
+                end
+            end
         end
         local backpack = plr:FindFirstChild("Backpack")
-        if not backpack then continue end
-        if hasSeriousTool(backpack) then
-            if playerStates[plr] ~= "serious" then
-                UpdateHighlight(char, Color3.fromRGB(255, 165, 0))
-                SendNotif("SERIOUS MODE ON", plr.Name, 3)
-                playerStates[plr] = "serious"
-            end
-            continue
-        end
-        if playerStates[plr] == "serious" then
-            RemoveHighlight(char)
-            playerStates[plr] = nil
-        end
-        if backpack:FindFirstChild(DEATH_COUNTER_TOOL) and not dcConns[plr] then
-            SetupDCWatch(plr)
-        end
-        if playerStates[plr] == "dc" then
-            UpdateHighlight(char, Color3.fromRGB(255, 40, 40))
-            continue    
-        end
-        local moveType, color = CheckEquippedMove(char)
-        if moveType == "strong" then
-            if playerStates[plr] ~= "strong" then
-                UpdateHighlight(char, color)
-                SendNotif("Strong Move", plr.Name .. " → " .. (char:FindFirstChildOfClass("Tool") and char:FindFirstChildOfClass("Tool").Name or "?"), 1.5)
-                playerStates[plr] = "strong"
-            end
-            if stateTimers[plr] then task.cancel(stateTimers[plr]) end
-            stateTimers[plr] = task.delay(3, function()
-                if playerStates[plr] == "strong" then
-                    RemoveHighlight(char)
-                    playerStates[plr] = nil
+        local hasDeathCounter = backpack and backpack:FindFirstChild("Death Counter") ~= nil
+        local hasSpecialItem = false
+        local itemName = nil
+        if backpack then
+            for _, tool in backpack:GetChildren() do
+                if SPECIAL_ITEMS[tool.Name] then
+                    hasSpecialItem = true
+                    itemName = tool.Name
+                    break
                 end
-                stateTimers[plr] = nil
-            end)
+            end
+        end
+        local dcHighlight   = char:FindFirstChild("DeathCounterHighlight")
+        local itemHighlight = char:FindFirstChild("SpecialItemHighlight")
+        local dangerFrame   = char:FindFirstChild("DangerFrameESP")
+        local shouldHaveESP = hasDeathCounter or hasSpecialItem
+        if shouldHaveESP then
+            lastESPTime[char] = tick()
+            if hasDeathCounter then
+                if dangerFrame   then dangerFrame:Destroy()   end
+                if itemHighlight then itemHighlight:Destroy() end
+                if not dcHighlight then
+                    dcHighlight = Instance.new("Highlight")
+                    dcHighlight.Name = "DeathCounterHighlight"
+                    dcHighlight.FillColor = Color3.fromRGB(255, 165, 0)
+                    dcHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    dcHighlight.FillTransparency = 0.45
+                    dcHighlight.OutlineTransparency = 0
+                    dcHighlight.Parent = char
+                    SendNotif("DEATH COUNTER", plr.Name .. "💀", 4)
+                end
+            elseif hasSpecialItem then
+                if dangerFrame   then dangerFrame:Destroy()   end
+                if dcHighlight   then dcHighlight:Destroy()   end
+                if not itemHighlight then
+                    itemHighlight = Instance.new("Highlight")
+                    itemHighlight.Name = "SpecialItemHighlight"
+                    itemHighlight.FillColor = Color3.fromRGB(255, 215, 0)
+                    itemHighlight.OutlineColor = Color3.fromRGB(0, 0, 0)
+                    itemHighlight.FillTransparency = 0.55
+                    itemHighlight.OutlineTransparency = 0
+                    itemHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    itemHighlight.Parent = char
+                    SendNotif("Serious Mode ON", plr.Name, 3)
+                end
+            end
         else
-            if playerStates[plr] == "strong" then
-                if stateTimers[plr] then task.cancel(stateTimers[plr]) end
-                stateTimers[plr] = task.delay(0.8, function()
-                    if playerStates[plr] == "strong" then
-                        RemoveHighlight(char)
-                        playerStates[plr] = nil
-                    end
-                    stateTimers[plr] = nil
-                end)
+            local lastTime = lastESPTime[char] or 0
+            if tick() - lastTime >= 2 then
+                if dcHighlight   then dcHighlight:Destroy()   end
+                if itemHighlight then itemHighlight:Destroy() end
+                if dangerFrame   then dangerFrame:Destroy()   end
+            end
+        end
+        if not (hasDeathCounter or hasSpecialItem) then
+            local shouldDanger = false
+            local moveName = nil
+            for _, track in hum:GetPlayingAnimationTracks() do
+                if track.IsPlaying and (
+                    track.Name == "Omni Directional Punch" or
+                    track.Name == "Death Counter" or
+                    track.Name == "Serious Punch" or
+                    track.Name == "Table Flip"
+                ) then
+                    shouldDanger = true
+                    moveName = track.Name
+                    break
+                end
+            end
+            if shouldDanger then
+                if not dangerFrame then
+                    dangerFrame = Instance.new("Highlight")
+                    dangerFrame.Name = "DangerFrameESP"
+                    dangerFrame.FillColor = Color3.fromRGB(0,0,0)
+                    dangerFrame.OutlineColor = Color3.fromRGB(255,255,255)
+                    dangerFrame.FillTransparency = 0.60
+                    dangerFrame.OutlineTransparency = 0
+                    dangerFrame.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    dangerFrame.Parent = char
+                    SendNotif("USE", plr.Name .. " → " .. moveName, 3.5)
+                end
+            elseif dangerFrame then
+                dangerFrame:Destroy()
             end
         end
     end
-end)
-local function BypassDeathCounter()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    local originalCFrame = root.CFrame
-    SendNotif("Anti DC", "Bypassing…", 2)
-    root.CFrame = CFrame.new(-91234, -4200, -91234)
-    local floor = Instance.new("Part")
-    floor.Anchored = true
-    floor.Size = Vector3.new(256, 4, 256)
-    floor.Position = Vector3.new(root.Position.X, workspace.FallenPartsDestroyHeight + 20, root.Position.Z)
-    floor.Transparency = 1
-    floor.CanCollide = true
-    floor.Parent = workspace
-    root.CFrame = originalCFrame
-    task.delay(1, function()
-        if floor then floor:Destroy() end
-    end)
-    SendNotif("Anti DC", "Done", 1.5)
-end
-local function SetupAntiDC(char)
-    local hum = char:WaitForChild("Humanoid", 8)
-    if not hum then return end
-    hum.AnimationPlayed:Connect(function(track)
-        local id = track.Animation.AnimationId
-        if id:find("death") or id:find("counter") then
-            task.spawn(BypassDeathCounter)
-        end
-    end)
-end
-if LocalPlayer.Character then 
-    SetupAntiDC(LocalPlayer.Character) 
-end
-LocalPlayer.CharacterAdded:Connect(SetupAntiDC)
-Players.PlayerRemoving:Connect(function(plr)
-    RemoveHighlight(plr.Character)
-    if dcConns[plr] then dcConns[plr]:Disconnect() end
-    if stateTimers[plr] then task.cancel(stateTimers[plr]) end
-    dcConns[plr] = nil
-    stateTimers[plr] = nil
-    playerStates[plr] = nil
 end)
 end)
 
