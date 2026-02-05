@@ -1,4 +1,133 @@
 task.spawn(function()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+local function SendNotif(title, text, dur)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = dur or 2.5
+    })
+end
+local SPECIAL_ITEMS = {
+    ["Omni Directional Punch"] = true,
+    ["Death Counter"] = true,
+    ["Serious Punch"] = true,
+    ["Table Flip"] = true
+}
+local lastESPTime = {}
+RunService.Heartbeat:Connect(function()  
+    for _, plr in Players:GetPlayers() do
+        if plr == LocalPlayer then continue end
+        local char = plr.Character
+        if not char then continue end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        if not root or not hum or hum.Health <= 0 then continue end
+        for _, part in char:GetChildren() do
+            if (part:IsA("BasePart") or part:IsA("MeshPart")) and part.Name ~= "HumanoidRootPart" then
+                local black = part:FindFirstChild("AlwaysBlackESP")
+                if not black then
+                    black = Instance.new("SelectionBox")
+                    black.Name = "AlwaysBlackESP"
+                    black.Adornee = part
+                    black.LineThickness = 0.038
+                    black.Color3 = Color3.new(0,0,0)
+                    black.Transparency = 0.08
+                    black.AlwaysOnTop = true
+                    black.Parent = part
+                end
+            end
+        end
+        local backpack = plr:FindFirstChild("Backpack")
+        local hasDeathCounter = backpack and backpack:FindFirstChild("Death Counter") ~= nil
+        local hasSpecialItem = false
+        local itemName = nil
+        if backpack then
+            for _, tool in backpack:GetChildren() do
+                if SPECIAL_ITEMS[tool.Name] then
+                    hasSpecialItem = true
+                    itemName = tool.Name
+                    break
+                end
+            end
+        end
+        local dcHighlight   = char:FindFirstChild("DeathCounterHighlight")
+        local itemHighlight = char:FindFirstChild("SpecialItemHighlight")
+        local dangerFrame   = char:FindFirstChild("DangerFrameESP")
+        local shouldHaveESP = hasDeathCounter or hasSpecialItem
+        if shouldHaveESP then
+            lastESPTime[char] = tick()
+            if hasDeathCounter then
+                if dangerFrame   then dangerFrame:Destroy()   end
+                if itemHighlight then itemHighlight:Destroy() end
+                if not dcHighlight then
+                    dcHighlight = Instance.new("Highlight")
+                    dcHighlight.Name = "DeathCounterHighlight"
+                    dcHighlight.FillColor = Color3.fromRGB(255, 165, 0)
+                    dcHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    dcHighlight.FillTransparency = 0.45
+                    dcHighlight.OutlineTransparency = 0
+                    dcHighlight.Parent = char
+                    SendNotif("DEATH COUNTER", plr.Name .. "💀", 4)
+                end
+            elseif hasSpecialItem then
+                if dangerFrame   then dangerFrame:Destroy()   end
+                if dcHighlight   then dcHighlight:Destroy()   end
+                if not itemHighlight then
+                    itemHighlight = Instance.new("Highlight")
+                    itemHighlight.Name = "SpecialItemHighlight"
+                    itemHighlight.FillColor = Color3.fromRGB(255, 215, 0)
+                    itemHighlight.OutlineColor = Color3.fromRGB(0, 0, 0)
+                    itemHighlight.FillTransparency = 0.55
+                    itemHighlight.OutlineTransparency = 0
+                    itemHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    itemHighlight.Parent = char
+                    SendNotif("Serious Mode", plr.Name, 3)
+                end
+            end
+        else
+            local lastTime = lastESPTime[char] or 0
+            if tick() - lastTime >= 2 then
+                if dcHighlight   then dcHighlight:Destroy()   end
+                if itemHighlight then itemHighlight:Destroy() end
+                if dangerFrame   then dangerFrame:Destroy()   end
+            end
+        end
+        if not (hasDeathCounter or hasSpecialItem) then
+            local shouldDanger = false
+            local moveName = nil
+            for _, track in hum:GetPlayingAnimationTracks() do
+                if track.IsPlaying and (
+                    track.Name == "Omni Directional Punch" or
+                    track.Name == "Death Counter" or
+                    track.Name == "Serious Punch" or
+                    track.Name == "Table Flip"
+                ) then
+                    shouldDanger = true
+                    moveName = track.Name
+                    break
+                end
+            end
+            if shouldDanger then
+                if not dangerFrame then
+                    dangerFrame = Instance.new("Highlight")
+                    dangerFrame.Name = "DangerFrameESP"
+                    dangerFrame.FillColor = Color3.fromRGB(0,0,0)
+                    dangerFrame.OutlineColor = Color3.fromRGB(255,255,255)
+                    dangerFrame.FillTransparency = 0.60
+                    dangerFrame.OutlineTransparency = 0
+                    dangerFrame.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    dangerFrame.Parent = char
+                    SendNotif("USE", plr.Name .. " → " .. moveName, 3.5)
+                end
+            elseif dangerFrame then
+                dangerFrame:Destroy()
+            end
+        end
+    end
+end)
 end)
 
 
