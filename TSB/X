@@ -3,105 +3,72 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
-local function SendNotif(title, text, dur)
-	pcall(function()
-		StarterGui:SetCore("SendNotification", {
-			Title = title,
-			Text = text,
-			Duration = dur or 8.5
-		})
-	end)
+local function CreateDeathCounterESP(character)
+    if not character then return end
+    if character:FindFirstChild("DeathCounterESP") then return end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "DeathCounterESP"
+    highlight.Adornee = character
+    highlight.FillColor       = Color3.fromRGB(0, 0, 0)       
+    highlight.OutlineColor    = Color3.fromRGB(255, 255, 0)   
+    highlight.FillTransparency   = 0.38                       
+    highlight.OutlineTransparency = 0.0                       
+    highlight.DepthMode       = Enum.HighlightDepthMode.Occluded  
+    highlight.Parent = character
+    task.delay(12, function()
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end)
 end
-local SPECIAL_ITEMS = {
-	["Omni Directional Punch"] = true,
-	["Death Counter"] = true,
-	["Serious Punch"] = true,
-	["Table Flip"] = true
-}
-local lastESPTime = {}
-RunService.Heartbeat:Connect(function()
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr == LocalPlayer then continue end
-		local char = plr.Character
-		if not char then continue end
-		local hum = char:FindFirstChildOfClass("Humanoid")
-		if not hum or hum.Health <= 0 then continue end
-		local backpack = plr:FindFirstChild("Backpack")
-		local hasDeathCounter = backpack and backpack:FindFirstChild("Death Counter")
-		local hasSpecialItem = false
-		local itemName
-		if backpack then
-			for _, tool in ipairs(backpack:GetChildren()) do
-				if tool:IsA("Tool") and SPECIAL_ITEMS[tool.Name] then
-					hasSpecialItem = true
-					itemName = tool.Name
-					break
-				end
-			end
-		end
-		local dcHighlight = char:FindFirstChild("DeathCounterHighlight")
-		local itemHighlight = char:FindFirstChild("SpecialItemHighlight")
-		local dangerHighlight = char:FindFirstChild("DangerFrameESP")
-		if hasDeathCounter then
-			lastESPTime[char] = tick()
-			if itemHighlight then itemHighlight:Destroy() end
-			if dangerHighlight then dangerHighlight:Destroy() end
-			if not dcHighlight then
-				local h = Instance.new("Highlight")
-				h.Name = "DeathCounterHighlight"
-				h.FillColor = Color3.fromRGB(255, 165, 0)
-				h.OutlineColor = Color3.new(1,1,1)
-				h.FillTransparency = 0.45
-				h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-				h.Parent = char
-				SendNotif("DEATH COUNTER", plr.Name .. " 💀", 8.5)
-			end
-		elseif hasSpecialItem then
-			lastESPTime[char] = tick()
-			if dcHighlight then dcHighlight:Destroy() end
-			if dangerHighlight then dangerHighlight:Destroy() end
-			if not itemHighlight then
-				local h = Instance.new("Highlight")
-				h.Name = "SpecialItemHighlight"
-				h.FillColor = Color3.fromRGB(255, 215, 0)
-				h.OutlineColor = Color3.new(0,0,0)
-				h.FillTransparency = 0.55
-				h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-				h.Parent = char
-				SendNotif("Serious Mode", plr.Name, 8.5)
-			end
-		else
-			local last = lastESPTime[char] or 0
-			if tick() - last > 2 then
-				if dcHighlight then dcHighlight:Destroy() end
-				if itemHighlight then itemHighlight:Destroy() end
-			end
-		end
-		if not hasDeathCounter and not hasSpecialItem then
-			local dangerMove
-			for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
-				if track.IsPlaying and SPECIAL_ITEMS[track.Name] then
-					dangerMove = track.Name
-					break
-				end
-			end
-			if dangerMove then
-				if not dangerHighlight then
-					local h = Instance.new("Highlight")
-					h.Name = "DangerFrameESP"
-					h.FillColor = Color3.new(0,0,0)
-					h.OutlineColor = Color3.new(1,1,1)
-					h.FillTransparency = 0.6
-					h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-					h.Parent = char
-					SendNotif("USE", plr.Name .. " → " .. dangerMove, 8.5)
-				end
-			elseif dangerHighlight then
-				dangerHighlight:Destroy()
-			end
-		end
-	end
+local function Notify(title, message, duration)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = message,
+        Duration = duration or 2.8
+    })
+end
+local function CheckForSuccessfulDeathCounter()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        local character = player.Character
+        if not character or not character:FindFirstChild("Humanoid") then continue end
+        local backpack = player:FindFirstChild("Backpack")
+        local equippedTool = character:FindFirstChild("Death Counter")
+        if not (backpack and backpack:FindFirstChild("Death Counter")) and not equippedTool then
+            continue
+        end
+        task.wait(0.16)
+        local humanoid = character:FindFirstChild("Humanoid")
+        if not humanoid then continue end
+        local successAnimations = {
+            "rbxassetid://12983333733",
+            "rbxassetid://11365563255",
+            "rbxassetid://13927612951",
+        }
+        local isSuccessfulHit = false
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
+                isSuccessfulHit = true
+                break
+            end
+        end
+        if isSuccessfulHit then
+            CreateDeathCounterESP(character)
+            Notify("Death Counter", player.Name .. " just landed Death Counter!", 5)
+            task.delay(9.6, function()
+                Notify("Death Counter", player.Name .. " → Death Counter  ended", 3.3)
+            end)
+        end
+    end
+end
+task.spawn(function()
+    while true do
+        pcall(CheckForSuccessfulDeathCounter)  
+        task.wait()   
+    end
 end)
+
 end)
 
 
