@@ -716,28 +716,57 @@ end)
 task.spawn(function()
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Toggle = Tabs.XXX:AddToggle("attacktog", {Title = "Attack TP", Default = false})
-local function getClosestPlayer()
-    local closestPlayer = nil
+local function getHumanoidRootOrTorso(character)
+    if character:FindFirstChild("HumanoidRootPart") then
+        return character.HumanoidRootPart
+    elseif character:FindFirstChild("Torso") then
+        return character.Torso
+    elseif character:FindFirstChild("UpperTorso") then
+        return character.UpperTorso
+    end
+    return nil
+end
+local function getClosestTarget()
+    local closestTarget = nil
     local shortestDistance = math.huge
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-            if distance < shortestDistance then
-                shortestDistance = distance
-                closestPlayer = player
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+            local targetPart = getHumanoidRootOrTorso(player.Character)
+            local localPart = getHumanoidRootOrTorso(LocalPlayer.Character)
+            if targetPart and localPart then
+                local distance = (targetPart.Position - localPart.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestTarget = targetPart
+                end
             end
         end
     end
-    return closestPlayer
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj ~= LocalPlayer.Character then
+            local targetPart = getHumanoidRootOrTorso(obj)
+            local localPart = getHumanoidRootOrTorso(LocalPlayer.Character)
+            if targetPart and localPart then
+                local distance = (targetPart.Position - localPart.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestTarget = targetPart
+                end
+            end
+        end
+    end
+    return closestTarget
 end
 local function teleportBehindTarget()
-    local target = getClosestPlayer()
-    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-        local targetHRP = target.Character.HumanoidRootPart
-        local behindPosition = targetHRP.Position - (targetHRP.CFrame.LookVector * 3) 
-        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(behindPosition)
+    local localPart = getHumanoidRootOrTorso(LocalPlayer.Character)
+    if not localPart then return end
+    local targetPart = getClosestTarget()
+    if targetPart then
+        local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.5) 
+        localPart.CFrame = CFrame.new(behindPosition)
     end
 end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
