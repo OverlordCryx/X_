@@ -8,7 +8,7 @@ local function SendNotif(title, text, dur)
 		StarterGui:SetCore("SendNotification", {
 			Title = title,
 			Text = text,
-			Duration = dur or 4.5
+			Duration = dur or 8.5
 		})
 	end)
 end
@@ -54,7 +54,7 @@ RunService.Heartbeat:Connect(function()
 				h.FillTransparency = 0.45
 				h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 				h.Parent = char
-				SendNotif("DEATH COUNTER", plr.Name .. " 💀", 4)
+				SendNotif("DEATH COUNTER", plr.Name .. " 💀", 8.5)
 			end
 		elseif hasSpecialItem then
 			lastESPTime[char] = tick()
@@ -68,7 +68,7 @@ RunService.Heartbeat:Connect(function()
 				h.FillTransparency = 0.55
 				h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 				h.Parent = char
-				SendNotif("Serious Mode", plr.Name, 3)
+				SendNotif("Serious Mode", plr.Name, 8.5)
 			end
 		else
 			local last = lastESPTime[char] or 0
@@ -94,7 +94,7 @@ RunService.Heartbeat:Connect(function()
 					h.FillTransparency = 0.6
 					h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 					h.Parent = char
-					SendNotif("USE", plr.Name .. " → " .. dangerMove, 4.5)
+					SendNotif("USE", plr.Name .. " → " .. dangerMove, 8.5)
 				end
 			elseif dangerHighlight then
 				dangerHighlight:Destroy()
