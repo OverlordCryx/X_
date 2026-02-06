@@ -44,7 +44,9 @@ local function notify(title, text, duration)
     end)
 end
 local function enableBackpackSkillESP(player)
-    if backpackSkillHighlights[player] then return end
+    local existing = backpackSkillHighlights[player]
+    if existing and existing.Parent then return end
+    backpackSkillHighlights[player] = nil  
     local char = player.Character
     if not char or not char.Parent then return end
     local hl = Instance.new("Highlight")
@@ -59,7 +61,9 @@ local function enableBackpackSkillESP(player)
     backpackSkillHighlights[player] = hl
 end
 local function enableEquippedSkillESP(player)
-    if equippedSkillHighlights[player] then return end
+    local existing = equippedSkillHighlights[player]
+    if existing and existing.Parent then return end
+    equippedSkillHighlights[player] = nil  
     local char = player.Character
     if not char or not char.Parent then return end
     local hl = Instance.new("Highlight")
@@ -77,11 +81,23 @@ local function enableEquippedSkillESP(player)
         notify("⚠️ " .. skillName, player.Name .. " → SKILL ACTIVE", 3)
     end
 end
+local function disableBackpackESP(player)
+    local hl = backpackSkillHighlights[player]
+    if hl and hl.Parent then
+        hl:Destroy()
+    end
+    backpackSkillHighlights[player] = nil
+end
+local function disableEquippedESP(player)
+    local hl = equippedSkillHighlights[player]
+    if hl and hl.Parent then
+        hl:Destroy()
+    end
+    equippedSkillHighlights[player] = nil
+end
 local function disableAllESP(player)
-    local hl1 = backpackSkillHighlights[player]
-    if hl1 then hl1:Destroy() backpackSkillHighlights[player] = nil end
-    local hl2 = equippedSkillHighlights[player]
-    if hl2 then hl2:Destroy() equippedSkillHighlights[player] = nil end
+    disableBackpackESP(player)
+    disableEquippedESP(player)
 end
 local function createDeathCounterESP(character)
     if not character then return end
@@ -122,12 +138,16 @@ for _, player in ipairs(Players:GetPlayers()) do
         if player.Character then
             handleCharacter(player, player.Character)
         end
-        player.CharacterAdded:Connect(handleCharacter)
+        player.CharacterAdded:Connect(function(char)
+            handleCharacter(player, char)
+        end)
     end
 end
 Players.PlayerAdded:Connect(function(player)
     if player == LocalPlayer then return end
-    player.CharacterAdded:Connect(handleCharacter)
+    player.CharacterAdded:Connect(function(char)
+        handleCharacter(player, char)
+    end)
 end)
 RunService.Heartbeat:Connect(function()
     for _, player in ipairs(Players:GetPlayers()) do
@@ -140,10 +160,10 @@ RunService.Heartbeat:Connect(function()
         if char and backpack then
             if hasEquippedTargetSkill(player) then
                 enableEquippedSkillESP(player)
-                backpackSkillHighlights[player] = backpackSkillHighlights[player] or nil
+                disableBackpackESP(player)
             elseif hasTargetSkill(player) then
                 enableBackpackSkillESP(player)
-                equippedSkillHighlights[player] = equippedSkillHighlights[player] or nil
+                disableEquippedESP(player)
             else
                 disableAllESP(player)
             end
