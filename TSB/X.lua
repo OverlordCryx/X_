@@ -119,38 +119,8 @@ function notify(title, message, duration)
         })
     end)
 end
-local function handleCharacter(player, char)
-    task.spawn(function()
-        if hasEquippedTargetSkill(player) then
-            enableEquippedSkillESP(player)
-        elseif hasTargetSkill(player) then
-            enableBackpackSkillESP(player)
-        end
-    end)
-    local humanoid = char:WaitForChild("Humanoid", 5)
-    if humanoid then
-        humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        end)
-    end
-end
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        if player.Character then
-            handleCharacter(player, player.Character)
-        end
-        player.CharacterAdded:Connect(function(char)
-            handleCharacter(player, char)
-        end)
-    end
-end
-Players.PlayerAdded:Connect(function(player)
-    if player == LocalPlayer then return end
-    player.CharacterAdded:Connect(function(char)
-        handleCharacter(player, char)
-    end)
-end)
 RunService.Heartbeat:Connect(function()
-    for _, player in ipairs(Players:GetPlayers()) do
+    for _, player in Players:GetPlayers() do
         if player == LocalPlayer then
             disableAllESP(player)
             continue
@@ -158,10 +128,12 @@ RunService.Heartbeat:Connect(function()
         local char = player.Character
         local backpack = player:FindFirstChild("Backpack")
         if char and backpack then
-            if hasEquippedTargetSkill(player) then
+            local equippedSkill = hasEquippedTargetSkill(player)
+            local backpackSkill = hasTargetSkill(player)
+            if equippedSkill then
                 enableEquippedSkillESP(player)
                 disableBackpackSkillESP(player)
-            elseif hasTargetSkill(player) then
+            elseif backpackSkill then
                 enableBackpackSkillESP(player)
                 disableEquippedSkillESP(player)
             else
@@ -170,26 +142,33 @@ RunService.Heartbeat:Connect(function()
         else
             disableAllESP(player)
         end
-        if char and char:FindFirstChild("Humanoid") then
-            local hasDeathCounter = (backpack and backpack:FindFirstChild("Death Counter")) or char:FindFirstChild("Death Counter")
-            if hasDeathCounter then
-                local humanoid = char:FindFirstChild("Humanoid")
-                local successAnimations = {
-                    "rbxassetid://12983333733",
-                    "rbxassetid://11365563255",
-                    "rbxassetid://13927612951",
-                }
-                for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                    if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
-                        createDeathCounterESP(char)
-                        notify("DEATH", player.Name, 5)
-                        task.delay(9.6, function()
-                            notify("Death Ended", player.Name, 3)
-                        end)
-                        break
-                    end
-                end
+    end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        local char = player.Character
+        if not char or not char:FindFirstChild("Humanoid") then continue end
+        local backpack = player:FindFirstChild("Backpack")
+        local hasDeathCounter = (backpack and backpack:FindFirstChild("Death Counter")) or char:FindFirstChild("Death Counter")
+        if not hasDeathCounter then continue end
+        local humanoid = char:FindFirstChild("Humanoid")
+        local successAnimations = {
+            "rbxassetid://12983333733",
+            "rbxassetid://11365563255",
+            "rbxassetid://13927612951",
+        }
+        local isHit = false
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
+                isHit = true
+                break
             end
+        end
+        if isHit then
+            createDeathCounterESP(char)
+            notify("DEATH", player.Name, 5)
+            task.delay(9.6, function()
+                notify("Death Ended", player.Name, 3)
+            end)
         end
     end
 end)
@@ -840,6 +819,108 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not Toggle.Value then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         teleportBehindTarget()
+    end
+end)
+end)
+task.spawn(function()
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Toggle = Tabs.XXX:AddToggle("ulttog", {
+    Title = "ult %",
+    Default = false
+})
+local function createBillboard(player)
+    if player == LocalPlayer then return nil end
+    local char = player.Character
+    if not char then return nil end
+    local head = char:FindFirstChild("Head")
+    if not head then return nil end
+    local old = head:FindFirstChild("UltimatePercentDisplay")
+    if old then old:Destroy() end
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "UltimatePercentDisplay"
+    bb.Adornee = head
+    bb.Size = UDim2.new(3.8, 0, 1.6, 0)
+    bb.StudsOffset = Vector3.new(0, 3.4, 0)
+    bb.AlwaysOnTop = true
+    bb.MaxDistance = 140
+    bb.LightInfluence = 0
+    bb.Parent = head
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.TextColor3 = Color3.fromRGB(220, 220, 255)
+    txt.TextStrokeTransparency = 0.6
+    txt.TextStrokeColor3 = Color3.new(0,0,0)
+    txt.Font = Enum.Font.GothamBold
+    txt.TextSize = 20
+    txt.Text = "0%"
+    txt.Parent = bb
+    return bb
+end
+local connection
+Toggle:OnChanged(function(enabled)
+    if enabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                createBillboard(player)
+            end
+        end
+        connection = RunService.Heartbeat:Connect(function(dt)
+            if tick() % 0.1 > dt then return end   
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player == LocalPlayer then continue end
+                local char = player.Character
+                if not char or not char:FindFirstChild("Head") then continue end
+                local bb = char.Head:FindFirstChild("UltimatePercentDisplay")
+                if not bb then
+                    bb = createBillboard(player)
+                    if not bb then continue end
+                end
+                local label = bb:FindFirstChildWhichIsA("TextLabel")
+                if not label then continue end
+                local ult = player:GetAttribute("Ultimate") or 0
+                local value = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
+                label.Text = value .. "%"
+                if value >= 90 then
+                    label.TextColor3 = Color3.fromRGB(255, 80, 80)
+                elseif value >= 60 then
+                    label.TextColor3 = Color3.fromRGB(255, 190, 60)
+                elseif value >= 25 then
+                    label.TextColor3 = Color3.fromRGB(140, 220, 100)
+                else
+                    label.TextColor3 = Color3.fromRGB(190, 210, 255)
+                end
+            end
+        end)
+    else
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+                local bb = player.Character.Head:FindFirstChild("UltimatePercentDisplay")
+                if bb then bb:Destroy() end
+            end
+        end
+    end
+end)
+Players.PlayerAdded:Connect(function(player)
+    if not Toggle.Value then return end
+    player.CharacterAdded:Connect(function()
+        task.wait(0.7)
+        createBillboard(player)
+    end)
+end)
+task.delay(1.5, function()
+    if Toggle.Value then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                createBillboard(player)
+            end
+        end
     end
 end)
 end)
