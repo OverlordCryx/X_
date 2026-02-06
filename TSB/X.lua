@@ -119,8 +119,38 @@ function notify(title, message, duration)
         })
     end)
 end
+local function handleCharacter(player, char)
+    task.spawn(function()
+        if hasEquippedTargetSkill(player) then
+            enableEquippedSkillESP(player)
+        elseif hasTargetSkill(player) then
+            enableBackpackSkillESP(player)
+        end
+    end)
+    local humanoid = char:WaitForChild("Humanoid", 5)
+    if humanoid then
+        humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+        end)
+    end
+end
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        if player.Character then
+            handleCharacter(player, player.Character)
+        end
+        player.CharacterAdded:Connect(function(char)
+            handleCharacter(player, char)
+        end)
+    end
+end
+Players.PlayerAdded:Connect(function(player)
+    if player == LocalPlayer then return end
+    player.CharacterAdded:Connect(function(char)
+        handleCharacter(player, char)
+    end)
+end)
 RunService.Heartbeat:Connect(function()
-    for _, player in Players:GetPlayers() do
+    for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then
             disableAllESP(player)
             continue
@@ -128,12 +158,10 @@ RunService.Heartbeat:Connect(function()
         local char = player.Character
         local backpack = player:FindFirstChild("Backpack")
         if char and backpack then
-            local equippedSkill = hasEquippedTargetSkill(player)
-            local backpackSkill = hasTargetSkill(player)
-            if equippedSkill then
+            if hasEquippedTargetSkill(player) then
                 enableEquippedSkillESP(player)
                 disableBackpackSkillESP(player)
-            elseif backpackSkill then
+            elseif hasTargetSkill(player) then
                 enableBackpackSkillESP(player)
                 disableEquippedSkillESP(player)
             else
@@ -142,33 +170,26 @@ RunService.Heartbeat:Connect(function()
         else
             disableAllESP(player)
         end
-    end
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local char = player.Character
-        if not char or not char:FindFirstChild("Humanoid") then continue end
-        local backpack = player:FindFirstChild("Backpack")
-        local hasDeathCounter = (backpack and backpack:FindFirstChild("Death Counter")) or char:FindFirstChild("Death Counter")
-        if not hasDeathCounter then continue end
-        local humanoid = char:FindFirstChild("Humanoid")
-        local successAnimations = {
-            "rbxassetid://12983333733",
-            "rbxassetid://11365563255",
-            "rbxassetid://13927612951",
-        }
-        local isHit = false
-        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
-                isHit = true
-                break
+        if char and char:FindFirstChild("Humanoid") then
+            local hasDeathCounter = (backpack and backpack:FindFirstChild("Death Counter")) or char:FindFirstChild("Death Counter")
+            if hasDeathCounter then
+                local humanoid = char:FindFirstChild("Humanoid")
+                local successAnimations = {
+                    "rbxassetid://12983333733",
+                    "rbxassetid://11365563255",
+                    "rbxassetid://13927612951",
+                }
+                for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                    if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
+                        createDeathCounterESP(char)
+                        notify("DEATH", player.Name, 5)
+                        task.delay(9.6, function()
+                            notify("Death Ended", player.Name, 3)
+                        end)
+                        break
+                    end
+                end
             end
-        end
-        if isHit then
-            createDeathCounterESP(char)
-            notify("DEATH", player.Name, 5)
-            task.delay(9.6, function()
-                notify("Death Ended", player.Name, 3)
-            end)
         end
     end
 end)
