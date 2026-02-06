@@ -382,7 +382,7 @@ local function hasTrash()
     return value and value ~= ""
 end
 local function reallyHasNoTrash() 
-    for i = 1, 7 do
+    for i = 1, 10 do
         if hasTrash() then
             return false
         end
