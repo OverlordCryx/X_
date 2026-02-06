@@ -1,3 +1,4 @@
+task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
@@ -33,19 +34,14 @@ local function getEquippedSkillName(player)
     local tool = char:FindFirstChildWhichIsA("Tool")
     return tool and SKILLS[tool.Name] and tool.Name or nil
 end
-local function disableBackpackSkillESP(player)
-    local hl = backpackSkillHighlights[player]
-    if hl then
-        hl:Destroy()
-        backpackSkillHighlights[player] = nil
-    end
-end
-local function disableEquippedSkillESP(player)
-    local hl = equippedSkillHighlights[player]
-    if hl then
-        hl:Destroy()
-        equippedSkillHighlights[player] = nil
-    end
+local function notify(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = duration or 2.5
+        })
+    end)
 end
 local function enableBackpackSkillESP(player)
     if backpackSkillHighlights[player] then return end
@@ -55,7 +51,7 @@ local function enableBackpackSkillESP(player)
     hl.Name = "BackpackSkillESP"
     hl.FillColor = Color3.new(0, 0, 0)
     hl.OutlineColor = Color3.fromRGB(0, 255, 0)
-    hl.FillTransparency = 0.2
+    hl.FillTransparency = 0.4
     hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Adornee = char
@@ -70,7 +66,7 @@ local function enableEquippedSkillESP(player)
     hl.Name = "EquippedSkillESP"
     hl.FillColor = Color3.new(0, 0, 0)
     hl.OutlineColor = Color3.fromRGB(255, 165, 0)
-    hl.FillTransparency = 0.3
+    hl.FillTransparency = 0.4
     hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Adornee = char
@@ -82,8 +78,10 @@ local function enableEquippedSkillESP(player)
     end
 end
 local function disableAllESP(player)
-    disableBackpackSkillESP(player)
-    disableEquippedSkillESP(player)
+    local hl1 = backpackSkillHighlights[player]
+    if hl1 then hl1:Destroy() backpackSkillHighlights[player] = nil end
+    local hl2 = equippedSkillHighlights[player]
+    if hl2 then hl2:Destroy() equippedSkillHighlights[player] = nil end
 end
 local function createDeathCounterESP(character)
     if not character then return end
@@ -93,7 +91,7 @@ local function createDeathCounterESP(character)
     hl.Adornee = character
     hl.FillColor = Color3.fromRGB(0, 0, 0)
     hl.OutlineColor = Color3.fromRGB(255, 0, 0)
-    hl.FillTransparency = 0.2
+    hl.FillTransparency = 0.4
     hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Parent = character
@@ -110,17 +108,29 @@ local function createDeathCounterESP(character)
         end
     end)
 end
-function notify(title, message, duration)
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = title,
-            Text = message,
-            Duration = duration or 2.5
-        })
+local function handleCharacter(player, char)
+    task.spawn(function()
+        if hasEquippedTargetSkill(player) then
+            enableEquippedSkillESP(player)
+        elseif hasTargetSkill(player) then
+            enableBackpackSkillESP(player)
+        end
     end)
 end
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        if player.Character then
+            handleCharacter(player, player.Character)
+        end
+        player.CharacterAdded:Connect(handleCharacter)
+    end
+end
+Players.PlayerAdded:Connect(function(player)
+    if player == LocalPlayer then return end
+    player.CharacterAdded:Connect(handleCharacter)
+end)
 RunService.Heartbeat:Connect(function()
-    for _, player in Players:GetPlayers() do
+    for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then
             disableAllESP(player)
             continue
@@ -128,52 +138,43 @@ RunService.Heartbeat:Connect(function()
         local char = player.Character
         local backpack = player:FindFirstChild("Backpack")
         if char and backpack then
-            local equippedSkill = hasEquippedTargetSkill(player)
-            local backpackSkill = hasTargetSkill(player)
-            if equippedSkill then
+            if hasEquippedTargetSkill(player) then
                 enableEquippedSkillESP(player)
-                disableBackpackSkillESP(player)
-            elseif backpackSkill then
+                backpackSkillHighlights[player] = backpackSkillHighlights[player] or nil
+            elseif hasTargetSkill(player) then
                 enableBackpackSkillESP(player)
-                disableEquippedSkillESP(player)
+                equippedSkillHighlights[player] = equippedSkillHighlights[player] or nil
             else
                 disableAllESP(player)
             end
         else
             disableAllESP(player)
         end
-    end
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local char = player.Character
-        if not char or not char:FindFirstChild("Humanoid") then continue end
-        local backpack = player:FindFirstChild("Backpack")
-        local hasDeathCounter = (backpack and backpack:FindFirstChild("Death Counter")) or char:FindFirstChild("Death Counter")
-        if not hasDeathCounter then continue end
-        local humanoid = char:FindFirstChild("Humanoid")
-        local successAnimations = {
-            "rbxassetid://12983333733",
-            "rbxassetid://11365563255",
-            "rbxassetid://13927612951",
-        }
-        local isHit = false
-        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
-                isHit = true
-                break
+        if char and char:FindFirstChild("Humanoid") then
+            local humanoid = char.Humanoid
+            local hasDeathCounter = (backpack and backpack:FindFirstChild("Death Counter")) or char:FindFirstChild("Death Counter")
+            if hasDeathCounter then
+                local successAnimations = {
+                    "rbxassetid://12983333733",
+                    "rbxassetid://11365563255",
+                    "rbxassetid://13927612951",
+                }
+                for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                    if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
+                        createDeathCounterESP(char)
+                        notify("DEATH", player.Name, 5)
+                        task.delay(9.6, function()
+                            notify("Death Ended", player.Name, 3)
+                        end)
+                        break
+                    end
+                end
             end
-        end
-        if isHit then
-            createDeathCounterESP(char)
-            notify("DEATH", player.Name, 5)
-            task.delay(9.6, function()
-                notify("Death Ended", player.Name, 3)
-            end)
         end
     end
 end)
 Players.PlayerRemoving:Connect(disableAllESP)
-
+end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
