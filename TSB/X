@@ -140,9 +140,9 @@ local function checkDeathCounter()
         end
         if isSuccessfulHit and canNotify("deathcounter_" .. player.UserId) then
             createDeathCounterESP(character)
-            notify("💀 DEATH COUNTER", player.Name .. " → PERFECT COUNTER!", 5)
+            notify("DEATH", player.Name, 5)
             task.delay(9.6, function()
-                notify("Death Counter", player.Name .. " → Counter ended", 3)
+                notify("Death", player.Name .. "ended", 3)
             end)
         end
     end
@@ -383,68 +383,76 @@ local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
 local running = false
 local debounce = false
 local function setupCharacter(char)
-	character = char
-	hrp = character:WaitForChild("HumanoidRootPart")
+    character = char
+    hrp = character:WaitForChild("HumanoidRootPart")
 end
 if player.Character then
-	setupCharacter(player.Character)
+    setupCharacter(player.Character)
 end
 player.CharacterAdded:Connect(function(char)
-	task.wait(1)
-	setupCharacter(char)
+    task.wait(1)
+    setupCharacter(char)
 end)
 local function hasTrash()
-	local value = character:GetAttribute("HasTrashcan")
-	return value and value ~= ""
+    local value = character:GetAttribute("HasTrashcan")
+    return value and value ~= ""
+end
+local function reallyHasNoTrash() 
+    for i = 1, 7 do
+        if hasTrash() then
+            return false
+        end
+        task.wait() 
+    end
+    return true
 end
 local function getClosestTrashCan()
-	local closest
-	local shortest = math.huge
-	for _, model in ipairs(trashFolder:GetChildren()) do
-		if model.Name == "Trashcan" and not model:GetAttribute("Broken") then
-			local dist = (hrp.Position - model:GetModelCFrame().Position).Magnitude
-			if dist < shortest then
-				shortest = dist
-				closest = model
-			end
-		end
-	end
-	return closest
+    local closest
+    local shortest = math.huge
+    for _, model in ipairs(trashFolder:GetChildren()) do
+        if model.Name == "Trashcan" and not model:GetAttribute("Broken") then
+            local dist = (hrp.Position - model:GetModelCFrame().Position).Magnitude
+            if dist < shortest then
+                shortest = dist
+                closest = model
+            end
+        end
+    end
+    return closest
 end
 local function click()
-			if not hasTrash() then
-	vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-	vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-	end
+    vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 local function useTrashCan()
-	if debounce then return end
-	debounce = true
-	if hasTrash() then
-		debounce = false
-		return
-	end
-	local savedCFrame = hrp.CFrame
-	local tries = 0
-	local maxTries = 45
-	while tries < maxTries and running do
-		if hasTrash() then break end
-		local trash = getClosestTrashCan()
-		if trash then
-                hrp.CFrame = trash:GetModelCFrame() * CFrame.new(0, 0, 0)
-					task.wait()
-			if not hasTrash() then
-            if not hasTrash() then
-				click()
-            end
-			end
-		end
-		tries += 1
-	end
-	if hrp then
-		hrp.CFrame = savedCFrame
-	end
-	debounce = false
+    if debounce then return end
+    debounce = true
+    if hasTrash() then
+        debounce = false
+        return
+    end
+    local savedCFrame = hrp.CFrame
+    local tries = 0
+    local maxTries = 40   
+    while tries < maxTries and running do
+        if hasTrash() then break end
+        local trash = getClosestTrashCan()
+        if not trash then
+            task.wait(0.4)
+            tries += 1
+            continue
+        end
+        hrp.CFrame = trash:GetModelCFrame() * CFrame.new(0, 0, 0) 
+        if reallyHasNoTrash() then
+            click()
+        end
+        tries += 1
+    end
+    if hrp and hrp.Parent then
+        hrp.CFrame = savedCFrame
+    end
+    task.wait()
+    debounce = false
 end
 Tabs.XXX:AddKeybind("TrashKeybind", {
     Title = "Get Trash Can",
@@ -455,19 +463,19 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
         if state then
             Fluent:Notify({
                 Title = "X_^",
-                Content = "AUTO TRASH ON",
+                Content = "AUTO TRASH → ON",
                 Duration = 3
             })
             task.spawn(function()
                 while running do
                     useTrashCan()
-                    task.wait()
+                    task.wait() 
                 end
             end)
         else
             Fluent:Notify({
                 Title = "X_^",
-                Content = "AUTO TRASH OFF",
+                Content = "AUTO TRASH → OFF",
                 Duration = 3
             })
         end
