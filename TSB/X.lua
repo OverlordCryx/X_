@@ -732,41 +732,91 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-local Toggle = Tabs.XXX:AddToggle("attacktog", {Title = "Attack TP", Default = false})
+local Toggle = Tabs.XXX:AddToggle("attacktog", {
+    Title = "Attack TP",
+    Default = false
+})
+local TRASH_DISTANCE = 11
+local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
+local liveFolder = workspace:WaitForChild("Live")
+local function getCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
 local function getHumanoidRootOrTorso(character)
-    if character:FindFirstChild("HumanoidRootPart") then
-        return character.HumanoidRootPart
-    elseif character:FindFirstChild("Torso") then
-        return character.Torso
-    elseif character:FindFirstChild("UpperTorso") then
-        return character.UpperTorso
+    return character:FindFirstChild("HumanoidRootPart")
+        or character:FindFirstChild("UpperTorso")
+        or character:FindFirstChild("Torso")
+end
+local function getLiveModel()
+    for _, model in ipairs(liveFolder:GetChildren()) do
+        if model:IsA("Model") and model.Name:find(LocalPlayer.Name) then
+            return model
+        end
     end
     return nil
 end
+local function hasTrash()
+    local character = getLiveModel()
+    if not character then return false end
+    local value = character:GetAttribute("HasTrashcan")
+    return value and value ~= ""
+end
+local function getClosestTrash(maxDist)
+    maxDist = maxDist or TRASH_DISTANCE
+    local char = getCharacter()
+    local hrp = getHumanoidRootOrTorso(char)
+    if not hrp then return nil end
+    local best, bestDist = nil, maxDist
+    for _, m in ipairs(trashFolder:GetChildren()) do
+        if m.Name ~= "Trashcan" then continue end
+        if m:GetAttribute("Broken") then continue end
+        local part =
+            m.PrimaryPart
+            or m:FindFirstChild("Handle")
+            or m:FindFirstChildWhichIsA("BasePart")
+        if not part then continue end
+        local dist = (hrp.Position - part.Position).Magnitude
+        if dist < bestDist then
+            bestDist = dist
+            best = {
+                model = m,
+                part = part,
+                dist = dist
+            }
+        end
+    end
+    return best
+end
 local function getClosestTarget()
+    local char = getCharacter()
+    local localPart = getHumanoidRootOrTorso(char)
+    if not localPart then return nil end
     local closestTarget = nil
     local shortestDistance = math.huge
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
-            local targetPart = getHumanoidRootOrTorso(player.Character)
-            local localPart = getHumanoidRootOrTorso(LocalPlayer.Character)
-            if targetPart and localPart then
-                local distance = (targetPart.Position - localPart.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestTarget = targetPart
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local targetPart = getHumanoidRootOrTorso(player.Character)
+                if targetPart then
+                    local dist = (targetPart.Position - localPart.Position).Magnitude
+                    if dist < shortestDistance then
+                        shortestDistance = dist
+                        closestTarget = targetPart
+                    end
                 end
             end
         end
     end
-    for _, obj in pairs(Workspace:GetChildren()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj ~= LocalPlayer.Character then
-            local targetPart = getHumanoidRootOrTorso(obj)
-            local localPart = getHumanoidRootOrTorso(LocalPlayer.Character)
-            if targetPart and localPart then
-                local distance = (targetPart.Position - localPart.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
+    local dummy = liveFolder:FindFirstChild("Weakest Dummy")
+    if dummy and dummy:IsA("Model") then
+        local humanoid = dummy:FindFirstChild("Humanoid")
+        if humanoid and humanoid.Health > 0 then
+            local targetPart = getHumanoidRootOrTorso(dummy)
+            if targetPart then
+                local dist = (targetPart.Position - localPart.Position).Magnitude
+                if dist < shortestDistance then
+                    shortestDistance = dist
                     closestTarget = targetPart
                 end
             end
@@ -775,17 +825,21 @@ local function getClosestTarget()
     return closestTarget
 end
 local function teleportBehindTarget()
-    local localPart = getHumanoidRootOrTorso(LocalPlayer.Character)
+    if hasTrash() then return end
+    if getClosestTrash(TRASH_DISTANCE) then return end
+    local char = getCharacter()
+    local localPart = getHumanoidRootOrTorso(char)
     if not localPart then return end
     local targetPart = getClosestTarget()
-    if targetPart then
-        local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.5) 
-        localPart.CFrame = CFrame.new(behindPosition)
-    end
+    if not targetPart then return end
+    local behindPosition =
+        targetPart.Position - (targetPart.CFrame.LookVector * 1.2)
+    localPart.CFrame = CFrame.new(behindPosition)
 end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if Toggle.Value and input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if not Toggle.Value then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
         teleportBehindTarget()
     end
 end)
