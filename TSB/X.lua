@@ -481,7 +481,7 @@ local function hasTrash()
     return value and value ~= ""
 end
 local function reallyHasNoTrash() 
-    for i = 1, 10 do
+    for i = 1, 6 do
         if hasTrash() then
             return false
         end
@@ -516,12 +516,11 @@ local function useTrashCan()
     end
     local savedCFrame = hrp.CFrame
     local tries = 0
-    local maxTries = 40   
+    local maxTries = 1000  
     while tries < maxTries and running do
         if hasTrash() then break end
         local trash = getClosestTrashCan()
         if not trash then
-            task.wait(0.4)
             tries += 1
             continue
         end
@@ -534,7 +533,6 @@ local function useTrashCan()
     if hrp and hrp.Parent then
         hrp.CFrame = savedCFrame
     end
-    task.wait()
     debounce = false
 end
 Tabs.XXX:AddKeybind("TrashKeybind", {
