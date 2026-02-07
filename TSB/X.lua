@@ -1,4 +1,25 @@
 task.spawn(function()
+
+local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+if not mainPart then return end
+
+local partName = "NOTHING X"
+
+if not workspace:FindFirstChild(partName) then
+    local part = Instance.new("Part")
+    part.Name         = partName
+    part.Anchored     = true
+    part.CanCollide   = false
+    part.Transparency = 1
+    part.Material     = Enum.Material.ForceField
+    part.BrickColor   = BrickColor.new("Really black")
+    part.Size         = Vector3.new(2048, 1400, 2048)
+    part.Position     = mainPart.Position
+    part.Parent       = workspace
+end
+	end)
+
+task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
