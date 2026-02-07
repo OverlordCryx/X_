@@ -1,7 +1,10 @@
 task.spawn(function()
+
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then return end
+
 local partName = "NOTHING X"
+
 if not workspace:FindFirstChild(partName) then
     local part = Instance.new("Part")
     part.Name         = partName
@@ -1042,6 +1045,7 @@ task.delay(1.5, function()
     end
 end)
 end)
+task.spawn(function()
 Tabs.XXX:AddButton({
     Title = "Lay",
     Callback = function()
@@ -1061,3 +1065,57 @@ Tabs.XXX:AddButton({
         end
     end
 })
+end)
+task.spawn(function()
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local function getPlayerNames()
+    local names = {"None"}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(names, player.Name)
+        end
+    end
+    return names
+end
+local Dropdown = Tabs.XXX:AddDropdown("Dropdown_player", {
+    Title = "Player",
+    Values = getPlayerNames(),
+    Multi = false,
+    Default = "None"
+})
+local function updateDropdown()
+    Dropdown:SetValues(getPlayerNames())
+    Dropdown:SetValue("None") 
+end
+Players.PlayerAdded:Connect(function()
+    updateDropdown()
+end)
+Players.PlayerRemoving:Connect(function()
+    updateDropdown()
+end)
+local Button = Tabs.XXX:AddButton({
+    Title = "Teleport to Player",
+    Callback = function()
+        local selectedPlayerName = Dropdown.Value 
+        if selectedPlayerName and selectedPlayerName ~= "None" then
+            local targetPlayer = Players:FindFirstChild(selectedPlayerName)
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+            else
+            end
+        else
+        end
+    end
+})
+local ButtonDummy = Tabs.XXX:AddButton({
+    Title = "Teleport to Weakest Dummy",
+    Callback = function()
+        local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
+        if dummy and dummy:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = dummy.HumanoidRootPart.CFrame
+        else
+        end
+    end
+})
+end)
