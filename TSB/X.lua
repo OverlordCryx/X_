@@ -462,13 +462,13 @@ RS.Heartbeat:Connect(function(dt)
     end
 end)
 Tabs.XXX:AddKeybind("FlyIY", { 
-    Title = "Fly [IY]", 
+    Title = "Fly", 
     Default = "Backquote", 
     Mode = "Toggle", 
     Callback = toggleFly 
 })
 local SpeedSlider = Tabs.XXX:AddSlider("FlySpeedIY", { 
-    Title = "Fly Speed", 
+    Title = "Fly -/+", 
     Min = 35, 
     Max = maxSpeed, 
     Default = speed, 
