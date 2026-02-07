@@ -5,7 +5,7 @@ local partName = "NOTHING X"
 if not workspace:FindFirstChild(partName) then
     local part = Instance.new("Part")
     part.Name = partName
-    part.Size = Vector3.new(2048, 1400, 2048)
+    part.Size = Vector3.new(2048, 1450, 2048)
     part.CFrame = mainPart.CFrame
     part.Color = Color3.new(0, 0, 0)
     part.Material = Enum.Material.Air 
