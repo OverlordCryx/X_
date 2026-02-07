@@ -803,8 +803,9 @@ local Toggle = Tabs.XXX:AddToggle("attacktog", {
     Default = false
 })
 local TRASH_DISTANCE = 11
-local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
-local liveFolder = workspace:WaitForChild("Live")
+local mapFolder = workspace:FindFirstChild("Map")
+local trashFolder = mapFolder and mapFolder:FindFirstChild("Trash")
+local liveFolder = workspace:FindFirstChild("Live")
 local function getCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
@@ -814,6 +815,7 @@ local function getHumanoidRootOrTorso(character)
         or character:FindFirstChild("Torso")
 end
 local function getLiveModel()
+    if not liveFolder then return nil end
     for _, model in ipairs(liveFolder:GetChildren()) do
         if model:IsA("Model") and model.Name:find(LocalPlayer.Name) then
             return model
@@ -828,30 +830,27 @@ local function hasTrash()
     return value and value ~= ""
 end
 local function getClosestTrash(maxDist)
+    if not trashFolder then return nil end
     maxDist = maxDist or TRASH_DISTANCE
     local char = getCharacter()
     local hrp = getHumanoidRootOrTorso(char)
     if not hrp then return nil end
-    local best, bestDist = nil, maxDist
+    local closest = nil
+    local shortest = maxDist
     for _, m in ipairs(trashFolder:GetChildren()) do
         if m.Name ~= "Trashcan" then continue end
         if m:GetAttribute("Broken") then continue end
         local part =
             m.PrimaryPart
-            or m:FindFirstChild("Handle")
             or m:FindFirstChildWhichIsA("BasePart")
         if not part then continue end
         local dist = (hrp.Position - part.Position).Magnitude
-        if dist < bestDist then
-            bestDist = dist
-            best = {
-                model = m,
-                part = part,
-                dist = dist
-            }
+        if dist < shortest then
+            shortest = dist
+            closest = m
         end
     end
-    return best
+    return closest
 end
 local function getClosestTarget()
     local char = getCharacter()
@@ -874,16 +873,17 @@ local function getClosestTarget()
             end
         end
     end
-    local dummy = liveFolder:FindFirstChild("Weakest Dummy")
-    if dummy and dummy:IsA("Model") then
-        local humanoid = dummy:FindFirstChild("Humanoid")
-        if humanoid and humanoid.Health > 0 then
-            local targetPart = getHumanoidRootOrTorso(dummy)
-            if targetPart then
-                local dist = (targetPart.Position - localPart.Position).Magnitude
-                if dist < shortestDistance then
-                    shortestDistance = dist
-                    closestTarget = targetPart
+    if liveFolder then
+        local dummy = liveFolder:FindFirstChild("Weakest Dummy")
+        if dummy and dummy:IsA("Model") then
+            local humanoid = dummy:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local targetPart = getHumanoidRootOrTorso(dummy)
+                if targetPart then
+                    local dist = (targetPart.Position - localPart.Position).Magnitude
+                    if dist < shortestDistance then
+                        closestTarget = targetPart
+                    end
                 end
             end
         end
@@ -892,7 +892,9 @@ local function getClosestTarget()
 end
 local function teleportBehindTarget()
     if hasTrash() then return end
-    if getClosestTrash(TRASH_DISTANCE) then return end
+    if trashFolder and getClosestTrash(TRASH_DISTANCE) then
+        return
+    end
     local char = getCharacter()
     local localPart = getHumanoidRootOrTorso(char)
     if not localPart then return end
