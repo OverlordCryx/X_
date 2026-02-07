@@ -1,10 +1,7 @@
 task.spawn(function()
-
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then return end
-
 local partName = "NOTHING X"
-
 if not workspace:FindFirstChild(partName) then
     local part = Instance.new("Part")
     part.Name         = partName
@@ -1045,3 +1042,22 @@ task.delay(1.5, function()
     end
 end)
 end)
+Tabs.XXX:AddButton({
+    Title = "Lay",
+    Callback = function()
+        local player = game.Players.LocalPlayer  
+        local character = player.Character
+        if not character then return end
+        local humanoid = character:FindFirstChildWhichIsA("Humanoid")
+        if not humanoid then return end
+        humanoid.Sit = true
+        task.wait(0.1)
+        local root = humanoid.RootPart
+        if root then
+            root.CFrame = root.CFrame * CFrame.Angles(math.pi * 0.5, 0, 0)  
+        end
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            track:Stop()
+        end
+    end
+})
