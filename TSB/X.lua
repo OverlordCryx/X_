@@ -454,7 +454,7 @@ UserInputService.InputEnded:Connect(updateMovement)
 Tabs.XXX:AddKeybind("Keybind", {
     Title = "Fly",
     Mode = "Toggle",
-    Default = "V",
+    Default = "Backquote",
     Callback = function()
         toggleFlight()
     end
@@ -882,7 +882,7 @@ local function teleportBehindTarget()
     local targetPart = getClosestTarget()
     if not targetPart then return end
     local behindPosition =
-        targetPart.Position - (targetPart.CFrame.LookVector * 1.2)
+        targetPart.Position - (targetPart.CFrame.LookVector * 1.4)
     localPart.CFrame = CFrame.new(behindPosition)
 end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
