@@ -824,124 +824,135 @@ local ClassColors = {
 local function GetClassColor(name)
     return ClassColors[name] or Color3.fromRGB(200, 200, 200)
 end
-local function UpdateUltBillboard(player)
+local function UpdateBillboard(player)
     if player == LocalPlayer then return end
     local head = player.Character and player.Character:FindFirstChild("Head")
     if not head then return end
-    local bb = head:FindFirstChild("UltBillboard")
-    if not ToggleUlt.Value then
+    local bb = head:FindFirstChild("CombinedInfoBB")
+    if not ToggleUlt.Value and not ToggleClass.Value then
         if bb then bb:Destroy() end
         return
     end
     if not bb then
         bb = Instance.new("BillboardGui")
-        bb.Name = "UltBillboard"
+        bb.Name = "CombinedInfoBB"
         bb.Adornee = head
         bb.AlwaysOnTop = true
         bb.MaxDistance = 140
-        bb.StudsOffset = Vector3.new(0, 3.4, 0)
+        bb.StudsOffset = Vector3.new(0, 4.2, 0)       
+        bb.Size = UDim2.new(5, 0, 1.2, 0)
         bb.LightInfluence = 0
         bb.ResetOnSpawn = false
         bb.Parent = head
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundTransparency = 1
-        lbl.Font = Enum.Font.GothamBold
-        lbl.TextSize = 24
-        lbl.TextXAlignment = Enum.TextXAlignment.Center
-        lbl.TextStrokeTransparency = 0.5
-        lbl.TextStrokeColor3 = Color3.new(0,0,0)
-        lbl.Parent = bb
+        local ultLabel = Instance.new("TextLabel")
+        ultLabel.Name = "UltLabel"
+        ultLabel.Size = UDim2.new(1, 0, 0.5, 0)
+        ultLabel.Position = UDim2.new(0, 0, 0, 0)
+        ultLabel.BackgroundTransparency = 1
+        ultLabel.Font = Enum.Font.GothamBold
+        ultLabel.TextSize = 22
+        ultLabel.TextXAlignment = Enum.TextXAlignment.Center
+        ultLabel.TextStrokeTransparency = 0.6
+        ultLabel.TextStrokeColor3 = Color3.new(0,0,0)
+        ultLabel.Visible = false
+        ultLabel.Parent = bb
+        local classLabel = Instance.new("TextLabel")
+        classLabel.Name = "ClassLabel"
+        classLabel.Size = UDim2.new(1, 0, 0.5, 0)
+        classLabel.Position = UDim2.new(0, 0, 0.52, 0)   
+        classLabel.BackgroundTransparency = 1
+        classLabel.Font = Enum.Font.GothamSemibold
+        classLabel.TextSize = 22
+        classLabel.TextXAlignment = Enum.TextXAlignment.Center
+        classLabel.TextStrokeTransparency = 0.6
+        classLabel.TextStrokeColor3 = Color3.new(0,0,0)
+        classLabel.Visible = false
+        classLabel.Parent = bb
     end
-    local lbl = bb:FindFirstChildWhichIsA("TextLabel")
-    if lbl then
-        local ult = player:GetAttribute("Ultimate") or 0
-        local val = math.clamp(math.round(tonumber(ult)), 0, 100)
-        lbl.Text = val .. "%"
-        lbl.TextColor3 = (val > 0) and Color3.fromRGB(255, 200, 80) or Color3.fromRGB(220, 220, 120)
+    local ultLabel   = bb:FindFirstChild("UltLabel")
+    local classLabel = bb:FindFirstChild("ClassLabel")
+    local visibleLines = 0
+    if ultLabel then
+        if ToggleUlt.Value then
+            local ult = player:GetAttribute("Ultimate") or 0
+            local val = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
+            ultLabel.Text = val .. "%"
+            ultLabel.TextColor3 = (val > 0) and Color3.fromRGB(255, 210, 90) or Color3.fromRGB(220, 220, 130)
+            ultLabel.Visible = true
+            visibleLines += 1
+        else
+            ultLabel.Visible = false
+        end
     end
-    bb.Size = UDim2.new(4.6, 0, 0.58, 0)
-end
-local function UpdateClassBillboard(player)
-    if player == LocalPlayer then return end
-    local head = player.Character and player.Character:FindFirstChild("Head")
-    if not head then return end
-    local bb = head:FindFirstChild("ClassBillboard")
-    if not ToggleClass.Value then
-        if bb then bb:Destroy() end
-        return
+    if classLabel then
+        if ToggleClass.Value then
+            local name = player:GetAttribute("Character") or "???"
+            classLabel.Text = name
+            classLabel.TextColor3 = GetClassColor(name)
+            classLabel.Visible = true
+            visibleLines += 1
+        else
+            classLabel.Visible = false
+        end
     end
-    if not bb then
-        bb = Instance.new("BillboardGui")
-        bb.Name = "ClassBillboard"
-        bb.Adornee = head
-        bb.AlwaysOnTop = true
-        bb.MaxDistance = 140
-        bb.StudsOffset = Vector3.new(0, 2.8, 0)   
-        bb.LightInfluence = 0
-        bb.ResetOnSpawn = false
-        bb.Parent = head
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundTransparency = 1
-        lbl.Font = Enum.Font.GothamSemibold
-        lbl.TextSize = 24
-        lbl.TextXAlignment = Enum.TextXAlignment.Center
-        lbl.TextStrokeTransparency = 0.5
-        lbl.TextStrokeColor3 = Color3.new(0,0,0)
-        lbl.Parent = bb
+    if visibleLines == 1 then
+        bb.Size = UDim2.new(5, 0, 0.6, 0)
+        if ultLabel.Visible then
+            ultLabel.Position = UDim2.new(0, 0, 0.25, 0)   
+        elseif classLabel.Visible then
+            classLabel.Position = UDim2.new(0, 0, 0.25, 0)
+        end
+    elseif visibleLines == 2 then
+        bb.Size = UDim2.new(5, 0, 1.2, 0)
+        ultLabel.Position   = UDim2.new(0, 0, 0, 0)
+        classLabel.Position = UDim2.new(0, 0, 0.52, 0)
+    else
+        bb.Size = UDim2.new(5, 0, 0.6, 0)
     end
-    local lbl = bb:FindFirstChildWhichIsA("TextLabel")
-    if lbl then
-        local name = player:GetAttribute("Character") or "???"
-        lbl.Text = name
-        lbl.TextColor3 = GetClassColor(name)
-    end
-    bb.Size = UDim2.new(4.6, 0, 0.58, 0)
 end
 local function UpdateAll()
     for _, plr in Players:GetPlayers() do
         if plr ~= LocalPlayer then
-            UpdateUltBillboard(plr)
-            UpdateClassBillboard(plr)
+            UpdateBillboard(plr)
         end
     end
 end
-local heartbeatConn
-local function StartLoopIfAnyOn()
+local conn
+local function ManageHeartbeat()
     if ToggleUlt.Value or ToggleClass.Value then
-        if not heartbeatConn then
-            heartbeatConn = RunService.Heartbeat:Connect(function()
+        if not conn then
+            conn = RunService.Heartbeat:Connect(function()
                 if tick() % 0.4 > 0.12 then return end
                 UpdateAll()
             end)
         end
     else
-        if heartbeatConn then
-            heartbeatConn:Disconnect()
-            heartbeatConn = nil
-        end
+        if conn then conn:Disconnect() conn = nil end
     end
 end
 ToggleUlt:OnChanged(function()
     UpdateAll()
-    StartLoopIfAnyOn()
+    ManageHeartbeat()
 end)
 ToggleClass:OnChanged(function()
     UpdateAll()
-    StartLoopIfAnyOn()
+    ManageHeartbeat()
 end)
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function()
-        task.wait(0.6)
-        UpdateUltBillboard(plr)
-        UpdateClassBillboard(plr)
+        task.wait(0.7)
+        UpdateBillboard(plr)
     end)
-    plr:GetAttributeChangedSignal("Ultimate"):Connect(UpdateUltBillboard)
-    plr:GetAttributeChangedSignal("Character"):Connect(UpdateClassBillboard)
+    plr:GetAttributeChangedSignal("Ultimate"):Connect(function()
+        if ToggleUlt.Value then UpdateBillboard(plr) end
+    end)
+    plr:GetAttributeChangedSignal("Character"):Connect(function()
+        if ToggleClass.Value then UpdateBillboard(plr) end
+    end)
 end)
-task.delay(1.2, function()
-    StartLoopIfAnyOn()
-    UpdateAll()
+task.delay(1.5, function()
+    if ToggleUlt.Value or ToggleClass.Value then
+        UpdateAll()
+    end
 end)
 end)
