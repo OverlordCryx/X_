@@ -1,21 +1,25 @@
 task.spawn(function()
-
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then return end
-
 local partName = "NOTHING X"
-
 if not workspace:FindFirstChild(partName) then
     local part = Instance.new("Part")
-    part.Name         = partName
-    part.Anchored     = true
-    part.CanCollide   = false
-    part.Transparency = 1
-    part.Material     = Enum.Material.ForceField
-    part.BrickColor   = BrickColor.new("Really black")
-    part.Size         = Vector3.new(2048, 1400, 2048)
-    part.Position     = mainPart.Position
-    part.Parent       = workspace
+    part.Name = partName
+    part.Size = Vector3.new(2048, 1400, 2048)
+    part.CFrame = mainPart.CFrame
+    part.Color = Color3.new(0, 0, 0)
+    part.Material = Enum.Material.Air 
+    part.Reflectance = 1 
+    part.Transparency = 1 
+    part.Locked = true
+    part.CastShadow = false
+    part.Archivable = false
+    part.EnableFluidForces = false
+    part.CanCollide = false
+    part.CanQuery = false
+    part.CanTouch = false
+    part.Anchored = true
+    part.Parent = workspace
 end
 	end)
 task.spawn(function()
