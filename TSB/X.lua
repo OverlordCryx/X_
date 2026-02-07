@@ -23,198 +23,107 @@ task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
-local LocalPlayer = Players.LocalPlayer
-local SKILLS = {
+local player = Players.LocalPlayer
+local strongSkills = {
     ["Omni Directional Punch"] = true,
     ["Death Counter"] = true,
     ["Serious Punch"] = true,
     ["Table Flip"] = true
 }
-local backpackSkillHighlights = setmetatable({}, {__mode = "k"})
-local equippedSkillHighlights = setmetatable({}, {__mode = "k"})
-local deathCounterHighlights = {}
-local function hasTargetSkill(player)
-    local backpack = player:FindFirstChild("Backpack")
-    if not backpack then return false end
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") and SKILLS[tool.Name] then
-            return true
-        end
+local weakSkills = {
+    ["Consecutive Punches"] = true,
+    ["Normal Punch"] = true,
+    ["Shove"] = true,
+    ["Uppercut"] = true
+}
+local espEnabled = true
+local state = {}
+local function createHighlight(char, isStrong)
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hl = char:FindFirstChild("SkillHighlight")
+    if not hl then
+        hl = Instance.new("Highlight")
+        hl.Name = "SkillHighlight"
+        hl.Adornee = char
+        hl.Parent = char
     end
-    return false
-end
-local function hasEquippedTargetSkill(player)
-    local char = player.Character
-    if not char then return false end
-    local tool = char:FindFirstChildWhichIsA("Tool")
-    return tool and SKILLS[tool.Name]
-end
-local function getEquippedSkillName(player)
-    local char = player.Character
-    if not char then return nil end
-    local tool = char:FindFirstChildWhichIsA("Tool")
-    return tool and SKILLS[tool.Name] and tool.Name or nil
-end
-local function notify(title, text, duration)
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = title,
-            Text = text,
-            Duration = duration or 2.5
-        })
-    end)
-end
-local function enableBackpackSkillESP(player)
-    local existing = backpackSkillHighlights[player]
-    if existing and existing.Parent then return end
-    backpackSkillHighlights[player] = nil  
-    local char = player.Character
-    if not char or not char.Parent then return end
-    local hl = Instance.new("Highlight")
-    hl.Name = "BackpackSkillESP"
-    hl.FillColor = Color3.new(0, 0, 0)
-    hl.OutlineColor = Color3.fromRGB(0, 255, 0)
-    hl.FillTransparency = 0.4
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Adornee = char
-    hl.Parent = char
-    backpackSkillHighlights[player] = hl
-end
-local function enableEquippedSkillESP(player)
-    local existing = equippedSkillHighlights[player]
-    if existing and existing.Parent then return end
-    equippedSkillHighlights[player] = nil  
-    local char = player.Character
-    if not char or not char.Parent then return end
-    local hl = Instance.new("Highlight")
-    hl.Name = "EquippedSkillESP"
-    hl.FillColor = Color3.new(0, 0, 0)
-    hl.OutlineColor = Color3.fromRGB(255, 165, 0)
-    hl.FillTransparency = 0.4
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Adornee = char
-    hl.Parent = char
-    equippedSkillHighlights[player] = hl
-    local skillName = getEquippedSkillName(player)
-    if skillName then
-        notify("⚠️ " .. skillName, player.Name .. " → SKILL ACTIVE", 3)
-    end
-end
-local function disableBackpackESP(player)
-    local hl = backpackSkillHighlights[player]
-    if hl and hl.Parent then
-        hl:Destroy()
-    end
-    backpackSkillHighlights[player] = nil
-end
-local function disableEquippedESP(player)
-    local hl = equippedSkillHighlights[player]
-    if hl and hl.Parent then
-        hl:Destroy()
-    end
-    equippedSkillHighlights[player] = nil
-end
-local function disableAllESP(player)
-    disableBackpackESP(player)
-    disableEquippedESP(player)
-end
-local function createDeathCounterESP(character)
-    if not character then return end
-    if character:FindFirstChild("DeathCounterESP") then return end
-    local hl = Instance.new("Highlight")
-    hl.Name = "DeathCounterESP"
-    hl.Adornee = character
     hl.FillColor = Color3.fromRGB(0, 0, 0)
-    hl.OutlineColor = Color3.fromRGB(255, 0, 0)
-    hl.FillTransparency = 0.4
+    hl.OutlineColor = isStrong and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(255, 165, 0)
+    hl.FillTransparency = 0.8
     hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Parent = character
-    table.insert(deathCounterHighlights, hl)
-    task.delay(12, function()
-        if hl and hl.Parent then
+end
+local function removeHighlight(char)
+    if char then
+        local hl = char:FindFirstChild("SkillHighlight")
+        if hl then
             hl:Destroy()
-            for i, v in ipairs(deathCounterHighlights) do
-                if v == hl then
-                    table.remove(deathCounterHighlights, i)
-                    break
-                end
-            end
         end
-    end)
-end
-local function handleCharacter(player, char)
-    task.spawn(function()
-        if hasEquippedTargetSkill(player) then
-            enableEquippedSkillESP(player)
-        elseif hasTargetSkill(player) then
-            enableBackpackSkillESP(player)
-        end
-    end)
-end
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        if player.Character then
-            handleCharacter(player, player.Character)
-        end
-        player.CharacterAdded:Connect(function(char)
-            handleCharacter(player, char)
-        end)
     end
 end
-Players.PlayerAdded:Connect(function(player)
-    if player == LocalPlayer then return end
-    player.CharacterAdded:Connect(function(char)
-        handleCharacter(player, char)
-    end)
-end)
-RunService.Heartbeat:Connect(function()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then
-            disableAllESP(player)
-            continue
-        end
-        local char = player.Character
-        local backpack = player:FindFirstChild("Backpack")
-        if char and backpack then
-            if hasEquippedTargetSkill(player) then
-                enableEquippedSkillESP(player)
-                disableBackpackESP(player)
-            elseif hasTargetSkill(player) then
-                enableBackpackSkillESP(player)
-                disableEquippedESP(player)
-            else
-                disableAllESP(player)
+local function getSkillType(backpack)
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if strongSkills[tool.Name] then return "strong" end
+        if weakSkills[tool.Name] then return "weak" end
+    end
+end
+local function SendNotification(title, text, duration)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration
+    })
+end
+local function updatePlayerHighlight(plr)
+    if plr == player then return end 
+    local char = plr.Character
+    local backpack = plr:FindFirstChildOfClass("Backpack")
+    if char and backpack then
+        local skillType = getSkillType(backpack)
+        local lastState = state[plr]
+        if not lastState then
+            state[plr] = skillType
+            if skillType == "strong" then
+                createHighlight(char, true)
+                SendNotification("NOTHING", plr.Name .. "SERIOUS MODE-ON", 6)
             end
         else
-            disableAllESP(player)
-        end
-        if char and char:FindFirstChild("Humanoid") then
-            local humanoid = char.Humanoid
-            local hasDeathCounter = (backpack and backpack:FindFirstChild("Death Counter")) or char:FindFirstChild("Death Counter")
-            if hasDeathCounter then
-                local successAnimations = {
-                    "rbxassetid://12983333733",
-                    "rbxassetid://11365563255",
-                    "rbxassetid://13927612951",
-                }
-                for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                    if track.Animation and table.find(successAnimations, track.Animation.AnimationId) then
-                        createDeathCounterESP(char)
-                        notify("DEATH", player.Name, 5)
-                        task.delay(9.6, function()
-                            notify("Death Ended", player.Name, 3)
-                        end)
-                        break
-                    end
+            if skillType == "strong" then
+                if lastState ~= "strong" then
+                    createHighlight(char, true)
+                    SendNotification("NOTHING X", plr.Name .. " SERIOUS MODE-ON", 6)
                 end
+                state[plr] = "strong"
+            elseif skillType == "weak" and lastState == "strong" then
+                createHighlight(char, false)
+                state[plr] = "weak"
+                SendNotification("NOTHING X", plr.Name .. "SERIOUS MODE-DEATH", 6)
+                task.delay(math.random(8,9), function()
+                    if state[plr] == "weak" then
+                        SendNotification("NOTHING X", plr.Name .. "SERIOUS MODE-END", 6)
+                        removeHighlight(char)
+                    end
+                end)
             end
         end
     end
+end
+RunService.Heartbeat:Connect(function()
+    if espEnabled then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            updatePlayerHighlight(plr)
+        end
+    end
 end)
-Players.PlayerRemoving:Connect(disableAllESP)
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        updatePlayerHighlight(plr)
+    end)
+end)
+player.CharacterAdded:Connect(function(char)
+    task.wait(1)
+end)
 end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
