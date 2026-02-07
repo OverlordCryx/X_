@@ -114,22 +114,22 @@ local function updatePlayerHighlight(plr)
             state[plr] = skillType
             if skillType == "strong" then
                 createHighlight(char, true)
-                SendNotification("NOTHING", plr.Name .. "SERIOUS MODE-ON", 6)
+                SendNotification("NOTHING", plr.Name .. "  SERIOUS MODE ON", 5)
             end
         else
             if skillType == "strong" then
                 if lastState ~= "strong" then
                     createHighlight(char, true)
-                    SendNotification("NOTHING X", plr.Name .. " SERIOUS MODE-ON", 6)
+                    SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 5)
                 end
                 state[plr] = "strong"
             elseif skillType == "weak" and lastState == "strong" then
                 createHighlight(char, false)
                 state[plr] = "weak"
-                SendNotification("NOTHING X", plr.Name .. "SERIOUS MODE-DEATH", 6)
+                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 7)
                 task.delay(math.random(8,9), function()
                     if state[plr] == "weak" then
-                        SendNotification("NOTHING X", plr.Name .. "SERIOUS MODE-END", 6)
+                        SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 5)
                         removeHighlight(char)
                     end
                 end)
@@ -804,200 +804,144 @@ end)
 end)
 task.spawn(function()
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local ToggleULT = Tabs.XXX:AddToggle("ulttog", {
-    Title = "ult %",
-    Default = false
-})
-local ToggleHP = Tabs.XXX:AddToggle("hptog", {
-    Title = "hp bar",
-    Default = false
-})
-local function createULTBillboard(player)
-    if player == LocalPlayer then return nil end
-    local char = player.Character
-    if not char then return nil end
-    local head = char:FindFirstChild("Head")
-    if not head then return nil end
-    local old = head:FindFirstChild("UltimatePercentDisplay")
-    if old then old:Destroy() end
-    local bb = Instance.new("BillboardGui")
-    bb.Name = "UltimatePercentDisplay"
-    bb.Adornee = head
-    bb.Size = UDim2.new(3.8, 0, 1.6, 0)
-    bb.StudsOffset = Vector3.new(0, 3.2, 0)
-    bb.AlwaysOnTop = true
-    bb.MaxDistance = 140
-    bb.LightInfluence = 0
-    bb.Parent = head
-    local txt = Instance.new("TextLabel")
-    txt.Size = UDim2.new(1, 0, 1, 0)
-    txt.BackgroundTransparency = 1
-    txt.TextColor3 = Color3.fromRGB(255, 255, 0)
-    txt.TextStrokeTransparency = 0.6
-    txt.TextStrokeColor3 = Color3.new(0, 0, 0)
-    txt.Font = Enum.Font.GothamBold
-    txt.TextSize = 20
-    txt.Text = "0%"
-    txt.Parent = bb
-    return bb
+local LocalPlayer = Players.LocalPlayer
+local ToggleUlt   = Tabs.XXX:AddToggle("ulttog",  { Title = "Show Ultimate %",       Default = false })
+local ToggleClass = Tabs.XXX:AddToggle("classtog", { Title = "Show Character Name",  Default = false })
+local ClassColors = {
+    ["Bald"]     = Color3.fromRGB(220, 220, 220),
+    ["Hunter"]   = Color3.fromRGB( 60, 170, 255),
+    ["Monster"]  = Color3.fromRGB(230,  60,  90),
+    ["Cyborg"]   = Color3.fromRGB(110, 230, 140),
+    ["Ninja"]    = Color3.fromRGB(180, 110, 240),
+    ["Batter"]   = Color3.fromRGB(255, 170,  80),
+    ["Blade"]    = Color3.fromRGB(240, 220, 100),
+    ["Esper"]    = Color3.fromRGB(255, 130, 220),
+    ["Purple"]   = Color3.fromRGB(220, 100, 255),
+    ["Tech"]     = Color3.fromRGB( 80, 240, 230),
+    ["KJ"]       = Color3.fromRGB(255,  90,  90),
+}
+local function GetClassColor(name)
+    return ClassColors[name] or Color3.fromRGB(200, 200, 200)
 end
-local connectionULT
-ToggleULT:OnChanged(function(enabled)
-    if enabled then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                createULTBillboard(player)
-            end
-        end
-        connectionULT = RunService.Heartbeat:Connect(function(dt)
-            if tick() % 0.4 > dt then return end
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    local char = player.Character
-                    if char and char:FindFirstChild("Head") then
-                        local bb = char.Head:FindFirstChild("UltimatePercentDisplay") or createULTBillboard(player)
-                        if bb then
-                            local label = bb:FindFirstChildWhichIsA("TextLabel")
-                            if label then
-                                local ult = player:GetAttribute("Ultimate") or 0
-                                local value = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
-                                label.Text = value .. "%"
-                                label.TextColor3 = (value == 0) and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 190, 60)
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    else
-        if connectionULT then
-            connectionULT:Disconnect()
-            connectionULT = nil
-        end
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local head = player.Character:FindFirstChild("Head")
-                if head then
-                    local bb = head:FindFirstChild("UltimatePercentDisplay")
-                    if bb then bb:Destroy() end
-                end
-            end
-        end
-    end
-end)
-local function restoreRobloxDisplays(humanoid)
-    if humanoid then
-        humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.Always
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
-    end
-end
-local function hideRobloxHPBar(humanoid)
-    if humanoid then
-        humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-    end
-end
-local function createHPBar(player)
+local function UpdateUltBillboard(player)
     if player == LocalPlayer then return end
-    local char = player.Character
-    if not char then return end
-    local head = char:FindFirstChild("Head")
+    local head = player.Character and player.Character:FindFirstChild("Head")
     if not head then return end
-    local humanoid = char:FindFirstChildWhichIsA("Humanoid")
-    if not humanoid then return end
-    hideRobloxHPBar(humanoid)
-    local old = head:FindFirstChild("CustomHPBar")
-    if old then old:Destroy() end
-    local bb = Instance.new("BillboardGui")
-    bb.Name = "CustomHPBar"
-    bb.Adornee = head
-    bb.Size = UDim2.new(3.2, 0, 0.4, 0)
-    bb.StudsOffset = Vector3.new(0, 1.2, 0)
-    bb.AlwaysOnTop = false
-    bb.MaxDistance = 80
-    bb.LightInfluence = 0
-    bb.Parent = head
-    local bg = Instance.new("Frame")
-    bg.Name = "Frame"
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    bg.BorderSizePixel = 0
-    bg.Parent = bb
-    local cornerBg = Instance.new("UICorner")
-    cornerBg.CornerRadius = UDim.new(0, 4)
-    cornerBg.Parent = bg
-    local fill = Instance.new("Frame")
-    fill.Name = "Fill"
-    fill.Size = UDim2.new(1, 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    fill.BorderSizePixel = 0
-    fill.Parent = bg
-    local cornerFill = Instance.new("UICorner")
-    cornerFill.CornerRadius = UDim.new(0, 4)
-    cornerFill.Parent = fill
-    return bb
+    local bb = head:FindFirstChild("UltBillboard")
+    if not ToggleUlt.Value then
+        if bb then bb:Destroy() end
+        return
+    end
+    if not bb then
+        bb = Instance.new("BillboardGui")
+        bb.Name = "UltBillboard"
+        bb.Adornee = head
+        bb.AlwaysOnTop = true
+        bb.MaxDistance = 140
+        bb.StudsOffset = Vector3.new(0, 3.4, 0)
+        bb.LightInfluence = 0
+        bb.ResetOnSpawn = false
+        bb.Parent = head
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 24
+        lbl.TextXAlignment = Enum.TextXAlignment.Center
+        lbl.TextStrokeTransparency = 0.5
+        lbl.TextStrokeColor3 = Color3.new(0,0,0)
+        lbl.Parent = bb
+    end
+    local lbl = bb:FindFirstChildWhichIsA("TextLabel")
+    if lbl then
+        local ult = player:GetAttribute("Ultimate") or 0
+        local val = math.clamp(math.round(tonumber(ult)), 0, 100)
+        lbl.Text = val .. "%"
+        lbl.TextColor3 = (val > 0) and Color3.fromRGB(255, 200, 80) or Color3.fromRGB(220, 220, 120)
+    end
+    bb.Size = UDim2.new(4.6, 0, 0.58, 0)
 end
-local connectionHP
-ToggleHP:OnChanged(function(enabled)
-    if enabled then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                createHPBar(player)
-            end
+local function UpdateClassBillboard(player)
+    if player == LocalPlayer then return end
+    local head = player.Character and player.Character:FindFirstChild("Head")
+    if not head then return end
+    local bb = head:FindFirstChild("ClassBillboard")
+    if not ToggleClass.Value then
+        if bb then bb:Destroy() end
+        return
+    end
+    if not bb then
+        bb = Instance.new("BillboardGui")
+        bb.Name = "ClassBillboard"
+        bb.Adornee = head
+        bb.AlwaysOnTop = true
+        bb.MaxDistance = 140
+        bb.StudsOffset = Vector3.new(0, 2.8, 0)   
+        bb.LightInfluence = 0
+        bb.ResetOnSpawn = false
+        bb.Parent = head
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Font = Enum.Font.GothamSemibold
+        lbl.TextSize = 24
+        lbl.TextXAlignment = Enum.TextXAlignment.Center
+        lbl.TextStrokeTransparency = 0.5
+        lbl.TextStrokeColor3 = Color3.new(0,0,0)
+        lbl.Parent = bb
+    end
+    local lbl = bb:FindFirstChildWhichIsA("TextLabel")
+    if lbl then
+        local name = player:GetAttribute("Character") or "???"
+        lbl.Text = name
+        lbl.TextColor3 = GetClassColor(name)
+    end
+    bb.Size = UDim2.new(4.6, 0, 0.58, 0)
+end
+local function UpdateAll()
+    for _, plr in Players:GetPlayers() do
+        if plr ~= LocalPlayer then
+            UpdateUltBillboard(plr)
+            UpdateClassBillboard(plr)
         end
-        connectionHP = RunService.Heartbeat:Connect(function()
-            if tick() % 0.4 > 0.05 then return end
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    local char = player.Character
-                    if char and char:FindFirstChild("Head") then
-                        local humanoid = char:FindFirstChildWhichIsA("Humanoid")
-                        if humanoid then
-                            local bar = char.Head:FindFirstChild("CustomHPBar") or createHPBar(player)
-                            if bar and bar:FindFirstChild("Frame") and bar.Frame:FindFirstChild("Fill") then
-                                local fill = bar.Frame.Fill
-                                local percent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
-                                fill.Size = UDim2.new(percent, 0, 1, 0)
-                                fill.BackgroundColor3 = Color3.new(1 - percent, percent, 0)
-                            end
-                            hideRobloxHPBar(humanoid)
-                        end
-                    end
-                end
-            end
-        end)
+    end
+end
+local heartbeatConn
+local function StartLoopIfAnyOn()
+    if ToggleUlt.Value or ToggleClass.Value then
+        if not heartbeatConn then
+            heartbeatConn = RunService.Heartbeat:Connect(function()
+                if tick() % 0.4 > 0.12 then return end
+                UpdateAll()
+            end)
+        end
     else
-        if connectionHP then
-            connectionHP:Disconnect()
-            connectionHP = nil
-        end
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local head = player.Character:FindFirstChild("Head")
-                if head then
-                    local bar = head:FindFirstChild("CustomHPBar")
-                    if bar then bar:Destroy() end
-                end
-                local humanoid = player.Character:FindFirstChildWhichIsA("Humanoid")
-                restoreRobloxDisplays(humanoid)
-            end
+        if heartbeatConn then
+            heartbeatConn:Disconnect()
+            heartbeatConn = nil
         end
     end
+end
+ToggleUlt:OnChanged(function()
+    UpdateAll()
+    StartLoopIfAnyOn()
 end)
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        if ToggleULT.Value then createULTBillboard(player) end
-        if ToggleHP.Value then createHPBar(player) end
+ToggleClass:OnChanged(function()
+    UpdateAll()
+    StartLoopIfAnyOn()
+end)
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function()
+        task.wait(0.6)
+        UpdateUltBillboard(plr)
+        UpdateClassBillboard(plr)
     end)
+    plr:GetAttributeChangedSignal("Ultimate"):Connect(UpdateUltBillboard)
+    plr:GetAttributeChangedSignal("Character"):Connect(UpdateClassBillboard)
 end)
-task.delay(1.5, function()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            if ToggleULT.Value then createULTBillboard(player) end
-            if ToggleHP.Value then createHPBar(player) end
-        end
-    end
+task.delay(1.2, function()
+    StartLoopIfAnyOn()
+    UpdateAll()
 end)
 end)
