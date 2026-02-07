@@ -18,7 +18,36 @@ if not workspace:FindFirstChild(partName) then
     part.Parent       = workspace
 end
 	end)
-
+task.spawn(function()
+task.wait(3)
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local nothingX = workspace["NOTHING X"]
+local spawnPart = workspace.Map.MainPart
+local function isOutside()
+	local pos = hrp.Position
+	local cf = nothingX.CFrame
+	local localPos = cf:PointToObjectSpace(pos)
+	local s = nothingX.Size / 2
+	return localPos.X < -s.X or localPos.X > s.X or
+	       localPos.Y < -s.Y or localPos.Y > s.Y or
+	       localPos.Z < -s.Z or localPos.Z > s.Z
+end
+RunService.Heartbeat:Connect(function()
+	if not hrp or not hrp.Parent then return end
+	if isOutside() then
+		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 5, 0)
+		task.wait()   
+	end
+end)
+player.CharacterAdded:Connect(function(newChar)
+	character = newChar
+	hrp = newChar:WaitForChild("HumanoidRootPart", 5)
+end)
+	end)
 task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
