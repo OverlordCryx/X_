@@ -308,7 +308,7 @@ Tabs.XXX:AddSlider("SpeedSlider", {
     Title = "Speed +/-",
     Default = Speed,
     Min = 0.1,
-    Max = 3,
+    Max = 6,
     Rounding = 1.1,
     Callback = function(value)
         Speed = value
@@ -337,6 +337,125 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
+end)
+task.spawn(function()
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local AnimationService = game:GetService("Animation")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local camera = workspace.CurrentCamera
+local flightEnabled = false
+local bodyVelocity = nil
+local bodyGyro = nil
+local speed = 100
+local maxSpeed = 500
+local moveDirection = Vector3.new(0, 0, 0)
+local flyAnimation = nil
+local animationTrack = nil
+local function setupFlyAnimation()
+    flyAnimation = Instance.new("Animation")
+    flyAnimation.AnimationId = "rbxassetid://3541044388"
+    animationTrack = humanoid:LoadAnimation(flyAnimation)
+    animationTrack.Priority = Enum.AnimationPriority.Action
+end
+local function updateCharacter(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    setupFlyAnimation()
+    if flightEnabled then
+        toggleFlight()
+        toggleFlight()
+    end
+end
+player.CharacterAdded:Connect(updateCharacter)
+local Slider = Tabs.XXX:AddSlider("SliderSpeedV", {
+    Title = "(fly) Speed -/+",
+    Description = "",
+    Default = 100,
+    Min = 10,
+    Max = maxSpeed,
+    Rounding = 0,
+    Callback = function(Value)
+        speed = Value
+    end
+})
+local function toggleFlight()
+    if flightEnabled then
+        flightEnabled = false
+        humanoid.PlatformStand = false
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+            bodyVelocity = nil
+        end
+        if bodyGyro then
+            bodyGyro:Destroy()
+            bodyGyro = nil
+        end
+        if animationTrack then
+            animationTrack:Stop()
+        end
+        humanoid.WalkSpeed = 16
+    else
+        flightEnabled = true
+        humanoid.PlatformStand = true
+        humanoid.WalkSpeed = 0
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.Parent = rootPart
+        bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bodyGyro.P = 10000
+        bodyGyro.D = 500
+        bodyGyro.Parent = rootPart
+        if animationTrack then
+            animationTrack:Play()
+        end
+    end
+end
+local function updateMovement()
+    if not flightEnabled then return end
+    local move = Vector3.new(0, 0, 0)
+    local forward = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0
+    local backward = UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0
+    local left = UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0
+    local right = UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0
+    local camCF = camera.CFrame
+    move = move + camCF.LookVector * (forward - backward)
+    move = move + camCF.RightVector * (right - left)
+    if move.Magnitude > 0 then
+        move = move.Unit
+    end
+    moveDirection = move * speed
+end
+RunService.RenderStepped:Connect(function()
+    if flightEnabled and bodyVelocity and bodyGyro then
+        bodyVelocity.Velocity = moveDirection
+        local camLook = camera.CFrame.LookVector
+        if moveDirection.Magnitude > 0 then
+            bodyGyro.CFrame = CFrame.new(Vector3.new(0, 0, 0), moveDirection.Unit)
+        else
+            bodyGyro.CFrame = CFrame.new(Vector3.new(0, 0, 0), camLook)
+        end
+    end
+end)
+UserInputService.InputChanged:Connect(updateMovement)
+UserInputService.InputBegan:Connect(updateMovement)
+UserInputService.InputEnded:Connect(updateMovement)
+Tabs.XXX:AddKeybind("Keybind", {
+    Title = "Fly",
+    Mode = "Toggle",
+    Default = "V",
+    Callback = function()
+        toggleFlight()
+    end
+})
+setupFlyAnimation()
 end)
 task.spawn(function()
 local player = game.Players.LocalPlayer
@@ -561,36 +680,6 @@ Tabs.XXX:AddKeybind("camKeybind", {
         end
     end
 })
-end)
-task.spawn(function()
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local player = Players.LocalPlayer
-local mouse = player:GetMouse()
-local tpEnabled = false
-Tabs.XXX:AddKeybind("camKeybind", {
-	Title = "TP Click",
-	Mode = "Toggle",
-	Default = "C",
-	Callback = function(value)
-		tpEnabled = value
-	end
-})
-UserInputService.InputBegan:Connect(function(input, gp)
-	if gp then return end
-	if not tpEnabled then return end
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-	local character = player.Character
-	if not character then return end
-	local hrp = character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
-	local target = mouse.Target
-	if not target then return end 
-	if not (target:IsA("BasePart") or target:IsA("Terrain")) then
-		return
-	end
-	hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
-end)
 end)
 task.spawn(function()
 local UserInputService = game:GetService("UserInputService")
