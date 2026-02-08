@@ -123,7 +123,7 @@ local function updatePlayerHighlight(plr)
             state[plr] = skillType
             if skillType == "strong" then
                 createHighlight(char, true)
-                SendNotification("NOTHING", plr.Name .. "  SERIOUS MODE ON", 5)
+                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 5)
             end
         else
             if skillType == "strong" then
