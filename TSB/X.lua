@@ -344,55 +344,59 @@ end)
 end)
 task.spawn(function()
 local UIS = game:GetService("UserInputService")
-local RS  = game:GetService("RunService")
-local plr = game:GetService("Players").LocalPlayer
+local RS = game:GetService("RunService")
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
 local cam = workspace.CurrentCamera
-local char   = plr.Character or plr.CharacterAdded:Wait()
-local hum    = char:WaitForChild("Humanoid")
-local root   = char:WaitForChild("HumanoidRootPart")
-local flying   = false
-local bv, bg   = nil, nil
-local speed    = 90
+local char = plr.Character or plr.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
+local root = char:WaitForChild("HumanoidRootPart")
+local flying = false
+local bv, bg = nil, nil
+local speed = 90
 local maxSpeed = 500
+local velocity = Vector3.new()
 local currentVel = Vector3.new()
-local velocity   = Vector3.new()
-local accel      = 16
-local decel      = 11
-local tiltMax    = 14
+local accel = 16
+local decel = 11
+local tiltMax = 14
 local flyAnim = Instance.new("Animation")
 flyAnim.AnimationId = "rbxassetid://3541044388"
 local track = nil
-local function setupAnim()
-    if track then track:Stop() track:Destroy() end
+local function setupAnimation()
+    if track then
+        track:Stop()
+        track:Destroy()
+    end
     track = hum:LoadAnimation(flyAnim)
     track.Priority = Enum.AnimationPriority.Action4
 end
-local function respawn(newChar)
+local function onCharacterAdded(newChar)
     char = newChar
-    hum  = newChar:WaitForChild("Humanoid")
+    hum = newChar:WaitForChild("Humanoid")
     root = newChar:WaitForChild("HumanoidRootPart")
-    setupAnim()
+    setupAnimation()
     if flying then
         flying = false
-        task.wait(0.05)
-        toggleFly()
+        task.wait(0.1)
+        toggleFly()   
     end
 end
-plr.CharacterAdded:Connect(respawn)
-setupAnim()
+plr.CharacterAdded:Connect(onCharacterAdded)
+setupAnimation()
 local function toggleFly()
     flying = not flying
     if flying then
         hum.PlatformStand = true
         hum.WalkSpeed = 0
         bv = Instance.new("BodyPosition")
-        bv.MaxForce = Vector3.new(9e6, 9e6, 9e6)
+        bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
         bv.Position = root.Position
         bv.D = 2000
         bv.P = 18000
         bv.Parent = root
         bg = Instance.new("BodyGyro")
-        bg.MaxTorque = Vector3.new(9e6, 9e6, 9e6)
+        bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
         bg.P = 28000
         bg.D = 2200
         bg.Parent = root
@@ -400,82 +404,74 @@ local function toggleFly()
     else
         hum.PlatformStand = false
         hum.WalkSpeed = 16
-        if bv then bv:Destroy() end
-        if bg then bg:Destroy() end
+        if bv then bv:Destroy() bv = nil end
+        if bg then bg:Destroy() bg = nil end
         if track then track:Stop(0.3) end
-        currentVel = Vector3.new()
         velocity = Vector3.new()
-        bv, bg = nil, nil
+        currentVel = Vector3.new()
     end
 end
-local function getInput()
-    local forward = UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0
+local function getMovementInput()
+    local forward  = UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0
     local backward = UIS:IsKeyDown(Enum.KeyCode.S) and 1 or 0
-    local left = UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0
-    local right = UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0
-    local z = forward - backward     
-    local x = right - left           
-    local multiplier = 1
-    if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
-        multiplier = 2.4             
-    elseif UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-        multiplier = 0.4             
-    end
-    return z, x, multiplier
-end
-local function getInput()
-    local move = Vector3.new()
-    local f = UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0
-    local b = UIS:IsKeyDown(Enum.KeyCode.S) and 1 or 0
-    local l = UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0
-    local r = UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0
-    local multiplier = 1
-    return (f - b), (r - l), multiplier
+    local left     = UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0
+    local right    = UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0
+    local z = forward - backward
+    local x = right - left
+    local mult = 1
+    return z, x, mult
 end
 RS.Heartbeat:Connect(function(dt)
-    if not flying or not bv or not bg or not root or not root.Parent then return end
-    local z, x, mult = getInput()   
-    local camLook = cam.CFrame.LookVector
+    if not flying or not bv or not bg or not root or not root.Parent then
+        return
+    end
+    local z, x, mult = getMovementInput()
+    local camLook  = cam.CFrame.LookVector
     local camRight = cam.CFrame.RightVector
     local inputDir = (camLook * z) + (camRight * x)
     local targetVel = Vector3.new()
     if inputDir.Magnitude > 0.01 then
         targetVel = inputDir.Unit * (speed * mult)
     end
-    velocity = velocity:Lerp(targetVel, dt * (targetVel.Magnitude > 0 and accel or decel))
+    local lerpSpeed = (targetVel.Magnitude > 0) and accel or decel
+    velocity = velocity:Lerp(targetVel, dt * lerpSpeed)
     currentVel = currentVel:Lerp(velocity, dt * 22)
-    bv.Position = root.Position + currentVel * dt * 65   
+    bv.Position = root.Position + currentVel * dt * 65
     if currentVel.Magnitude > 3 then
         local moveDir = currentVel.Unit
-        local tilt = -x * math.rad(tiltMax)   
-        local targetCFrame = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
-        bg.CFrame = bg.CFrame:Lerp(targetCFrame, dt * 16)
+        local tilt = -x * math.rad(tiltMax)
+        local targetCF = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
+        bg.CFrame = bg.CFrame:Lerp(targetCF, dt * 16)
     else
         bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), dt * 11)
     end
     if track then
         if currentVel.Magnitude > 14 and z > 0.6 then
-            if not track.IsPlaying then track:Play(0.1, 1, 1.1) end
+            if not track.IsPlaying then
+                track:Play(0.1, 1, 1.1)
+            end
         else
-            if track.IsPlaying then track:Stop(0.25) end
+            if track.IsPlaying then
+                track:Stop(0.25)
+            end
         end
     end
 end)
-Tabs.XXX:AddKeybind("FlyIY", { 
-    Title = "Fly", 
-    Default = "Backquote", 
-    Mode = "Toggle", 
-    Callback = toggleFly 
+Tabs.XXX:AddKeybind("FlyIY", {
+    Title = "Fly",
+    Default = "Backquote",           
+    Mode = "Toggle",
+    Callback = toggleFly
 })
-local SpeedSlider = Tabs.XXX:AddSlider("FlySpeedIY", { 
-    Title = "Fly -/+", 
-    Min = 35, 
-    Max = maxSpeed, 
-    Default = speed, 
-    Rounding = 0, 
-    Callback = function(v) 
-        speed = v 
-    end 
+Tabs.XXX:AddSlider("FlySpeedIY", {
+    Title = "Fly Speed",
+    Min = 35,
+    Max = maxSpeed,
+    Default = speed,
+    Rounding = 0,
+    Callback = function(v)
+        speed = v
+    end
 })
 end)
 task.spawn(function()
