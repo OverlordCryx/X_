@@ -24,6 +24,8 @@ end
 	end)
 task.spawn(function()
 task.wait(3)
+local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+if not mainPart then return end
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -53,6 +55,8 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 	end)
 task.spawn(function()
+local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+if not mainPart then return end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
@@ -475,6 +479,8 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
 })
 end)
 task.spawn(function()
+local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+if not mainPart then return end
 local player = game.Players.LocalPlayer
 local vim = game:GetService("VirtualInputManager")
 local character
@@ -908,6 +914,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 end)
 task.spawn(function()
+local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+if not mainPart then return end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
