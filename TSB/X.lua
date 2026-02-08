@@ -347,6 +347,7 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
+end)
 task.spawn(function()
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
@@ -596,7 +597,7 @@ local Workspace        = game:GetService("Workspace")
 local LocalPlayer      = Players.LocalPlayer
 local Camera           = Workspace.CurrentCamera
 local CamlockEnabled   = false
-local Prediction       = 0.135
+local Prediction       = 0
 local FOV              = 150
 local CamlockTarget    = nil
 local function IsAlive(character)
