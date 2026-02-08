@@ -233,7 +233,6 @@ speaker.CharacterAdded:Connect(function(Char)
 end)
 end)
 task.spawn(function()
-task.spawn(function()
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
     local Players = game:GetService("Players")
@@ -241,7 +240,7 @@ task.spawn(function()
     local cam = workspace.CurrentCamera
     local activeMode = "none"          
     local speedValue = 3               
-    local flySpeedValue = 150           
+    local flySpeedValue = 150  
     local speedState = {
         active = false,
         connection = nil,
@@ -491,7 +490,7 @@ task.spawn(function()
     Tabs.XXX:AddKeybind("FlyToggle", {
         Title = "Fly",
         Mode = "Toggle",
-        Default = "Backquote",
+        Default = "R",
         Callback = toggleFly
     })
     Tabs.XXX:AddSlider("FlySpeed", {
@@ -518,7 +517,6 @@ task.spawn(function()
             end
         end
     end)
-end)
 end)
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
