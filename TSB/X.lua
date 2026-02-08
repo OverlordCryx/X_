@@ -1120,26 +1120,33 @@ local Dropdown = Tabs.XXX:AddDropdown("Dropdown_player", {
     Default = "None"
 })
 local function updateDropdown()
-    Dropdown:SetValues(getPlayerNames())
-    Dropdown:SetValue("None") 
+    local currentValue = Dropdown.Value
+    local names = getPlayerNames()
+    Dropdown:SetValues(names)
+    local stillExists = false
+    for _, name in ipairs(names) do
+        if name == currentValue then
+            stillExists = true
+            break
+        end
+    end
+    if stillExists then
+        Dropdown:SetValue(currentValue)
+    else
+        Dropdown:SetValue("None")
+    end
 end
-Players.PlayerAdded:Connect(function()
-    updateDropdown()
-end)
-Players.PlayerRemoving:Connect(function()
-    updateDropdown()
-end)
+Players.PlayerAdded:Connect(updateDropdown)
+Players.PlayerRemoving:Connect(updateDropdown)
 local Button = Tabs.XXX:AddButton({
     Title = "Teleport to Player",
     Callback = function()
-        local selectedPlayerName = Dropdown.Value 
+        local selectedPlayerName = Dropdown.Value
         if selectedPlayerName and selectedPlayerName ~= "None" then
             local targetPlayer = Players:FindFirstChild(selectedPlayerName)
             if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 LocalPlayer.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-            else
             end
-        else
         end
     end
 })
