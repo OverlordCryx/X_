@@ -1,6 +1,7 @@
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
-if not mainPart then return end
+if not mainPart then
+end
 local partName = "NOTHING X"
 if not workspace:FindFirstChild(partName) then
     local part = Instance.new("Part")
@@ -25,7 +26,8 @@ end
 task.spawn(function()
 task.wait(3)
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
-if not mainPart then return end
+if not mainPart then
+end
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -55,8 +57,6 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 	end)
 task.spawn(function()
-local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
-if not mainPart then return end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
@@ -480,7 +480,8 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
 end)
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
-if not mainPart then return end
+if not mainPart then
+end
 local player = game.Players.LocalPlayer
 local vim = game:GetService("VirtualInputManager")
 local character
@@ -602,39 +603,43 @@ local function IsAlive(character)
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     return humanoid and humanoid.Health > 0
 end
+local function getAllHumanoidModels(parent)
+    local results = {}
+    for _, obj in ipairs(parent:GetChildren()) do
+        if obj:IsA("Model") then
+            local humanoid = obj:FindFirstChildOfClass("Humanoid")
+            local hrp = obj:FindFirstChild("HumanoidRootPart")
+            if humanoid and humanoid.Health > 0 and hrp then
+                table.insert(results, obj)
+            end
+            local subResults = getAllHumanoidModels(obj)
+            for _, v in ipairs(subResults) do
+                table.insert(results, v)
+            end
+        elseif obj:IsA("Folder") or obj:IsA("Model") then
+            local subResults = getAllHumanoidModels(obj)
+            for _, v in ipairs(subResults) do
+                table.insert(results, v)
+            end
+        end
+    end
+    return results
+end
 local function GetClosestTarget()
     local closestDistance = math.huge
     local screenCenter    = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local nearest         = nil
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local root = player.Character:FindFirstChild("HumanoidRootPart")
-            local hum  = player.Character:FindFirstChild("Humanoid")
-            if root and hum and hum.Health > 0 then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-                if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                    if dist < closestDistance and dist <= FOV then
-                        closestDistance = dist
-                        nearest = root
-                    end
-                end
-            end
-        end
-    end
-    local live = Workspace:FindFirstChild("Live")
-    if live then
-        local dummy = live:FindFirstChild("Weakest Dummy")
-        if dummy and dummy:FindFirstChild("HumanoidRootPart") then
-            local root = dummy.HumanoidRootPart
-            local hum  = dummy:FindFirstChild("Humanoid")
-            if hum and hum.Health > 0 then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-                if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                    if dist < closestDistance and dist <= FOV then
-                        nearest = root
-                    end
+    local humanoidModels = getAllHumanoidModels(Workspace)
+    for _, model in ipairs(humanoidModels) do
+        if model == LocalPlayer.Character then continue end 
+        local root = model:FindFirstChild("HumanoidRootPart")
+        if root then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                if dist < closestDistance and dist <= FOV then
+                    closestDistance = dist
+                    nearest = root
                 end
             end
         end
@@ -651,7 +656,7 @@ RunService.RenderStepped:Connect(function()
         CamlockTarget = nil
         Fluent:Notify({
             Title = "X_^",
-            Content = "Cam Lock: OFF (you died)",
+            Content = "Cam Lock: OFF (you dead)",
             Duration = 4
         })
         return
@@ -914,13 +919,19 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 end)
 task.spawn(function()
-local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
-if not mainPart then return end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local ToggleUlt   = Tabs.XXX:AddToggle("ulttog",  { Title = "Show Ultimate %",       Default = false })
-local ToggleClass = Tabs.XXX:AddToggle("classtog", { Title = "Show Character Name",  Default = false })
+local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
+local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
+local ToggleUlt
+if hasUltimate then
+    ToggleUlt = Tabs.XXX:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
+end
+local ToggleClass
+if hasCharacter then
+    ToggleClass = Tabs.XXX:AddToggle("classtog", { Title = "Show Character Name", Default = false })
+end
 local ClassColors = {
     ["Bald"]     = Color3.fromRGB(220, 220, 220),
     ["Hunter"]   = Color3.fromRGB( 60, 170, 255),
@@ -1132,6 +1143,9 @@ local Button = Tabs.XXX:AddButton({
         end
     end
 })
+local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+if not mainPart then
+end
 local ButtonDummy = Tabs.XXX:AddButton({
     Title = "Teleport to Weakest Dummy",
     Callback = function()
