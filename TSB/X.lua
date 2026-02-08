@@ -477,7 +477,7 @@ task.spawn(function()
     Tabs.XXX:AddKeybind("SpeedToggle", {
         Title = "Speed",
         Mode = "Toggle",
-        Default = "F",
+        Default = "E",
         Callback = toggleSpeed
     })
     Tabs.XXX:AddSlider("SpeedSlider", {
