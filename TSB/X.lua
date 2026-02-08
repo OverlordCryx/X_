@@ -1,3 +1,4 @@
+
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then
@@ -179,6 +180,7 @@ Window:SelectTab()
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
 end)
+
 task.spawn(function()
 local speaker = game.Players.LocalPlayer
 local speed = 25
@@ -231,252 +233,292 @@ speaker.CharacterAdded:Connect(function(Char)
 end)
 end)
 task.spawn(function()
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local holdingWKey = false
-local holdingSKey = false
-local holdingAKey = false
-local holdingDKey = false
-local Speed = 1
-local state = {
-    active = false,
-    heartbeat = nil,
-    statusParagraph = nil,
-    inputBeganConnection = nil,
-    inputEndedConnection = nil
-}
-local function updateMovement()
-    if not state.active then return end
-    local moveVector = Vector3.new(0, 0, 0)
-    if holdingWKey then
-        moveVector = moveVector + Vector3.new(0, 0, -Speed)
-    end
-    if holdingSKey then
-        moveVector = moveVector + Vector3.new(0, 0, Speed)
-    end
-    if holdingAKey then
-        moveVector = moveVector + Vector3.new(-Speed, 0, 0)
-    end
-    if holdingDKey then
-        moveVector = moveVector + Vector3.new(Speed, 0, 0)
-    end
-    if moveVector.Magnitude > 0 then
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = hrp.CFrame * CFrame.new(moveVector)
+task.spawn(function()
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    local cam = workspace.CurrentCamera
+    local activeMode = "none"          
+    local speedValue = 3               
+    local flySpeedValue = 150           
+    local speedState = {
+        active = false,
+        connection = nil,
+        originalWalkSpeed = 16,
+        velocity = Vector3.new(),
+        currentVel = Vector3.new(),
+    }
+    local flyState = {
+        active = false,
+        bv = nil,
+        bg = nil,
+        velocity = Vector3.new(),
+        currentVel = Vector3.new(),
+        track = nil,
+    }
+    local accel = 16
+    local decel = 12
+    local flyAccel = 16
+    local flyDecel = 11
+    local tiltMax = 14
+    local flyAnim = Instance.new("Animation")
+    flyAnim.AnimationId = "rbxassetid://3541044388"
+    local function disableSpeed()
+        if speedState.active then
+            speedState.active = false
+            if speedState.connection then
+                speedState.connection:Disconnect()
+                speedState.connection = nil
+            end
+            speedState.velocity = Vector3.new()
+            speedState.currentVel = Vector3.new()
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChild("Humanoid")
+                if hum then
+                    hum.WalkSpeed = speedState.originalWalkSpeed
+                    hum:Move(Vector3.new())
+                end
+            end
         end
     end
-end
-state.toggle = function()
-    state.active = not state.active
-    if state.statusParagraph then
-        state.statusParagraph:SetTitle(state.active and "ON" or "OFF")
-    end
-    if state.active then
-        if not state.heartbeat then
-            state.heartbeat = RunService.Heartbeat:Connect(updateMovement)
+    local function disableFly()
+        if flyState.active then
+            flyState.active = false
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChild("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if hum then
+                    hum.PlatformStand = false
+                    hum.WalkSpeed = 16
+                end
+                if flyState.bv then flyState.bv:Destroy() flyState.bv = nil end
+                if flyState.bg then flyState.bg:Destroy() flyState.bg = nil end
+                if flyState.track then
+                    flyState.track:Stop(0.3)
+                end
+            end
+            flyState.velocity = Vector3.new()
+            flyState.currentVel = Vector3.new()
         end
-    else
-        if state.heartbeat then
-            state.heartbeat:Disconnect()
-            state.heartbeat = nil
+    end
+    local function getInput()
+        local f = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0
+        local b = UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0
+        local l = UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0
+        local r = UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0
+        return (f - b), (r - l)
+    end
+    local function updateSpeed(dt)
+        if not speedState.active then return end
+        local char = player.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        if not hrp or not hum then return end
+        local z, x = getInput()
+        local camLook  = (cam.CFrame.LookVector * Vector3.new(1,0,1)).Unit
+        local camRight = (cam.CFrame.RightVector * Vector3.new(1,0,1)).Unit
+        local inputDir = (camLook * z) + (camRight * x)
+        local targetVel = Vector3.new()
+        if inputDir.Magnitude > 0.01 then
+            targetVel = inputDir.Unit * speedValue
+        end
+        local lerpSpd = (targetVel.Magnitude > 0) and accel or decel
+        speedState.velocity = speedState.velocity:Lerp(targetVel, dt * lerpSpd)
+        speedState.currentVel = speedState.currentVel:Lerp(speedState.velocity, dt * 22)
+        if speedState.currentVel.Magnitude > 0.5 then
+            local moveDelta = speedState.currentVel * dt * 50
+            local newPos = hrp.Position + Vector3.new(moveDelta.X, 0, moveDelta.Z)
+            local lookDir = speedState.currentVel.Unit
+            hrp.CFrame = CFrame.lookAt(newPos, newPos + lookDir)
+            hum:Move(Vector3.new(1,0,0))
+            local animSpeed = math.clamp(speedState.currentVel.Magnitude / 16, 1, 3)
+            hum.WalkSpeed = 16 * animSpeed
+        else
+            hum:Move(Vector3.new())
+            hum.WalkSpeed = speedState.originalWalkSpeed
         end
     end
-end
-state.cleanup = function()
-    if state.heartbeat then
-        state.heartbeat:Disconnect()
-        state.heartbeat = nil
+    local function toggleSpeed()
+        if activeMode == "fly" then
+            disableFly()
+        end
+        speedState.active = not speedState.active
+        activeMode = speedState.active and "speed" or "none"
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChild("Humanoid")
+            if hum then
+                if speedState.active then
+                    speedState.originalWalkSpeed = hum.WalkSpeed
+                    hum.WalkSpeed = 50
+                else
+                    hum.WalkSpeed = speedState.originalWalkSpeed
+                    hum:Move(Vector3.new())
+                end
+            end
+        end
+        if speedState.active then
+            speedState.connection = RunService.Heartbeat:Connect(updateSpeed)
+        else
+            if speedState.connection then
+                speedState.connection:Disconnect()
+                speedState.connection = nil
+            end
+            speedState.velocity = Vector3.new()
+            speedState.currentVel = Vector3.new()
+        end
     end
-    if state.inputBeganConnection then
-        state.inputBeganConnection:Disconnect()
-        state.inputBeganConnection = nil
+    local function setupFlyAnimation(char)
+        local hum = char:WaitForChild("Humanoid")
+        if flyState.track then
+            flyState.track:Stop()
+            flyState.track:Destroy()
+        end
+        flyState.track = hum:LoadAnimation(flyAnim)
+        flyState.track.Priority = Enum.AnimationPriority.Action4
     end
-    if state.inputEndedConnection then
-        state.inputEndedConnection:Disconnect()
-        state.inputEndedConnection = nil
+    local function toggleFly()
+        if activeMode == "speed" then
+            disableSpeed()
+        end
+        flyState.active = not flyState.active
+        activeMode = flyState.active and "fly" or "none"
+        local char = player.Character
+        if not char then return end
+        local hum = char:FindFirstChild("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not hum or not root then return end
+        if flyState.active then
+            hum.PlatformStand = true
+            hum.WalkSpeed = 0
+            flyState.bv = Instance.new("BodyPosition")
+            flyState.bv.MaxForce = Vector3.new(1e7,1e7,1e7)
+            flyState.bv.Position = root.Position
+            flyState.bv.D = 2000
+            flyState.bv.P = 18000
+            flyState.bv.Parent = root
+            flyState.bg = Instance.new("BodyGyro")
+            flyState.bg.MaxTorque = Vector3.new(1e7,1e7,1e7)
+            flyState.bg.P = 28000
+            flyState.bg.D = 2200
+            flyState.bg.Parent = root
+            if flyState.track then flyState.track:Play(0.2, 1, 1.2) end
+        else
+            hum.PlatformStand = false
+            hum.WalkSpeed = 16
+            if flyState.bv then flyState.bv:Destroy() flyState.bv = nil end
+            if flyState.bg then flyState.bg:Destroy() flyState.bg = nil end
+            if flyState.track then flyState.track:Stop(0.3) end
+            flyState.velocity = Vector3.new()
+            flyState.currentVel = Vector3.new()
+        end
     end
-    if state.statusParagraph then
-        state.statusParagraph:Destroy()
-        state.statusParagraph = nil
+    local function updateFly(dt)
+        if not flyState.active or not flyState.bv or not flyState.bg then return end
+        local char = player.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local z = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0
+        local s = UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0
+        local a = UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0
+        local d = UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0
+        local inputZ = z - s
+        local inputX = d - a
+        local camLook  = cam.CFrame.LookVector
+        local camRight = cam.CFrame.RightVector
+        local inputDir = (camLook * inputZ) + (camRight * inputX)
+        local targetVel = Vector3.new()
+        if inputDir.Magnitude > 0.01 then
+            targetVel = inputDir.Unit * flySpeedValue
+        end
+        local lerpSp = (targetVel.Magnitude > 0) and flyAccel or flyDecel
+        flyState.velocity = flyState.velocity:Lerp(targetVel, dt * lerpSp)
+        flyState.currentVel = flyState.currentVel:Lerp(flyState.velocity, dt * 22)
+        flyState.bv.Position = root.Position + flyState.currentVel * dt * 65
+        if flyState.currentVel.Magnitude > 3 then
+            local moveDir = flyState.currentVel.Unit
+            local tilt = -inputX * math.rad(tiltMax)
+            local targetCF = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
+            flyState.bg.CFrame = flyState.bg.CFrame:Lerp(targetCF, dt * 16)
+        else
+            flyState.bg.CFrame = flyState.bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), dt * 11)
+        end
+        if flyState.track then
+            if flyState.currentVel.Magnitude > 14 and inputZ > 0.6 then
+                if not flyState.track.IsPlaying then
+                    flyState.track:Play(0.1, 1, 1.1)
+                end
+            else
+                if flyState.track.IsPlaying then
+                    flyState.track:Stop(0.25)
+                end
+            end
+        end
     end
-    state.active = false
-end
-Tabs.XXX:AddKeybind("SpeedToggle", {
-    Title = "Speed",
-    Mode = "Toggle",
-    Default = "E",
-    Callback = function()
-        state.toggle()
-    end
-})
-Tabs.XXX:AddSlider("SpeedSlider", {
-    Title = "Speed +/-",
-    Default = Speed,
-    Min = 0.1,
-    Max = 6,
-    Rounding = 1.1,
-    Callback = function(value)
-        Speed = value
-    end
-})
-if not state.statusParagraph then
-    state.statusParagraph = Tabs.XXX:AddParagraph({
-        Title = "OFF",
+    RunService.Heartbeat:Connect(function(dt)
+        if speedState.active then
+            updateSpeed(dt)
+        end
+        if flyState.active then
+            updateFly(dt)
+        end
+    end)
+    player.CharacterAdded:Connect(function(newChar)
+        task.wait(0.5)
+        setupFlyAnimation(newChar)
+        disableSpeed()
+        disableFly()
+    end)
+    Tabs.XXX:AddKeybind("SpeedToggle", {
+        Title = "Speed",
+        Mode = "Toggle",
+        Default = "F",
+        Callback = toggleSpeed
+    })
+    Tabs.XXX:AddSlider("SpeedSlider", {
+        Title = "Speed",
+        Min = 0.1,
+        Max = 20,
+        Default = speedValue,
+        Rounding = 1.1,
+        Callback = function(v) speedValue = v end
+    })
+    Tabs.XXX:AddKeybind("FlyToggle", {
+        Title = "Fly",
+        Mode = "Toggle",
+        Default = "Backquote",
+        Callback = toggleFly
+    })
+    Tabs.XXX:AddSlider("FlySpeed", {
+        Title = "Fly Speed",
+        Min = 35,
+        Max = 700,
+        Default = flySpeedValue,
+        Rounding = 0,
+        Callback = function(v) flySpeedValue = v end
+    })
+    local status = Tabs.XXX:AddParagraph({
+        Title = "Mode: OFF",
         Content = ""
     })
-end
-state.inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    local key = input.KeyCode
-    if key == Enum.KeyCode.W then holdingWKey = true
-    elseif key == Enum.KeyCode.S then holdingSKey = true
-    elseif key == Enum.KeyCode.A then holdingAKey = true
-    elseif key == Enum.KeyCode.D then holdingDKey = true
-    end
-end)
-state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
-    local key = input.KeyCode
-    if key == Enum.KeyCode.W then holdingWKey = false
-    elseif key == Enum.KeyCode.S then holdingSKey = false
-    elseif key == Enum.KeyCode.A then holdingAKey = false
-    elseif key == Enum.KeyCode.D then holdingDKey = false
-    end
-end)
-end)
-task.spawn(function()
-local UIS = game:GetService("UserInputService")
-local RS = game:GetService("RunService")
-local Players = game:GetService("Players")
-local plr = Players.LocalPlayer
-local cam = workspace.CurrentCamera
-local char = plr.Character or plr.CharacterAdded:Wait()
-local hum = char:WaitForChild("Humanoid")
-local root = char:WaitForChild("HumanoidRootPart")
-local flying = false
-local bv, bg = nil, nil
-local speed = 90
-local maxSpeed = 500
-local velocity = Vector3.new()
-local currentVel = Vector3.new()
-local accel = 16
-local decel = 11
-local tiltMax = 14
-local flyAnim = Instance.new("Animation")
-flyAnim.AnimationId = "rbxassetid://3541044388"
-local track = nil
-local function setupAnimation()
-    if track then
-        track:Stop()
-        track:Destroy()
-    end
-    track = hum:LoadAnimation(flyAnim)
-    track.Priority = Enum.AnimationPriority.Action4
-end
-local function onCharacterAdded(newChar)
-    char = newChar
-    hum = newChar:WaitForChild("Humanoid")
-    root = newChar:WaitForChild("HumanoidRootPart")
-    setupAnimation()
-    if flying then
-        flying = false
-        task.wait(0.1)
-        toggleFly()   
-    end
-end
-plr.CharacterAdded:Connect(onCharacterAdded)
-setupAnimation()
-local function toggleFly()
-    flying = not flying
-    if flying then
-        hum.PlatformStand = true
-        hum.WalkSpeed = 0
-        bv = Instance.new("BodyPosition")
-        bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-        bv.Position = root.Position
-        bv.D = 2000
-        bv.P = 18000
-        bv.Parent = root
-        bg = Instance.new("BodyGyro")
-        bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
-        bg.P = 28000
-        bg.D = 2200
-        bg.Parent = root
-        if track then track:Play(0.2, 1, 1.2) end
-    else
-        hum.PlatformStand = false
-        hum.WalkSpeed = 16
-        if bv then bv:Destroy() bv = nil end
-        if bg then bg:Destroy() bg = nil end
-        if track then track:Stop(0.3) end
-        velocity = Vector3.new()
-        currentVel = Vector3.new()
-    end
-end
-local function getMovementInput()
-    local forward  = UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0
-    local backward = UIS:IsKeyDown(Enum.KeyCode.S) and 1 or 0
-    local left     = UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0
-    local right    = UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0
-    local z = forward - backward
-    local x = right - left
-    local mult = 1
-    return z, x, mult
-end
-RS.Heartbeat:Connect(function(dt)
-    if not flying or not bv or not bg or not root or not root.Parent then
-        return
-    end
-    local z, x, mult = getMovementInput()
-    local camLook  = cam.CFrame.LookVector
-    local camRight = cam.CFrame.RightVector
-    local inputDir = (camLook * z) + (camRight * x)
-    local targetVel = Vector3.new()
-    if inputDir.Magnitude > 0.01 then
-        targetVel = inputDir.Unit * (speed * mult)
-    end
-    local lerpSpeed = (targetVel.Magnitude > 0) and accel or decel
-    velocity = velocity:Lerp(targetVel, dt * lerpSpeed)
-    currentVel = currentVel:Lerp(velocity, dt * 22)
-    bv.Position = root.Position + currentVel * dt * 65
-    if currentVel.Magnitude > 3 then
-        local moveDir = currentVel.Unit
-        local tilt = -x * math.rad(tiltMax)
-        local targetCF = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
-        bg.CFrame = bg.CFrame:Lerp(targetCF, dt * 16)
-    else
-        bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), dt * 11)
-    end
-    if track then
-        if currentVel.Magnitude > 14 and z > 0.6 then
-            if not track.IsPlaying then
-                track:Play(0.1, 1, 1.1)
-            end
-        else
-            if track.IsPlaying then
-                track:Stop(0.25)
+    task.spawn(function()
+        while true do
+            task.wait(0.4)
+            if activeMode == "speed" then
+                status:SetTitle("Mode: SPEED")
+            elseif activeMode == "fly" then
+                status:SetTitle("Mode: FLY")
+            else
+                status:SetTitle("Mode: OFF")
             end
         end
-    end
+    end)
 end)
-Tabs.XXX:AddKeybind("FlyIY", {
-    Title = "Fly",
-    Default = "Backquote",           
-    Mode = "Toggle",
-    Callback = toggleFly
-})
-Tabs.XXX:AddSlider("FlySpeedIY", {
-    Title = "Fly Speed",
-    Min = 35,
-    Max = maxSpeed,
-    Default = speed,
-    Rounding = 0,
-    Callback = function(v)
-        speed = v
-    end
-})
 end)
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
