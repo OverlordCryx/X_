@@ -836,9 +836,7 @@ local function getClosestTrash(maxDist)
     for _, m in ipairs(trashFolder:GetChildren()) do
         if m.Name ~= "Trashcan" then continue end
         if m:GetAttribute("Broken") then continue end
-        local part =
-            m.PrimaryPart
-            or m:FindFirstChildWhichIsA("BasePart")
+        local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
         if not part then continue end
         local dist = (hrp.Position - part.Position).Magnitude
         if dist < shortest then
@@ -848,39 +846,43 @@ local function getClosestTrash(maxDist)
     end
     return closest
 end
+local function getAllHumanoidModels(parent)
+    local results = {}
+    for _, obj in ipairs(parent:GetChildren()) do
+        if obj:IsA("Model") then
+            local humanoid = obj:FindFirstChildOfClass("Humanoid")
+            local hrp = obj:FindFirstChild("HumanoidRootPart")
+            if humanoid and humanoid.Health > 0 and hrp then
+                table.insert(results, obj)
+            end
+            local subResults = getAllHumanoidModels(obj)
+            for _, v in ipairs(subResults) do
+                table.insert(results, v)
+            end
+        elseif obj:IsA("Folder") or obj:IsA("Model") then
+            local subResults = getAllHumanoidModels(obj)
+            for _, v in ipairs(subResults) do
+                table.insert(results, v)
+            end
+        end
+    end
+    return results
+end
 local function getClosestTarget()
     local char = getCharacter()
     local localPart = getHumanoidRootOrTorso(char)
     if not localPart then return nil end
     local closestTarget = nil
     local shortestDistance = math.huge
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                local targetPart = getHumanoidRootOrTorso(player.Character)
-                if targetPart then
-                    local dist = (targetPart.Position - localPart.Position).Magnitude
-                    if dist < shortestDistance then
-                        shortestDistance = dist
-                        closestTarget = targetPart
-                    end
-                end
-            end
-        end
-    end
-    if liveFolder then
-        local dummy = liveFolder:FindFirstChild("Weakest Dummy")
-        if dummy and dummy:IsA("Model") then
-            local humanoid = dummy:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                local targetPart = getHumanoidRootOrTorso(dummy)
-                if targetPart then
-                    local dist = (targetPart.Position - localPart.Position).Magnitude
-                    if dist < shortestDistance then
-                        closestTarget = targetPart
-                    end
-                end
+    local humanoidModels = getAllHumanoidModels(Workspace)
+    for _, model in ipairs(humanoidModels) do
+        if model == char then continue end 
+        local hrp = model:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local dist = (hrp.Position - localPart.Position).Magnitude
+            if dist < shortestDistance then
+                shortestDistance = dist
+                closestTarget = hrp
             end
         end
     end
@@ -888,16 +890,13 @@ local function getClosestTarget()
 end
 local function teleportBehindTarget()
     if hasTrash() then return end
-    if trashFolder and getClosestTrash(TRASH_DISTANCE) then
-        return
-    end
+    if trashFolder and getClosestTrash(TRASH_DISTANCE) then return end
     local char = getCharacter()
     local localPart = getHumanoidRootOrTorso(char)
     if not localPart then return end
     local targetPart = getClosestTarget()
     if not targetPart then return end
-    local behindPosition =
-        targetPart.Position - (targetPart.CFrame.LookVector * 1.4)
+    local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.4)
     localPart.CFrame = CFrame.new(behindPosition)
 end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
