@@ -2,7 +2,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
-local WebhookURL = "https://discord.com/api/webhooks/1463992238404276481/7HYzAZfYknTT9WHWSf5cqp-Rt1yxDFAYcr30ergEem5_Mf66B0iNuSFNcO8edR6EBFa-"
+local WebhookURL = "https://discord.com/api/webhooks/1470105884360310947/iPUC11NmqQRAwJilsE-i6k8y5ZQzlqhECwsKP_9Js4itjQRHF1mCCPToY-hf9oo5asEy"
 local placeId = game.PlaceId
 local matchType = "Unknown"
 if placeId == 12177325772 then
