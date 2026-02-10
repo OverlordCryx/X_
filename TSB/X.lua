@@ -909,6 +909,9 @@ local function teleportBehindTarget()
     local targetPart = getClosestTarget()
     if not targetPart then return end
     local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.4)
+	local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.4)
+    local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.4)
+	local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.4)			
     localPart.CFrame = CFrame.new(behindPosition)
 end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
