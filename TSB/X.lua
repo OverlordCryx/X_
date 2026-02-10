@@ -590,99 +590,148 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
 })
 end)
 task.spawn(function()
-local Players        = game:GetService("Players")
-local RunService     = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Workspace      = game:GetService("Workspace")
-local Stats          = game:GetService("Stats")
-local LocalPlayer    = Players.LocalPlayer
-local Camera         = Workspace.CurrentCamera
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+-- Settings
 local CamlockEnabled = false
-local CamlockTarget  = nil
-local BASE_PRED      = 0.135     
-local FOV            = 180       
-local SMOOTHNESS     = 0.55      
-local function GetPingMs()
-    local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-    return math.clamp(ping, 20, 400) 
+local BasePrediction = 0.15 -- domyślna predykcja, będzie modyfikowana automatycznie
+local FOV = 150
+local CamlockTarget = nil
+
+-- Funkcja sprawdzająca czy postać żyje
+local function IsAlive(character)
+    if not character then return false end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
 end
-local function CalculatePrediction()
-    local ping = GetPingMs()
-    local pred = (ping * 0.001) + 0.065          
-    pred = pred + (ping > 180 and 0.04 or 0)     
-    return math.clamp(pred, 0.08, 0.38)
-end
-local function IsAlive(char)
-    if not char then return false end
-    local hum = char:FindFirstChildWhichIsA("Humanoid")
-    return hum and hum.Health > 0.1
-end
-local function GetClosestPlayerToCursor()
-    local closestDist = math.huge
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local nearestRoot = nil
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr == LocalPlayer then continue end
-        local char = plr.Character
-        if not char or not IsAlive(char) then continue end
-        local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso")
-        if not root then continue end
-        local screenPos, visible = Camera:WorldToViewportPoint(root.Position)
-        if not visible then continue end
-        local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-        if dist < closestDist and dist <= FOV then
-            closestDist = dist
-            nearestRoot = root
+
+-- Rekurencyjne pobranie wszystkich modeli z Humanoid
+local function getAllHumanoidModels(parent)
+    local results = {}
+    for _, obj in ipairs(parent:GetChildren()) do
+        if obj:IsA("Model") then
+            local humanoid = obj:FindFirstChildOfClass("Humanoid")
+            local hrp = obj:FindFirstChild("HumanoidRootPart")
+            if humanoid and humanoid.Health > 0 and hrp then
+                table.insert(results, obj)
+            end
+        end
+        -- Rekurencja dla folderów i podmodeli
+        if obj:IsA("Folder") or obj:IsA("Model") then
+            local subResults = getAllHumanoidModels(obj)
+            for _, v in ipairs(subResults) do
+                table.insert(results, v)
+            end
         end
     end
-    return nearestRoot
+    return results
 end
-RunService.RenderStepped:Connect(function(delta)
+
+-- Pobranie najbliższego celu w polu widzenia
+local function GetClosestTarget()
+    local closestDistance = math.huge
+    local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    local nearest = nil
+    for _, model in ipairs(getAllHumanoidModels(Workspace)) do
+        if model ~= LocalPlayer.Character then
+            local root = model:FindFirstChild("HumanoidRootPart")
+            if root then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if dist < closestDistance and dist <= FOV then
+                        closestDistance = dist
+                        nearest = root
+                    end
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+-- Dynamiczna predykcja oparta na ping (NetworkPing)
+local function GetPingPrediction()
+    local ping = LocalPlayer:GetNetworkPing() -- zwraca ping w sekundach
+    return ping * 1.2 -- mnożnik do predykcji
+end
+
+-- Render loop
+RunService.RenderStepped:Connect(function()
     if not CamlockEnabled then
         CamlockTarget = nil
         return
     end
+
     if not IsAlive(LocalPlayer.Character) then
         CamlockEnabled = false
         CamlockTarget = nil
+        -- Powiadomienie
+        Fluent:Notify({
+            Title = "X_^",
+            Content = "Cam Lock: OFF (you dead)",
+            Duration = 4
+        })
         return
     end
+
     if CamlockTarget and (not CamlockTarget.Parent or not CamlockTarget:IsDescendantOf(Workspace)) then
         CamlockTarget = nil
     end
+
     if CamlockTarget and not IsAlive(CamlockTarget.Parent) then
         CamlockTarget = nil
     end
+
     if not CamlockTarget then
-        CamlockTarget = GetClosestPlayerToCursor()
+        CamlockTarget = GetClosestTarget()
     end
-    if not CamlockTarget then return end
-    local pred = CalculatePrediction()
-    local targetPos = CamlockTarget.Position + (CamlockTarget.AssemblyLinearVelocity * pred)
-    local currentLook = Camera.CFrame.LookVector
-    local desiredLook = (targetPos - Camera.CFrame.Position).Unit
-    local newLook = currentLook:Lerp(desiredLook, SMOOTHNESS)
-    Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + newLook)
+
+    if CamlockTarget then
+        BasePrediction = GetPingPrediction()
+        local targetPos = CamlockTarget.Position + (CamlockTarget.AssemblyLinearVelocity * BasePrediction)
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+    end
 end)
- Tabs.XXX:AddKeybind("Camlock", {
-     Title = "Camera Lock",
-     Mode = "Toggle",
+
+-- Keybind toggle
+Tabs.XXX:AddKeybind("camKeybind", {
+    Title = "Lock Cam",
+    Mode = "Toggle",
     Default = "Z",
-     Callback = function(state)
-      if state and not IsAlive(LocalPlayer.Character) then
-      Fluent:Notify({Title="Camlock", Content="You can't turn it on - you're dead"})
-           return false
+    Callback = function(value)
+        if value and not IsAlive(LocalPlayer.Character) then
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "Cannot enable Cam Lock - you are dead",
+                Duration = 3
+            })
+            return
         end
-       CamlockEnabled = state
-       if state then
-            CamlockTarget = GetClosestPlayerToCursor()
-            Fluent:Notify({Title="Camlock", Content="ON  |  pred = "..math.round(CalculatePrediction()*1000)/1000})
-       else
+        CamlockEnabled = value
+        if value then
+            CamlockTarget = GetClosestTarget()
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "Cam Lock: ON",
+                Duration = 3
+            })
+        else
             CamlockTarget = nil
-            Fluent:Notify({Title="Camlock", Content="OFF"})
+            Fluent:Notify({
+                Title = "X_^",
+                Content = "Cam Lock: OFF",
+                Duration = 3
+            })
         end
-     end
+    end
 })
+
 end)
 task.spawn(function()
 local UserInputService = game:GetService("UserInputService")
@@ -731,7 +780,7 @@ Tabs.XXX:AddKeybind("WalkFlingKeybind", {
     Callback = toggleWalkFling
 })
 Tabs.XXX:AddInput("WalkPowerInput", {
-    Title = "",
+    Title = "Walk Fling Power",
     Default = tostring(walkPower),
     Placeholder = "Enter Walk Power",
     Numeric = true,
