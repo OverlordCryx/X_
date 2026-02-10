@@ -316,7 +316,7 @@ Tabs.XXX:AddSlider("SpeedSlider", {
     Title = "Speed +/-",
     Default = Speed,
     Min = 0.1,
-    Max = 10,
+    Max = 6,
     Rounding = 1.1,
     Callback = function(value)
         Speed = value
