@@ -1227,6 +1227,7 @@ ViewToggle = Tabs.XXX:AddToggle("Viewtog", {
         startView(playerChosen)
     end
 })
+task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then
 end
