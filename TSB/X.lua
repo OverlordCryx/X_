@@ -1,4 +1,3 @@
-
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then
@@ -178,9 +177,8 @@ local Tabs = {
 }
 Window:SelectTab()
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
-
 task.spawn(function()
 local speaker = game.Players.LocalPlayer
 local speed = 25
@@ -590,27 +588,20 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
 })
 end)
 task.spawn(function()
--- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
-
--- Settings
 local CamlockEnabled = false
-local BasePrediction = 0.15 -- domyślna predykcja, będzie modyfikowana automatycznie
+local BasePrediction = 0.15 
 local FOV = 150
 local CamlockTarget = nil
-
--- Funkcja sprawdzająca czy postać żyje
 local function IsAlive(character)
     if not character then return false end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     return humanoid and humanoid.Health > 0
 end
-
--- Rekurencyjne pobranie wszystkich modeli z Humanoid
 local function getAllHumanoidModels(parent)
     local results = {}
     for _, obj in ipairs(parent:GetChildren()) do
@@ -621,7 +612,6 @@ local function getAllHumanoidModels(parent)
                 table.insert(results, obj)
             end
         end
-        -- Rekurencja dla folderów i podmodeli
         if obj:IsA("Folder") or obj:IsA("Model") then
             local subResults = getAllHumanoidModels(obj)
             for _, v in ipairs(subResults) do
@@ -631,8 +621,6 @@ local function getAllHumanoidModels(parent)
     end
     return results
 end
-
--- Pobranie najbliższego celu w polu widzenia
 local function GetClosestTarget()
     local closestDistance = math.huge
     local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
@@ -654,24 +642,18 @@ local function GetClosestTarget()
     end
     return nearest
 end
-
--- Dynamiczna predykcja oparta na ping (NetworkPing)
 local function GetPingPrediction()
-    local ping = LocalPlayer:GetNetworkPing() -- zwraca ping w sekundach
-    return ping * 1.2 -- mnożnik do predykcji
+    local ping = LocalPlayer:GetNetworkPing() 
+    return ping * 1.2 
 end
-
--- Render loop
 RunService.RenderStepped:Connect(function()
     if not CamlockEnabled then
         CamlockTarget = nil
         return
     end
-
     if not IsAlive(LocalPlayer.Character) then
         CamlockEnabled = false
         CamlockTarget = nil
-        -- Powiadomienie
         Fluent:Notify({
             Title = "X_^",
             Content = "Cam Lock: OFF (you dead)",
@@ -679,27 +661,21 @@ RunService.RenderStepped:Connect(function()
         })
         return
     end
-
     if CamlockTarget and (not CamlockTarget.Parent or not CamlockTarget:IsDescendantOf(Workspace)) then
         CamlockTarget = nil
     end
-
     if CamlockTarget and not IsAlive(CamlockTarget.Parent) then
         CamlockTarget = nil
     end
-
     if not CamlockTarget then
         CamlockTarget = GetClosestTarget()
     end
-
     if CamlockTarget then
         BasePrediction = GetPingPrediction()
         local targetPos = CamlockTarget.Position + (CamlockTarget.AssemblyLinearVelocity * BasePrediction)
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
     end
 end)
-
--- Keybind toggle
 Tabs.XXX:AddKeybind("camKeybind", {
     Title = "Lock Cam",
     Mode = "Toggle",
@@ -731,7 +707,6 @@ Tabs.XXX:AddKeybind("camKeybind", {
         end
     end
 })
-
 end)
 task.spawn(function()
 local UserInputService = game:GetService("UserInputService")
