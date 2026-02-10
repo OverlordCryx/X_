@@ -1106,50 +1106,123 @@ end)
 task.spawn(function()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local function getPlayerNames()
-    local names = {"None"}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(names, player.Name)
+local Camera = workspace.CurrentCamera
+local playerChosen = nil        
+local viewing = false
+local currentTarget = nil
+local viewDied = nil
+local viewChanged = nil
+local dropdownMap = {}
+local function buildDropdownValues()
+    dropdownMap = {}
+    local values = { "None" }
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            table.insert(values, display)
+            dropdownMap[display] = plr
         end
     end
-    return names
+    return values
 end
 local Dropdown = Tabs.XXX:AddDropdown("Dropdown_player", {
     Title = "Player",
-    Values = getPlayerNames(),
+    Values = buildDropdownValues(),
     Multi = false,
-    Default = "None"
+    Default = "None",
+    Callback = function(value)
+        playerChosen = dropdownMap[value]
+    end
 })
-local function updateDropdown()
-    local currentValue = Dropdown.Value
-    local names = getPlayerNames()
-    Dropdown:SetValues(names)
-    local stillExists = false
-    for _, name in ipairs(names) do
-        if name == currentValue then
-            stillExists = true
+local function refreshDropdown()
+    local oldTarget = playerChosen
+    local values = buildDropdownValues()
+    Dropdown:SetValues(values)
+    local restored = false
+    for display, plr in pairs(dropdownMap) do
+        if plr == oldTarget then
+            Dropdown:SetValue(display)
+            restored = true
             break
         end
     end
-    if stillExists then
-        Dropdown:SetValue(currentValue)
-    else
+    if not restored then
+        playerChosen = nil
         Dropdown:SetValue("None")
     end
 end
-Players.PlayerAdded:Connect(updateDropdown)
-Players.PlayerRemoving:Connect(updateDropdown)
-local Button = Tabs.XXX:AddButton({
+Players.PlayerAdded:Connect(refreshDropdown)
+Players.PlayerRemoving:Connect(function(plr)
+    if viewing and currentTarget == plr then
+        ViewToggle:SetValue(false)
+    end
+    refreshDropdown()
+end)
+Tabs.XXX:AddButton({
     Title = "Teleport to Player",
     Callback = function()
-        local selectedPlayerName = Dropdown.Value
-        if selectedPlayerName and selectedPlayerName ~= "None" then
-            local targetPlayer = Players:FindFirstChild(selectedPlayerName)
-            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        if not playerChosen then return end
+        local char = playerChosen.Character
+        local myChar = LocalPlayer.Character
+        if not (char and myChar) then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local myHrp = myChar:FindFirstChild("HumanoidRootPart")
+        if hrp and myHrp then
+            myHrp.CFrame = hrp.CFrame
+        end
+    end
+})
+local function startView(targetPlayer)
+    if viewDied then viewDied:Disconnect() end
+    if viewChanged then viewChanged:Disconnect() end
+    if not (targetPlayer and targetPlayer.Character) then return end
+    local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    currentTarget = targetPlayer
+    viewing = true
+    Camera.CameraType = Enum.CameraType.Custom
+    Camera.CameraSubject = hum
+    viewDied = targetPlayer.CharacterAdded:Connect(function(char)
+        repeat task.wait() until char:FindFirstChildOfClass("Humanoid")
+        if viewing and currentTarget == targetPlayer then
+            Camera.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+        end
+    end)
+    viewChanged = Camera:GetPropertyChangedSignal("CameraSubject"):Connect(function()
+        if viewing and currentTarget == targetPlayer and targetPlayer.Character then
+            local h = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if h then
+                Camera.CameraSubject = h
             end
         end
+    end)
+end
+local function stopView()
+    viewing = false
+    currentTarget = nil
+    if viewDied then viewDied:Disconnect() viewDied = nil end
+    if viewChanged then viewChanged:Disconnect() viewChanged = nil end
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            Camera.CameraSubject = hum
+        end
+    end
+end
+local ViewToggle
+ViewToggle = Tabs.XXX:AddToggle("Viewtog", {
+    Title = "View Player",
+    Default = false,
+    Callback = function(state)
+        if not state then
+            stopView()
+            return
+        end
+        if not playerChosen then
+            ViewToggle:SetValue(false)
+            return
+        end
+        startView(playerChosen)
     end
 })
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
