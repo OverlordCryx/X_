@@ -47,6 +47,7 @@ local function setTextBoxSizeX(parent)
         setTextBoxSizeX(child)
     end
 end
+setTextBoxSizeX(screenGui)
 while true do
     game:GetService("CoreGui").ScreenGui:GetChildren()[2].Frame.BackgroundTransparency = 1
     game:GetService("CoreGui").ScreenGui:GetChildren()[2].Frame.Background.BackgroundTransparency = 1
@@ -59,7 +60,6 @@ while true do
     game:GetService("CoreGui").ScreenGui:GetChildren()[2]:GetChildren()[6].Frame.TextLabel.TextSize = 19
 
     game:GetService("CoreGui").ScreenGui:GetChildren()[2].Frame:GetChildren()[7].UIStroke.Color = ORANGE
-    setTextBoxSizeX(screenGui)
 
     setColors()
     task.wait()
