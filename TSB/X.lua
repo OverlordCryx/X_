@@ -590,57 +590,40 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local CamlockEnabled = false
-local BasePrediction = 0.15 
+local CamlockTarget = nil           
+local BasePrediction = 0.135        
 local FOV = 150
-local CamlockTarget = nil
 local function IsAlive(character)
     if not character then return false end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    return humanoid and humanoid.Health > 0
-end
-local function getAllHumanoidModels(parent)
-    local results = {}
-    for _, obj in ipairs(parent:GetChildren()) do
-        if obj:IsA("Model") then
-            local humanoid = obj:FindFirstChildOfClass("Humanoid")
-            local hrp = obj:FindFirstChild("HumanoidRootPart")
-            if humanoid and humanoid.Health > 0 and hrp then
-                table.insert(results, obj)
-            end
-        end
-        if obj:IsA("Folder") or obj:IsA("Model") then
-            local subResults = getAllHumanoidModels(obj)
-            for _, v in ipairs(subResults) do
-                table.insert(results, v)
-            end
-        end
-    end
-    return results
+    return humanoid and humanoid.Health > 0 and humanoid.Parent == character
 end
 local function GetClosestTarget()
     local closestDistance = math.huge
-    local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    local nearest = nil
-    for _, model in ipairs(getAllHumanoidModels(Workspace)) do
-        if model ~= LocalPlayer.Character then
-            local root = model:FindFirstChild("HumanoidRootPart")
-            if root then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-                if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                    if dist < closestDistance and dist <= FOV then
-                        closestDistance = dist
-                        nearest = root
-                    end
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local nearestRoot = nil
+    for _, player in Players:GetPlayers() do
+        if player == LocalPlayer then continue end
+        local character = player.Character
+        if not character then continue end
+        local root = character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if root and humanoid and humanoid.Health > 0 then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            if onScreen then
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                if distance < closestDistance and distance <= FOV then
+                    closestDistance = distance
+                    nearestRoot = root
                 end
             end
         end
     end
-    return nearest
+    return nearestRoot
 end
-local function GetPingPrediction()
-    local ping = LocalPlayer:GetNetworkPing() 
-    return ping * 1.2 
+local function GetPrediction()
+    local ping = LocalPlayer:GetNetworkPing() or 0
+    return ping * 1.15 + 0.06
 end
 RunService.RenderStepped:Connect(function()
     if not CamlockEnabled then
@@ -651,36 +634,42 @@ RunService.RenderStepped:Connect(function()
         CamlockEnabled = false
         CamlockTarget = nil
         Fluent:Notify({
-            Title = "X_^",
-            Content = "Cam Lock: OFF (you dead)",
+            Title = "Camlock",
+            Content = "Disabled - you are dead",
             Duration = 4
         })
         return
     end
-    if CamlockTarget and (not CamlockTarget.Parent or not CamlockTarget:IsDescendantOf(Workspace)) then
-        CamlockTarget = nil
-    end
-    if CamlockTarget and not IsAlive(CamlockTarget.Parent) then
-        CamlockTarget = nil
+    if CamlockTarget then
+        local humanoid = CamlockTarget.Parent and CamlockTarget.Parent:FindFirstChildOfClass("Humanoid")
+        if not CamlockTarget.Parent 
+            or not CamlockTarget:IsDescendantOf(Workspace)
+            or not humanoid 
+            or humanoid.Health <= 0 then
+            CamlockTarget = nil
+        end
     end
     if not CamlockTarget then
         CamlockTarget = GetClosestTarget()
     end
-    if CamlockTarget then
-        BasePrediction = GetPingPrediction()
-        local targetPos = CamlockTarget.Position + (CamlockTarget.AssemblyLinearVelocity * BasePrediction)
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+    if not CamlockTarget then
+        return
     end
+    BasePrediction = GetPrediction()
+    local targetPos = CamlockTarget.Position
+    local velocity = CamlockTarget.AssemblyLinearVelocity or Vector3.zero
+    local predictedPosition = targetPos + (velocity * BasePrediction)
+    Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPosition)
 end)
 Tabs.XXX:AddKeybind("camKeybind", {
-    Title = "Lock Cam",
+    Title = "Cam Lock",
     Mode = "Toggle",
     Default = "Z",
     Callback = function(value)
         if value and not IsAlive(LocalPlayer.Character) then
             Fluent:Notify({
-                Title = "X_^",
-                Content = "Cannot enable Cam Lock - you are dead",
+                Title = "Camlock",
+                Content = "Cannot enable - you are dead",
                 Duration = 3
             })
             return
@@ -689,15 +678,15 @@ Tabs.XXX:AddKeybind("camKeybind", {
         if value then
             CamlockTarget = GetClosestTarget()
             Fluent:Notify({
-                Title = "X_^",
-                Content = "Cam Lock: ON",
-                Duration = 3
+                Title = "Camlock",
+                Content = CamlockTarget and "ON" or "ON",
+                Duration = 3.5
             })
         else
             CamlockTarget = nil
             Fluent:Notify({
-                Title = "X_^",
-                Content = "Cam Lock: OFF",
+                Title = "Camlock",
+                Content = "OFF",
                 Duration = 3
             })
         end
