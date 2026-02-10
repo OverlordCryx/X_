@@ -179,7 +179,6 @@ Window:SelectTab()
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
-task.spawn(function()
 local speaker = game.Players.LocalPlayer
 local speed = 25
 local jpower = 50
@@ -229,8 +228,7 @@ speaker.CharacterAdded:Connect(function(Char)
     SetupWalkSpeed(Char, Human)
     SetupJumpPower(Char, Human)
 end)
-end)
-task.spawn(function()
+
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -345,8 +343,7 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-end)
-task.spawn(function()
+
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -477,7 +474,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
-end)
+
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then
@@ -587,7 +584,6 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
     end
 })
 end)
-task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -707,8 +703,6 @@ Tabs.XXX:AddKeybind("camKeybind", {
         end
     end
 })
-end)
-task.spawn(function()
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -800,8 +794,7 @@ Toggle:OnChanged(function(value)
         end
     end
 end)
-end)
-task.spawn(function()
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -921,8 +914,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         teleportBehindTarget()
     end
 end)
-end)
-task.spawn(function()
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -1083,8 +1075,8 @@ task.delay(1.5, function()
         UpdateAll()
     end
 end)
-end)
-task.spawn(function()
+
+
 Tabs.XXX:AddButton({
     Title = "Lay",
     Callback = function()
@@ -1104,8 +1096,8 @@ Tabs.XXX:AddButton({
         end
     end
 })
-end)
-task.spawn(function()
+
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -1227,6 +1219,7 @@ ViewToggle = Tabs.XXX:AddToggle("Viewtog", {
         startView(playerChosen)
     end
 })
+
 task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then
