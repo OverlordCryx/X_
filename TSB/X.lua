@@ -1222,4 +1222,66 @@ local ButtonDummy = Tabs.XXX:AddButton({
         end
     end
 })
+local player = game:GetService("Players").LocalPlayer
+local hotbar = player:WaitForChild("PlayerGui"):WaitForChild("Hotbar")
+local backpackHotbar = hotbar:WaitForChild("Backpack"):WaitForChild("Hotbar")
+local function hasCooldownOnSlot4()
+    local slot = backpackHotbar:FindFirstChild("4")
+    if not slot then return false end
+    local base = slot:FindFirstChild("Base")
+    if not base then return false end
+    local cooldownFrame = base:FindFirstChild("Cooldown")
+    if not cooldownFrame then return false end
+    return cooldownFrame.Visible == true
+end
+local function tryUseAndUnequipBindingCloth(character, humanoid)
+    local currentTool = character:FindFirstChildWhichIsA("Tool")
+    if currentTool then
+        local name = currentTool.Name
+        if name:find("Binding") or name:find("Cloth") then
+            currentTool:Activate()
+            task.wait()
+            currentTool.Parent = player.Backpack
+            return true
+        end
+    end
+    local clothTool = player.Backpack:FindFirstChild("Binding Cloth")
+    if not clothTool or not clothTool:IsA("Tool") then
+        return false
+    end
+    humanoid:EquipTool(clothTool)
+    task.wait() 
+    if clothTool.Parent == character then
+        clothTool:Activate()
+        task.wait()
+        clothTool.Parent = player.Backpack
+        return true
+    end
+    return false
+end
+local ButtonAutoBehindUnequip = Tabs.XXX:AddButton({
+    Title = "Bring Weakest Dummy (MONSTER)",
+    Callback = function()
+        local char = player.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not humanoid then return end
+        if hasCooldownOnSlot4() then
+		return 
+        end
+        local savedCFrame = hrp.CFrame
+        local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
+        if not dummy then return end
+        local dummyRoot = dummy:FindFirstChild("HumanoidRootPart")
+        if not dummyRoot then return end
+        hrp.CFrame = dummyRoot.CFrame * CFrame.new(0, 0, 2) + Vector3.new(0, 0, 0)
+        local success = tryUseAndUnequipBindingCloth(char, humanoid)
+        task.wait(0.55) 
+        hrp.CFrame = savedCFrame
+        if success then
+        else
+        end
+    end
+})
 end)
