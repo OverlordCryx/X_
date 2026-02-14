@@ -634,8 +634,8 @@ RunService.RenderStepped:Connect(function()
         CamlockEnabled = false
         CamlockTarget = nil
         Fluent:Notify({
-            Title = "Camlock",
-            Content = "Disabled - you are dead",
+            Title = "X_^",
+            Content = "Camlock - Disabled - you are dead",
             Duration = 4
         })
         return
@@ -668,8 +668,8 @@ Tabs.XXX:AddKeybind("camKeybind", {
     Callback = function(value)
         if value and not IsAlive(LocalPlayer.Character) then
             Fluent:Notify({
-                Title = "Camlock",
-                Content = "Cannot enable - you are dead",
+                Title = "X_^",
+                Content = "Camlock - Cannot enable - you are dead",
                 Duration = 3
             })
             return
@@ -678,15 +678,15 @@ Tabs.XXX:AddKeybind("camKeybind", {
         if value then
             CamlockTarget = GetClosestTarget()
             Fluent:Notify({
-                Title = "Camlock",
-                Content = CamlockTarget and "ON" or "ON",
+                Title = "X_^",
+                Content = CamlockTarget and "Camlock - ON" or " Camlock - ON",
                 Duration = 3.5
             })
         else
             CamlockTarget = nil
             Fluent:Notify({
-                Title = "Camlock",
-                Content = "OFF",
+                Title = "X_^",
+                Content = "Camlock - OFF",
                 Duration = 3
             })
         end
@@ -711,6 +711,19 @@ local function getRootUniversal(char)
 end
 local function toggleWalkFling()
     walkflinging = not walkflinging
+    if walkflinging then
+        Fluent:Notify({
+            Title = "X_^",
+            Content = "ON - WalkFling",
+            Duration = 4
+        })
+    else
+        Fluent:Notify({
+            Title = "X_^",
+            Content = "OFF - WalkFling",
+            Duration = 4
+        })
+    end
     if not walkflinging then return end
     local movel = 0.1
     while walkflinging do
