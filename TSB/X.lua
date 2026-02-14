@@ -1177,6 +1177,7 @@ Tabs.XXX:AddButton({
 
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local playerChosen = nil        
@@ -1185,6 +1186,13 @@ local currentTarget = nil
 local viewDied = nil
 local viewChanged = nil
 local dropdownMap = {}
+local function getRootUniversal(char)
+    return char and (
+        char:FindFirstChild("HumanoidRootPart") or
+        char:FindFirstChild("Torso") or
+        char:FindFirstChild("UpperTorso")
+    )
+end
 local function buildDropdownValues()
     dropdownMap = {}
     local values = { "None" }
@@ -1228,6 +1236,9 @@ Players.PlayerRemoving:Connect(function(plr)
     if viewing and currentTarget == plr then
         ViewToggle:SetValue(false)
     end
+    if flingOneOn and playerChosen == plr then
+        FlingOneToggle:SetValue(false)
+    end
     refreshDropdown()
 end)
 Tabs.XXX:AddButton({
@@ -1237,8 +1248,8 @@ Tabs.XXX:AddButton({
         local char = playerChosen.Character
         local myChar = LocalPlayer.Character
         if not (char and myChar) then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local myHrp = myChar:FindFirstChild("HumanoidRootPart")
+        local hrp = getRootUniversal(char)
+        local myHrp = getRootUniversal(myChar)
         if hrp and myHrp then
             myHrp.CFrame = hrp.CFrame
         end
@@ -1263,9 +1274,7 @@ local function startView(targetPlayer)
     viewChanged = Camera:GetPropertyChangedSignal("CameraSubject"):Connect(function()
         if viewing and currentTarget == targetPlayer and targetPlayer.Character then
             local h = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if h then
-                Camera.CameraSubject = h
-            end
+            if h then Camera.CameraSubject = h end
         end
     end)
 end
@@ -1276,12 +1285,9 @@ local function stopView()
     if viewChanged then viewChanged:Disconnect() viewChanged = nil end
     if LocalPlayer.Character then
         local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            Camera.CameraSubject = hum
-        end
+        if hum then Camera.CameraSubject = hum end
     end
 end
-local ViewToggle
 ViewToggle = Tabs.XXX:AddToggle("Viewtog", {
     Title = "View Player",
     Default = false,
@@ -1295,6 +1301,56 @@ ViewToggle = Tabs.XXX:AddToggle("Viewtog", {
             return
         end
         startView(playerChosen)
+    end
+})
+local FLING_INF_POWER = 1e12
+local flingOneOn = false
+local flingOneConnection = nil
+local function startFlingOne()
+    if flingOneConnection then flingOneConnection:Disconnect() end
+    flingOneConnection = RunService.Heartbeat:Connect(function()
+        if not flingOneOn then return end
+        if not playerChosen then return end
+        if not playerChosen.Parent then
+            FlingOneToggle:SetValue(false)
+            return
+        end
+        local myChar = LocalPlayer.Character
+        local targetChar = playerChosen.Character
+        if not (myChar and targetChar) then
+            FlingOneToggle:SetValue(false)
+            return
+        end
+        local myRoot = getRootUniversal(myChar)
+        local targetRoot = getRootUniversal(targetChar)
+        if not (myRoot and targetRoot) then
+            FlingOneToggle:SetValue(false)
+            return
+        end
+        myRoot.CFrame = targetRoot.CFrame
+        local p = FLING_INF_POWER
+        myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
+        myRoot.AssemblyLinearVelocity =
+            myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
+    end)
+end
+FlingOneToggle = Tabs.XXX:AddToggle("FlingOneToggle", {
+    Title = "Fling Player",
+    Default = false,
+    Callback = function(state)
+        flingOneOn = state
+        if state then
+            if not playerChosen then
+                FlingOneToggle:SetValue(false)
+                return
+            end
+            startFlingOne()
+        else
+            if flingOneConnection then
+                flingOneConnection:Disconnect()
+                flingOneConnection = nil
+            end
+        end
     end
 })
 
