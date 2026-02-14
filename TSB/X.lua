@@ -692,46 +692,43 @@ Tabs.XXX:AddKeybind("camKeybind", {
         end
     end
 })
-local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local localPlayer = Players.LocalPlayer
-local walkFlingEnabled = false
-local walkPower = 100
-local character, humanoidRootPart
-local function updateCharacter(newCharacter)
-    character = newCharacter
-    humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
-end
-if localPlayer.Character then
-    updateCharacter(localPlayer.Character)
-end
-localPlayer.CharacterAdded:Connect(updateCharacter)
-local function getRoot(char)
-    return char and char:FindFirstChild("HumanoidRootPart")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local speaker = LocalPlayer
+local power = 100
+local flingAllPower = 15000
+local walkflinging = false
+local flingOn = false
+local auraFlingOn = false
+local auraRange = 20
+local function getRootUniversal(char)
+    return char and (
+        char:FindFirstChild("HumanoidRootPart") or
+        char:FindFirstChild("Torso") or
+        char:FindFirstChild("UpperTorso")
+    )
 end
 local function toggleWalkFling()
-    walkFlingEnabled = not walkFlingEnabled
-    Fluent:Notify({
-        Title = "X_^",
-        Content = "Walk Fling: " .. (walkFlingEnabled and "ON" or "OFF"),
-        Duration = 3
-    })
-    if not walkFlingEnabled then return end
-    local root = getRoot(character)
-    local vel, movel = nil, 0.1
-    while walkFlingEnabled and character and character.Parent and root and root.Parent do
-        vel = root.Velocity
-        root.Velocity = vel * walkPower + Vector3.new(0, walkPower, 0)
-        RunService.RenderStepped:Wait()
-        root.Velocity = vel
-        RunService.Stepped:Wait()
-        root.Velocity = vel + Vector3.new(0, movel, 0)
-        movel = movel * -1
+    walkflinging = not walkflinging
+    if not walkflinging then return end
+    local movel = 0.1
+    while walkflinging do
         RunService.Heartbeat:Wait()
+        local char = speaker.Character
+        local root = getRootUniversal(char)
+        if char and root then
+            local vel = root.Velocity
+            root.Velocity = vel * power + Vector3.new(0, power, 0)
+            RunService.RenderStepped:Wait()
+            root.Velocity = vel
+            RunService.Stepped:Wait()
+            root.Velocity = vel + Vector3.new(0, movel, 0)
+            movel *= -1
+        end
     end
 end
-Tabs.XXX:AddKeybind("WalkFlingKeybind", {
+Tabs.XXX:AddKeybind("WalkFlingKey", {
     Title = "Walk Fling",
     Mode = "Toggle",
     Default = "X",
@@ -739,26 +736,45 @@ Tabs.XXX:AddKeybind("WalkFlingKeybind", {
 })
 Tabs.XXX:AddInput("WalkPowerInput", {
     Title = "Walk Fling Power",
-    Default = tostring(walkPower),
-    Placeholder = "Enter Walk Power",
-    Numeric = true,
-    Callback = function(value)
-        walkPower = tonumber(value) or walkPower
+    Default = tostring(power),
+    Placeholder = "Enter Power or inf",
+    Numeric = false,
+    Callback = function(Value)
+        if Value:lower() == "inf" then
+            power = 1e12
+        else
+            power = tonumber(Value) or power
+        end
     end
 })
-local Toggle = Tabs.XXX:AddToggle("antiflingtog", {Title = "Anti Fling", Default = false})
-local connection
-Toggle:OnChanged(function(value)
-    if value then
-        connection = RunService.Stepped:Connect(function()
-            local localCharacter = localPlayer.Character
-            if not localCharacter or not localCharacter.PrimaryPart then return end
-            local localPosition = localCharacter.PrimaryPart.Position
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= localPlayer and player.Character and player.Character.PrimaryPart then
-                    local distance = (player.Character.PrimaryPart.Position - localPosition).Magnitude
-                    if distance <= 20 then
-                        for _, v in pairs(player.Character:GetDescendants()) do
+Tabs.XXX:AddInput("FlingAllPowerInput", {
+    Title = "Fling / Aura Power",
+    Default = tostring(flingAllPower),
+    Placeholder = "Enter Power or inf",
+    Numeric = false,
+    Callback = function(Value)
+        if Value:lower() == "inf" then
+            flingAllPower = 1e12
+        else
+            flingAllPower = tonumber(Value) or flingAllPower
+        end
+    end
+})
+local AntiFlingToggle = Tabs.XXX:AddToggle("AntiFling", {
+    Title = "Anti Fling",
+    Default = false
+})
+local antiflingConnection
+AntiFlingToggle:OnChanged(function(state)
+    if state then
+        antiflingConnection = RunService.Stepped:Connect(function()
+            local myChar = LocalPlayer.Character
+            if not myChar or not myChar.PrimaryPart then return end
+            local myPos = myChar.PrimaryPart.Position
+            for _,player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
+                    if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 75 then
+                        for _,v in pairs(player.Character:GetDescendants()) do
                             if v:IsA("BasePart") then
                                 v.CanCollide = false
                             end
@@ -768,22 +784,95 @@ Toggle:OnChanged(function(value)
             end
         end)
     else
-        if connection then
-            connection:Disconnect()
-            connection = nil
-        end
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= localPlayer and player.Character then
-                for _, v in pairs(player.Character:GetDescendants()) do
-                    if v:IsA("BasePart") then
-                        v.CanCollide = true
+        if antiflingConnection then antiflingConnection:Disconnect() end
+    end
+end)
+local function flingAll()
+    task.spawn(function()
+        while flingOn do
+            local myChar = LocalPlayer.Character
+            local myRoot = getRootUniversal(myChar)
+            if myRoot then
+                for _,player in pairs(Players:GetPlayers()) do
+                    if not flingOn then break end
+                    if player ~= LocalPlayer and player.Character then
+                        local targetRoot = getRootUniversal(player.Character)
+                        if targetRoot then
+                            myRoot.CFrame = targetRoot.CFrame
+                            local p = flingAllPower
+                            myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
+                            myRoot.AssemblyLinearVelocity =
+                                myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
+                            task.wait()
+                            myRoot.AssemblyAngularVelocity = Vector3.zero
+                            myRoot.AssemblyLinearVelocity = Vector3.zero
+                        end
                     end
                 end
             end
         end
+    end)
+end
+Tabs.XXX:AddToggle("FlingAllToggle", {
+    Title = "Fling All",
+    Default = false,
+    Callback = function(state)
+        flingOn = state
+        if state then flingAll() end
     end
-end)
-
+})
+local rangeValues = {}
+for i = 5, 100, 5 do
+    table.insert(rangeValues, tostring(i))
+end
+local XXDropdown = Tabs.XXX:AddDropdown("Dropdown_D_F", {
+    Title = "Aura Range",
+    Values = rangeValues,
+    Multi = false,
+    Default = "20",
+    Callback = function(value)
+        auraRange = tonumber(value) or auraRange
+    end
+})
+local function auraFling()
+    task.spawn(function()
+        while auraFlingOn do
+            local myChar = LocalPlayer.Character
+            local myRoot = getRootUniversal(myChar)
+            if myRoot then
+                local originalCFrame = myRoot.CFrame
+                for _,player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        local targetRoot = getRootUniversal(player.Character)
+                        if targetRoot then
+                            local dist = (targetRoot.Position - myRoot.Position).Magnitude
+                            if dist <= auraRange then
+                                local p = flingAllPower
+                                myRoot.CFrame = targetRoot.CFrame
+                                myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
+                                myRoot.AssemblyLinearVelocity =
+                                myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
+                                task.wait()
+                                myRoot.AssemblyAngularVelocity = Vector3.zero
+                                myRoot.AssemblyLinearVelocity = Vector3.zero
+                                myRoot.CFrame = originalCFrame
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait()
+        end
+    end)
+end
+Tabs.XXX:AddToggle("AuraFlingToggle", {
+    Title = "Aura Fling",
+    Default = false,
+    Callback = function(state)
+        auraFlingOn = state
+        if state then auraFling() end
+    end
+})
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -902,6 +991,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         teleportBehindTarget()
     end
 end)
+task.spawn(function()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1063,7 +1153,7 @@ task.delay(1.5, function()
         UpdateAll()
     end
 end)
-
+end)
 
 Tabs.XXX:AddButton({
     Title = "Lay",
