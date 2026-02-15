@@ -390,6 +390,19 @@ plr.CharacterAdded:Connect(onCharacterAdded)
 setupAnimation()
 local function toggleFly()
     flying = not flying
+	    if flying then
+        Fluent:Notify({
+            Title = "X_^",
+            Content = "ON - flying",
+            Duration = 4
+        })
+    else
+        Fluent:Notify({
+            Title = "X_^",
+            Content = "OFF - flying",
+            Duration = 4
+        })
+    end
     if flying then
         hum.PlatformStand = true
         hum.WalkSpeed = 0
