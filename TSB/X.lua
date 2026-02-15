@@ -145,28 +145,12 @@ local function updatePlayerHighlight(plr)
         end
     end
 end
-local function ensureHighlight(plr)
-    local char = plr.Character
-    if not char then return end
 
-    local shouldBe = state[plr]
-    if not shouldBe then return end
-
-    local hl = char:FindFirstChild("SkillHighlight")
-
-    if not hl then
-        createHighlight(char, shouldBe == "strong")
-    end
-end
 
 RunService.Heartbeat:Connect(function()
     if espEnabled then
         for _, plr in ipairs(Players:GetPlayers()) do
             updatePlayerHighlight(plr)
-
-            if plr ~= player then
-                ensureHighlight(plr)
-            end
         end
     end
 end)
