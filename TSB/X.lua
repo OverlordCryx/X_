@@ -56,6 +56,25 @@ player.CharacterAdded:Connect(function(newChar)
 	hrp = newChar:WaitForChild("HumanoidRootPart", 5)
 end)
 	end)
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local Window = Fluent:CreateWindow({
+    Title = "NOTHING_X",
+    SubTitle = "",
+    TabWidth = 30,
+    Size = UDim2.fromOffset(400, 450),
+    Acrylic = false,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.LeftAlt
+})
+local Tabs = {
+    XXX = Window:AddTab({Title = "", Icon = "menu"}),
+	TOG = Window:AddTab({Title = "", Icon = "menu"}),
+	PLYR = Window:AddTab({Title = "", Icon = "menu"})
+}
+Window:SelectTab()
+task.spawn(function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
+end)
 task.spawn(function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -105,11 +124,11 @@ local function getSkillType(backpack)
     end
 end
 local function SendNotification(title, text, duration)
-    StarterGui:SetCore("SendNotification", {
-        Title = title,
-        Text = text,
-        Duration = duration
-    })
+Fluent:Notify({
+ Title = title,
+Content = text,
+ Duration = duration
+ })
 end
 local function updatePlayerHighlight(plr)
     if plr == player then return end 
@@ -122,22 +141,23 @@ local function updatePlayerHighlight(plr)
             state[plr] = skillType
             if skillType == "strong" then
                 createHighlight(char, true)
-                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 5)
+                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 7.4)
             end
         else
             if skillType == "strong" then
                 if lastState ~= "strong" then
                     createHighlight(char, true)
-                    SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 5)
+                    SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 7.4)
                 end
                 state[plr] = "strong"
             elseif skillType == "weak" and lastState == "strong" then
                 createHighlight(char, false)
                 state[plr] = "weak"
-                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 7)
+                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
                 task.delay(math.random(8,9), function()
                     if state[plr] == "weak" then
-                        SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 5)
+
+                        SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
                         removeHighlight(char)
                     end
                 end)
@@ -157,32 +177,13 @@ end)
 
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function(char)
-        task.wait(1)
+        task.wait()
         updatePlayerHighlight(plr)
     end)
 end)
 player.CharacterAdded:Connect(function(char)
-    task.wait(1)
+    task.wait()
 end)
-end)
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local Window = Fluent:CreateWindow({
-    Title = "NOTHING_X",
-    SubTitle = "",
-    TabWidth = 30,
-    Size = UDim2.fromOffset(400, 450),
-    Acrylic = false,
-    Theme = "Darker",
-    MinimizeKey = Enum.KeyCode.LeftAlt
-})
-local Tabs = {
-    XXX = Window:AddTab({Title = "", Icon = "menu"}),
-	TOG = Window:AddTab({Title = "", Icon = "menu"}),
-	PLYR = Window:AddTab({Title = "", Icon = "menu"})
-}
-Window:SelectTab()
-task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
 local speaker = game.Players.LocalPlayer
 local speed = 25
