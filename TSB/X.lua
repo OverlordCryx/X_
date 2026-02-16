@@ -1052,6 +1052,68 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         teleportBehindTarget()
     end
 end)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local stayPos
+local conn
+local gyro
+local isActive = false 
+local function cleanup()
+    if conn then
+        conn:Disconnect()
+        conn = nil
+    end
+    if gyro then
+        gyro:Destroy()
+        gyro = nil
+    end
+    stayPos = nil
+end
+LocalPlayer.CharacterAdded:Connect(function()
+    if isActive then
+        cleanup()
+        if StayToggle and StayToggle.SetValue then
+            StayToggle:SetValue(false)
+        end
+        isActive = false
+    end
+end)
+StayToggle = Tabs.TOG:AddToggle("StayToggle", {
+    Title = "Stay",
+    Default = false,
+    Callback = function(state)
+        isActive = state
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        if state then
+            stayPos = root.Position
+            gyro = Instance.new("BodyGyro")
+            gyro.MaxTorque = Vector3.new(1e9,1e9,1e9)
+            gyro.P = 1e6
+            gyro.CFrame = root.CFrame
+            gyro.Parent = root
+            conn = RunService.RenderStepped:Connect(function()
+                if root and stayPos then
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    root.AssemblyAngularVelocity = Vector3.zero
+                    root.CFrame = CFrame.new(stayPos) * CFrame.Angles(
+                        0,
+                        math.rad(root.Orientation.Y),
+                        0
+                    )
+                    if gyro then
+                        gyro.CFrame = root.CFrame
+                    end
+                end
+            end)
+        else
+            cleanup()
+        end
+    end
+})
 task.spawn(function()
 
 local Players = game:GetService("Players")
