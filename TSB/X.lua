@@ -627,46 +627,65 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local CamlockEnabled = false
-local CamlockTarget = nil           
-local BasePrediction = 0.135        
+local CamlockTarget = nil
+local BasePrediction = 0.135
 local FOV = 150
-local camlockState = {
-    statusParagraph = nil
-}
-
-local function IsAlive(character)
-    if not character then return false end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    return humanoid and humanoid.Health > 0 and humanoid.Parent == character
+local camlockState = { statusParagraph = nil }
+local SCAN_INTERVAL = 1.5
+local scanTimer = 0
+local CachedTargets = {}
+local function IsAlive(model)
+    if not model then return false end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
 end
-local function GetClosestTarget()
-    local closestDistance = math.huge
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local nearestRoot = nil
-    for _, player in Players:GetPlayers() do
-        if player == LocalPlayer then continue end
-        local character = player.Character
-        if not character then continue end
-        local root = character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if root and humanoid and humanoid.Health > 0 then
-            local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-            if onScreen then
-                local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                if distance < closestDistance and distance <= FOV then
-                    closestDistance = distance
-                    nearestRoot = root
+local function GetRoot(model)
+    if not model then return nil end
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("UpperTorso")
+        or model:FindFirstChild("Torso")
+end
+local function RefreshTargets()
+    table.clear(CachedTargets)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Humanoid") then
+            local model = obj.Parent
+            if model ~= LocalPlayer.Character and IsAlive(model) then
+                local root = GetRoot(model)
+                if root then
+                    CachedTargets[#CachedTargets+1] = root
                 end
             end
         end
     end
-    return nearestRoot
+end
+local function GetClosestTarget()
+    local closest = math.huge
+    local best = nil
+    local screenCenter = Vector2.new(
+        Camera.ViewportSize.X/2,
+        Camera.ViewportSize.Y/2
+    )
+    for i = 1, #CachedTargets do
+        local root = CachedTargets[i]
+        if root and root.Parent and root:IsDescendantOf(Workspace) then
+            local pos, visible = Camera:WorldToViewportPoint(root.Position)
+            if visible then
+                local dist = (Vector2.new(pos.X,pos.Y) - screenCenter).Magnitude
+                if dist < closest and dist <= FOV then
+                    closest = dist
+                    best = root
+                end
+            end
+        end
+    end
+    return best
 end
 local function GetPrediction()
     local ping = LocalPlayer:GetNetworkPing() or 0
     return ping * 1.15 + 0.06
 end
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(dt)
     if not CamlockEnabled then
         CamlockTarget = nil
         return
@@ -674,64 +693,48 @@ RunService.RenderStepped:Connect(function()
     if not IsAlive(LocalPlayer.Character) then
         CamlockEnabled = false
         CamlockTarget = nil
-        Fluent:Notify({
-            Title = "X_^",
-            Content = "Camlock - Disabled - you are dead",
-            Duration = 4
-        })
         return
     end
+    scanTimer += dt
+    if scanTimer >= SCAN_INTERVAL then
+        scanTimer = 0
+        RefreshTargets()
+    end
     if CamlockTarget then
-        local humanoid = CamlockTarget.Parent and CamlockTarget.Parent:FindFirstChildOfClass("Humanoid")
-        if not CamlockTarget.Parent 
-            or not CamlockTarget:IsDescendantOf(Workspace)
-            or not humanoid 
-            or humanoid.Health <= 0 then
+        local model = CamlockTarget:FindFirstAncestorOfClass("Model")
+        if not model or not IsAlive(model) then
             CamlockTarget = nil
         end
     end
     if not CamlockTarget then
         CamlockTarget = GetClosestTarget()
-    end
-    if not CamlockTarget then
-        return
+        if not CamlockTarget then return end
     end
     BasePrediction = GetPrediction()
-    local targetPos = CamlockTarget.Position
     local velocity = CamlockTarget.AssemblyLinearVelocity or Vector3.zero
-    local predictedPosition = targetPos + (velocity * BasePrediction)
-    Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPosition)
+    local predicted = CamlockTarget.Position + velocity * BasePrediction
+    Camera.CFrame = CFrame.new(Camera.CFrame.Position, predicted)
 end)
 Tabs.XXX:AddKeybind("camKeybind", {
     Title = "Cam Lock",
     Mode = "Toggle",
     Default = "Z",
-    Callback = function(value)
-
-        if value and not IsAlive(LocalPlayer.Character) then
-
-            return
-        end
-
-        CamlockEnabled = value
-
+    Callback = function(v)
+        if v and not IsAlive(LocalPlayer.Character) then return end
+        CamlockEnabled = v
         if camlockState.statusParagraph then
-            camlockState.statusParagraph:SetTitle(value and "CamLock : ON" or "CamLock : OFF")
+            camlockState.statusParagraph:SetTitle(
+                v and "CamLock : ON" or "CamLock : OFF"
+            )
         end
-
-        if value then
+        if v then
+            RefreshTargets()
             CamlockTarget = GetClosestTarget()
-
-
-
         else
             CamlockTarget = nil
-
-
         end
     end
 })
-
 if not camlockState.statusParagraph then
     camlockState.statusParagraph = Tabs.XXX:AddParagraph({
         Title = "CamLock : OFF",
