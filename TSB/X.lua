@@ -1246,6 +1246,11 @@ local currentTarget = nil
 local viewDied = nil
 local viewChanged = nil
 local dropdownMap = {}
+local flingOneOn = false
+local flingOneConnection = nil
+local autoTpOn = false
+local autoTpConnection = nil
+local FLING_INF_POWER = 1e12
 local function getRootUniversal(char)
     return char and (
         char:FindFirstChild("HumanoidRootPart") or
@@ -1265,56 +1270,6 @@ local function buildDropdownValues()
     end
     return values
 end
-local Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
-    Title = "Player",
-    Values = buildDropdownValues(),
-    Multi = false,
-    Default = "None",
-    Callback = function(value)
-        playerChosen = dropdownMap[value]
-    end
-})
-local function refreshDropdown()
-    local oldTarget = playerChosen
-    local values = buildDropdownValues()
-    Dropdown:SetValues(values)
-    local restored = false
-    for display, plr in pairs(dropdownMap) do
-        if plr == oldTarget then
-            Dropdown:SetValue(display)
-            restored = true
-            break
-        end
-    end
-    if not restored then
-        playerChosen = nil
-        Dropdown:SetValue("None")
-    end
-end
-Players.PlayerAdded:Connect(refreshDropdown)
-Players.PlayerRemoving:Connect(function(plr)
-    if viewing and currentTarget == plr then
-        ViewToggle:SetValue(false)
-    end
-    if flingOneOn and playerChosen == plr then
-        FlingOneToggle:SetValue(false)
-    end
-    refreshDropdown()
-end)
-Tabs.PLYR:AddButton({
-    Title = "Teleport to Player",
-    Callback = function()
-        if not playerChosen then return end
-        local char = playerChosen.Character
-        local myChar = LocalPlayer.Character
-        if not (char and myChar) then return end
-        local hrp = getRootUniversal(char)
-        local myHrp = getRootUniversal(myChar)
-        if hrp and myHrp then
-            myHrp.CFrame = hrp.CFrame
-        end
-    end
-})
 local function startView(targetPlayer)
     if viewDied then viewDied:Disconnect() end
     if viewChanged then viewChanged:Disconnect() end
@@ -1348,24 +1303,6 @@ local function stopView()
         if hum then Camera.CameraSubject = hum end
     end
 end
-ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
-    Title = "View Player",
-    Default = false,
-    Callback = function(state)
-        if not state then
-            stopView()
-            return
-        end
-        if not playerChosen then
-            ViewToggle:SetValue(false)
-            return
-        end
-        startView(playerChosen)
-    end
-})
-local FLING_INF_POWER = 1e12
-local flingOneOn = false
-local flingOneConnection = nil
 local function startFlingOne()
     if flingOneConnection then flingOneConnection:Disconnect() end
     flingOneConnection = RunService.Heartbeat:Connect(function()
@@ -1394,18 +1331,142 @@ local function startFlingOne()
             myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
     end)
 end
+local function startAutoTp()
+    if autoTpConnection then autoTpConnection:Disconnect() end
+    autoTpConnection = RunService.Heartbeat:Connect(function()
+        if not autoTpOn then return end
+        if not playerChosen then return end
+        local myChar = LocalPlayer.Character
+        local targetChar = playerChosen.Character
+        if not (myChar and targetChar) then return end
+        local myRoot = getRootUniversal(myChar)
+        local targetRoot = getRootUniversal(targetChar)
+        if not (myRoot and targetRoot) then return end
+        myRoot.CFrame = targetRoot.CFrame
+    end)
+end
+local Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
+    Title = "Player",
+    Values = buildDropdownValues(),
+    Multi = false,
+    Default = "None",
+Callback = function(value)
+    playerChosen = dropdownMap[value]
+
+    if not playerChosen then
+        if autoTpOn then AutoTpToggle:SetValue(false) end
+        if flingOneOn then FlingOneToggle:SetValue(false) end
+        if viewing then ViewToggle:SetValue(false) end
+        return
+    end
+
+    if viewing then
+        startView(playerChosen)
+    end
+end
+})
+local function refreshDropdown()
+    local oldTarget = playerChosen
+    local values = buildDropdownValues()
+    Dropdown:SetValues(values)
+    local restored = false
+    for display, plr in pairs(dropdownMap) do
+        if plr == oldTarget then
+            Dropdown:SetValue(display)
+            restored = true
+            break
+        end
+    end
+    if not restored then
+        playerChosen = nil
+        Dropdown:SetValue("None")
+    end
+end
+Players.PlayerAdded:Connect(refreshDropdown)
+Players.PlayerRemoving:Connect(function(plr)
+    if viewing and currentTarget == plr then
+        ViewToggle:SetValue(false)
+    end
+    if flingOneOn and playerChosen == plr then
+        FlingOneToggle:SetValue(false)
+    end
+    refreshDropdown()
+end)
+Tabs.PLYR:AddButton({
+    Title = "TP Player",
+    Callback = function()
+        if not playerChosen then return end
+        local char = playerChosen.Character
+        local myChar = LocalPlayer.Character
+        if not (char and myChar) then return end
+        local hrp = getRootUniversal(char)
+        local myHrp = getRootUniversal(myChar)
+        if hrp and myHrp then
+            myHrp.CFrame = hrp.CFrame
+        end
+    end
+})
+AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
+    Title = "Auto TP Player",
+    Default = false,
+
+    Callback = function(state)
+        if state then
+            if not playerChosen then
+                AutoTpToggle:SetValue(false)
+                return
+            end
+
+            if flingOneOn then
+                FlingOneToggle:SetValue(false)
+            end
+
+            autoTpOn = true
+            startAutoTp()
+        else
+            autoTpOn = false
+            if autoTpConnection then
+                autoTpConnection:Disconnect()
+                autoTpConnection = nil
+            end
+        end
+    end
+})
+
+ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
+    Title = "View Player",
+    Default = false,
+    Callback = function(state)
+        if not state then
+            stopView()
+            return
+        end
+        if not playerChosen then
+            ViewToggle:SetValue(false)
+            return
+        end
+        startView(playerChosen)
+    end
+})
 FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     Title = "Fling Player",
     Default = false,
+
     Callback = function(state)
-        flingOneOn = state
         if state then
             if not playerChosen then
                 FlingOneToggle:SetValue(false)
                 return
             end
+
+            if autoTpOn then
+                AutoTpToggle:SetValue(false)
+            end
+
+            flingOneOn = true
             startFlingOne()
         else
+            flingOneOn = false
             if flingOneConnection then
                 flingOneConnection:Disconnect()
                 flingOneConnection = nil
@@ -1413,6 +1474,8 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
         end
     end
 })
+
+
 
 local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
 
@@ -1430,4 +1493,3 @@ if dummy then
         end
     })
 end
-
