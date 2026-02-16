@@ -169,14 +169,16 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
     SubTitle = "",
-    TabWidth = 0,
-    Size = UDim2.fromOffset(333, 430),
+    TabWidth = 30,
+    Size = UDim2.fromOffset(400, 450),
     Acrylic = false,
     Theme = "Darker",
     MinimizeKey = Enum.KeyCode.LeftAlt
 })
 local Tabs = {
-    XXX = Window:AddTab({Title = "", Icon = ""}),
+    XXX = Window:AddTab({Title = "", Icon = "menu"}),
+	TOG = Window:AddTab({Title = "", Icon = "menu"}),
+	PLYR = Window:AddTab({Title = "", Icon = "menu"})
 }
 Window:SelectTab()
 task.spawn(function()
@@ -273,7 +275,7 @@ end
 state.toggle = function()
     state.active = not state.active
     if state.statusParagraph then
-        state.statusParagraph:SetTitle(state.active and "ON" or "OFF")
+        state.statusParagraph:SetTitle(state.active and "Speed : ON" or "Speed : OFF")
     end
     if state.active then
         if not state.heartbeat then
@@ -313,6 +315,12 @@ Tabs.XXX:AddKeybind("SpeedToggle", {
         state.toggle()
     end
 })
+if not state.statusParagraph then
+    state.statusParagraph = Tabs.XXX:AddParagraph({
+        Title = "Speed : OFF",
+        Content = ""
+    })
+end
 Tabs.XXX:AddSlider("SpeedSlider", {
     Title = "Speed +/-",
     Default = Speed,
@@ -323,12 +331,7 @@ Tabs.XXX:AddSlider("SpeedSlider", {
         Speed = value
     end
 })
-if not state.statusParagraph then
-    state.statusParagraph = Tabs.XXX:AddParagraph({
-        Title = "OFF",
-        Content = ""
-    })
-end
+
 state.inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     local key = input.KeyCode
@@ -388,46 +391,49 @@ local function onCharacterAdded(newChar)
 end
 plr.CharacterAdded:Connect(onCharacterAdded)
 setupAnimation()
+local flyState = {
+    statusParagraph = nil
+}
 local function toggleFly()
     flying = not flying
-	    if flying then
-        Fluent:Notify({
-            Title = "X_^",
-            Content = "ON - flying",
-            Duration = 4
-        })
-    else
-        Fluent:Notify({
-            Title = "X_^",
-            Content = "OFF - flying",
-            Duration = 4
-        })
+
+    if flyState.statusParagraph then
+        flyState.statusParagraph:SetTitle(flying and "Fly : ON" or "Fly : OFF")
     end
+
+
+
     if flying then
         hum.PlatformStand = true
         hum.WalkSpeed = 0
+
         bv = Instance.new("BodyPosition")
         bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
         bv.Position = root.Position
         bv.D = 2000
         bv.P = 18000
         bv.Parent = root
+
         bg = Instance.new("BodyGyro")
         bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
         bg.P = 28000
         bg.D = 2200
         bg.Parent = root
+
         if track then track:Play(0.2, 1, 1.2) end
     else
         hum.PlatformStand = false
         hum.WalkSpeed = 16
+
         if bv then bv:Destroy() bv = nil end
         if bg then bg:Destroy() bg = nil end
         if track then track:Stop(0.3) end
+
         velocity = Vector3.new()
         currentVel = Vector3.new()
     end
 end
+
 local function getMovementInput()
     local forward = UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0
     local backward = UIS:IsKeyDown(Enum.KeyCode.S) and 1 or 0
@@ -474,14 +480,22 @@ RS.Heartbeat:Connect(function(dt)
         end
     end
 end)
+
 Tabs.XXX:AddKeybind("FlyIY", {
     Title = "Fly",
     Default = "R",
     Mode = "Toggle",
     Callback = toggleFly
 })
+if not flyState.statusParagraph then
+    flyState.statusParagraph = Tabs.XXX:AddParagraph({
+        Title = "Fly : OFF",
+        Content = ""
+    })
+end
+
 Tabs.XXX:AddSlider("FlySpeedIY", {
-    Title = "Fly Speed",
+    Title = "Fly +/-",
     Min = 35,
     Max = maxSpeed,
     Default = speed,
@@ -502,6 +516,10 @@ local hrp
 local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
 local running = false
 local debounce = false
+local trashState = {
+    statusParagraph = nil
+}
+
 local function setupCharacter(char)
     character = char
     hrp = character:WaitForChild("HumanoidRootPart")
@@ -578,12 +596,11 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
     Default = "LeftControl",
     Callback = function(state)
         running = state
+		 if trashState.statusParagraph then
+            trashState.statusParagraph:SetTitle(state and "Trash : ON" or "Trash : OFF")
+        end
         if state then
-            Fluent:Notify({
-                Title = "X_^",
-                Content = "AUTO TRASH → ON",
-                Duration = 3
-            })
+
             task.spawn(function()
                 while running do
                     useTrashCan()
@@ -591,14 +608,17 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
                 end
             end)
         else
-            Fluent:Notify({
-                Title = "X_^",
-                Content = "AUTO TRASH → OFF",
-                Duration = 3
-            })
+
         end
     end
 })
+if not trashState.statusParagraph then
+    trashState.statusParagraph = Tabs.XXX:AddParagraph({
+        Title = "Trash : OFF",
+        Content = ""
+    })
+end
+
 end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -609,6 +629,10 @@ local CamlockEnabled = false
 local CamlockTarget = nil           
 local BasePrediction = 0.135        
 local FOV = 150
+local camlockState = {
+    statusParagraph = nil
+}
+
 local function IsAlive(character)
     if not character then return false end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -682,6 +706,7 @@ Tabs.XXX:AddKeybind("camKeybind", {
     Mode = "Toggle",
     Default = "Z",
     Callback = function(value)
+
         if value and not IsAlive(LocalPlayer.Character) then
             Fluent:Notify({
                 Title = "X_^",
@@ -690,24 +715,33 @@ Tabs.XXX:AddKeybind("camKeybind", {
             })
             return
         end
+
         CamlockEnabled = value
+
+        if camlockState.statusParagraph then
+            camlockState.statusParagraph:SetTitle(value and "CamLock : ON" or "CamLock : OFF")
+        end
+
         if value then
             CamlockTarget = GetClosestTarget()
-            Fluent:Notify({
-                Title = "X_^",
-                Content = CamlockTarget and "Camlock - ON" or " Camlock - ON",
-                Duration = 3.5
-            })
+
+
+
         else
             CamlockTarget = nil
-            Fluent:Notify({
-                Title = "X_^",
-                Content = "Camlock - OFF",
-                Duration = 3
-            })
+
+
         end
     end
 })
+
+if not camlockState.statusParagraph then
+    camlockState.statusParagraph = Tabs.XXX:AddParagraph({
+        Title = "CamLock : OFF",
+        Content = ""
+    })
+end
+
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -725,20 +759,14 @@ local function getRootUniversal(char)
         char:FindFirstChild("UpperTorso")
     )
 end
+local walkFlingState = {
+    statusParagraph = nil
+}
+
 local function toggleWalkFling()
     walkflinging = not walkflinging
-    if walkflinging then
-        Fluent:Notify({
-            Title = "X_^",
-            Content = "ON - WalkFling",
-            Duration = 4
-        })
-    else
-        Fluent:Notify({
-            Title = "X_^",
-            Content = "OFF - WalkFling",
-            Duration = 4
-        })
+    if walkFlingState.statusParagraph then
+        walkFlingState.statusParagraph:SetTitle(walkflinging and "Walk Fling : ON" or "Walk Fling : OFF")
     end
     if not walkflinging then return end
     local movel = 0.1
@@ -757,13 +785,20 @@ local function toggleWalkFling()
         end
     end
 end
-Tabs.XXX:AddKeybind("WalkFlingKey", {
+Tabs.TOG:AddKeybind("WalkFlingKey", {
     Title = "Walk Fling",
     Mode = "Toggle",
     Default = "X",
     Callback = toggleWalkFling
 })
-Tabs.XXX:AddInput("WalkPowerInput", {
+if not walkFlingState.statusParagraph then
+    walkFlingState.statusParagraph = Tabs.TOG:AddParagraph({
+        Title = "Walk Fling : OFF",
+        Content = ""
+    })
+end
+
+Tabs.TOG:AddInput("WalkPowerInput", {
     Title = "Walk Fling Power",
     Default = tostring(power),
     Placeholder = "Enter Power or inf",
@@ -776,7 +811,7 @@ Tabs.XXX:AddInput("WalkPowerInput", {
         end
     end
 })
-Tabs.XXX:AddInput("FlingAllPowerInput", {
+Tabs.TOG:AddInput("FlingAllPowerInput", {
     Title = "Fling / Aura Power",
     Default = tostring(flingAllPower),
     Placeholder = "Enter Power or inf",
@@ -789,72 +824,11 @@ Tabs.XXX:AddInput("FlingAllPowerInput", {
         end
     end
 })
-local AntiFlingToggle = Tabs.XXX:AddToggle("AntiFling", {
-    Title = "Anti Fling",
-    Default = false
-})
-local antiflingConnection
-AntiFlingToggle:OnChanged(function(state)
-    if state then
-        antiflingConnection = RunService.Stepped:Connect(function()
-            local myChar = LocalPlayer.Character
-            if not myChar or not myChar.PrimaryPart then return end
-            local myPos = myChar.PrimaryPart.Position
-            for _,player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
-                    if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 75 then
-                        for _,v in pairs(player.Character:GetDescendants()) do
-                            if v:IsA("BasePart") then
-                                v.CanCollide = false
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    else
-        if antiflingConnection then antiflingConnection:Disconnect() end
-    end
-end)
-local function flingAll()
-    task.spawn(function()
-        while flingOn do
-            local myChar = LocalPlayer.Character
-            local myRoot = getRootUniversal(myChar)
-            if myRoot then
-                for _,player in pairs(Players:GetPlayers()) do
-                    if not flingOn then break end
-                    if player ~= LocalPlayer and player.Character then
-                        local targetRoot = getRootUniversal(player.Character)
-                        if targetRoot then
-                            myRoot.CFrame = targetRoot.CFrame
-                            local p = flingAllPower
-                            myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
-                            myRoot.AssemblyLinearVelocity =
-                                myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
-                            task.wait()
-                            myRoot.AssemblyAngularVelocity = Vector3.zero
-                            myRoot.AssemblyLinearVelocity = Vector3.zero
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end
-Tabs.XXX:AddToggle("FlingAllToggle", {
-    Title = "Fling All",
-    Default = false,
-    Callback = function(state)
-        flingOn = state
-        if state then flingAll() end
-    end
-})
 local rangeValues = {}
 for i = 5, 100, 5 do
     table.insert(rangeValues, tostring(i))
 end
-local XXDropdown = Tabs.XXX:AddDropdown("Dropdown_D_F", {
+local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
     Title = "Aura Range",
     Values = rangeValues,
     Multi = false,
@@ -894,7 +868,7 @@ local function auraFling()
         end
     end)
 end
-Tabs.XXX:AddToggle("AuraFlingToggle", {
+Tabs.TOG:AddToggle("AuraFlingToggle", {
     Title = "Aura Fling",
     Default = false,
     Callback = function(state)
@@ -902,11 +876,72 @@ Tabs.XXX:AddToggle("AuraFlingToggle", {
         if state then auraFling() end
     end
 })
+local function flingAll()
+    task.spawn(function()
+        while flingOn do
+            local myChar = LocalPlayer.Character
+            local myRoot = getRootUniversal(myChar)
+            if myRoot then
+                for _,player in pairs(Players:GetPlayers()) do
+                    if not flingOn then break end
+                    if player ~= LocalPlayer and player.Character then
+                        local targetRoot = getRootUniversal(player.Character)
+                        if targetRoot then
+                            myRoot.CFrame = targetRoot.CFrame
+                            local p = flingAllPower
+                            myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
+                            myRoot.AssemblyLinearVelocity =
+                                myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
+                            task.wait()
+                            myRoot.AssemblyAngularVelocity = Vector3.zero
+                            myRoot.AssemblyLinearVelocity = Vector3.zero
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+Tabs.TOG:AddToggle("FlingAllToggle", {
+    Title = "Fling All",
+    Default = false,
+    Callback = function(state)
+        flingOn = state
+        if state then flingAll() end
+    end
+})
+local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
+    Title = "Anti Fling",
+    Default = false
+})
+local antiflingConnection
+AntiFlingToggle:OnChanged(function(state)
+    if state then
+        antiflingConnection = RunService.Stepped:Connect(function()
+            local myChar = LocalPlayer.Character
+            if not myChar or not myChar.PrimaryPart then return end
+            local myPos = myChar.PrimaryPart.Position
+            for _,player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
+                    if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 75 then
+                        for _,v in pairs(player.Character:GetDescendants()) do
+                            if v:IsA("BasePart") then
+                                v.CanCollide = false
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    else
+        if antiflingConnection then antiflingConnection:Disconnect() end
+    end
+end)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-local Toggle = Tabs.XXX:AddToggle("attacktog", {
+local Toggle = Tabs.TOG:AddToggle("attacktog", {
     Title = "Attack TP",
     Default = false
 })
@@ -1029,11 +1064,11 @@ local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
 local ToggleUlt
 if hasUltimate then
-    ToggleUlt = Tabs.XXX:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
+    ToggleUlt = Tabs.TOG:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
 end
 local ToggleClass
 if hasCharacter then
-    ToggleClass = Tabs.XXX:AddToggle("classtog", { Title = "Show Character Name", Default = false })
+    ToggleClass = Tabs.TOG:AddToggle("classtog", { Title = "Show Character Name", Default = false })
 end
 local ClassColors = {
     ["Bald"]     = Color3.fromRGB(220, 220, 220),
@@ -1184,7 +1219,7 @@ task.delay(1.5, function()
 end)
 end)
 
-Tabs.XXX:AddButton({
+Tabs.TOG:AddButton({
     Title = "Lay",
     Callback = function()
         local player = game.Players.LocalPlayer  
@@ -1234,7 +1269,7 @@ local function buildDropdownValues()
     end
     return values
 end
-local Dropdown = Tabs.XXX:AddDropdown("Dropdown_player", {
+local Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
     Title = "Player",
     Values = buildDropdownValues(),
     Multi = false,
@@ -1270,7 +1305,7 @@ Players.PlayerRemoving:Connect(function(plr)
     end
     refreshDropdown()
 end)
-Tabs.XXX:AddButton({
+Tabs.PLYR:AddButton({
     Title = "Teleport to Player",
     Callback = function()
         if not playerChosen then return end
@@ -1317,7 +1352,7 @@ local function stopView()
         if hum then Camera.CameraSubject = hum end
     end
 end
-ViewToggle = Tabs.XXX:AddToggle("Viewtog", {
+ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
     Title = "View Player",
     Default = false,
     Callback = function(state)
@@ -1363,7 +1398,7 @@ local function startFlingOne()
             myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
     end)
 end
-FlingOneToggle = Tabs.XXX:AddToggle("FlingOneToggle", {
+FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     Title = "Fling Player",
     Default = false,
     Callback = function(state)
@@ -1387,7 +1422,7 @@ task.spawn(function()
 local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
 if not mainPart then
 end
-local ButtonDummy = Tabs.XXX:AddButton({
+local ButtonDummy = Tabs.TOG:AddButton({
     Title = "Teleport to Weakest Dummy",
     Callback = function()
         local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
@@ -1434,29 +1469,4 @@ local function tryUseAndUnequipBindingCloth(character, humanoid)
     end
     return false
 end
-local ButtonAutoBehindUnequip = Tabs.XXX:AddButton({
-    Title = "Bring Weakest Dummy (MONSTER)",
-    Callback = function()
-        local char = player.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not hrp or not humanoid then return end
-        if hasCooldownOnSlot4() then
-		return 
-        end
-        local savedCFrame = hrp.CFrame
-        local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
-        if not dummy then return end
-        local dummyRoot = dummy:FindFirstChild("HumanoidRootPart")
-        if not dummyRoot then return end
-        hrp.CFrame = dummyRoot.CFrame * CFrame.new(0, 0, 2) + Vector3.new(0, 0, 0)
-        local success = tryUseAndUnequipBindingCloth(char, humanoid)
-        task.wait(0.55) 
-        hrp.CFrame = savedCFrame
-        if success then
-        else
-        end
-    end
-})
 end)
