@@ -936,6 +936,7 @@ AntiFlingToggle:OnChanged(function(state)
 end)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Toggle = Tabs.TOG:AddToggle("attacktog", {
@@ -943,13 +944,16 @@ local Toggle = Tabs.TOG:AddToggle("attacktog", {
     Default = false
 })
 local TRASH_DISTANCE = 11
+local TP_DELAY = 0
 local mapFolder = workspace:FindFirstChild("Map")
 local trashFolder = mapFolder and mapFolder:FindFirstChild("Trash")
 local liveFolder = workspace:FindFirstChild("Live")
+local holdingM1 = false
+local lastTP = 0
 local function getCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
-local function getHumanoidRootOrTorso(character)
+local function getRoot(character)
     return character:FindFirstChild("HumanoidRootPart")
         or character:FindFirstChild("UpperTorso")
         or character:FindFirstChild("Torso")
@@ -961,22 +965,20 @@ local function getLiveModel()
             return model
         end
     end
-    return nil
 end
 local function hasTrash()
-    local character = getLiveModel()
-    if not character then return false end
-    local value = character:GetAttribute("HasTrashcan")
-    return value and value ~= ""
+    local model = getLiveModel()
+    if not model then return false end
+    local v = model:GetAttribute("HasTrashcan")
+    return v and v ~= ""
 end
 local function getClosestTrash(maxDist)
     if not trashFolder then return nil end
-    maxDist = maxDist or TRASH_DISTANCE
     local char = getCharacter()
-    local hrp = getHumanoidRootOrTorso(char)
+    local hrp = getRoot(char)
     if not hrp then return nil end
-    local closest = nil
-    local shortest = maxDist
+    local closest
+    local shortest = maxDist or TRASH_DISTANCE
     for _, m in ipairs(trashFolder:GetChildren()) do
         if m.Name ~= "Trashcan" then continue end
         if m:GetAttribute("Broken") then continue end
@@ -990,65 +992,72 @@ local function getClosestTrash(maxDist)
     end
     return closest
 end
-local function getAllHumanoidModels(parent)
-    local results = {}
-    for _, obj in ipairs(parent:GetChildren()) do
-        if obj:IsA("Model") then
-            local humanoid = obj:FindFirstChildOfClass("Humanoid")
-            local hrp = obj:FindFirstChild("HumanoidRootPart")
-            if humanoid and humanoid.Health > 0 and hrp then
-                table.insert(results, obj)
-            end
-            local subResults = getAllHumanoidModels(obj)
-            for _, v in ipairs(subResults) do
-                table.insert(results, v)
-            end
-        elseif obj:IsA("Folder") or obj:IsA("Model") then
-            local subResults = getAllHumanoidModels(obj)
-            for _, v in ipairs(subResults) do
-                table.insert(results, v)
+local cachedTargets = {}
+local function rebuildTargetCache()
+    table.clear(cachedTargets)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Humanoid") and obj.Health > 0 then
+            local model = obj.Parent
+            local hrp = model and model:FindFirstChild("HumanoidRootPart")
+            if hrp and model ~= LocalPlayer.Character then
+                table.insert(cachedTargets, hrp)
             end
         end
     end
-    return results
 end
+task.spawn(function()
+    while true do
+        rebuildTargetCache()
+        task.wait(2)
+    end
+end)
 local function getClosestTarget()
     local char = getCharacter()
-    local localPart = getHumanoidRootOrTorso(char)
-    if not localPart then return nil end
-    local closestTarget = nil
-    local shortestDistance = math.huge
-    local humanoidModels = getAllHumanoidModels(Workspace)
-    for _, model in ipairs(humanoidModels) do
-        if model == char then continue end 
-        local hrp = model:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local dist = (hrp.Position - localPart.Position).Magnitude
-            if dist < shortestDistance then
-                shortestDistance = dist
-                closestTarget = hrp
+    local root = getRoot(char)
+    if not root then return end
+    local closest
+    local shortest = math.huge
+    for _, hrp in ipairs(cachedTargets) do
+        if hrp and hrp.Parent then
+            local dist = (hrp.Position - root.Position).Magnitude
+            if dist < shortest then
+                shortest = dist
+                closest = hrp
             end
         end
     end
-    return closestTarget
+    return closest
 end
 local function teleportBehindTarget()
+    if tick() - lastTP < TP_DELAY then return end
+    lastTP = tick()
     if hasTrash() then return end
     if trashFolder and getClosestTrash(TRASH_DISTANCE) then return end
     local char = getCharacter()
-    local localPart = getHumanoidRootOrTorso(char)
-    if not localPart then return end
-    local targetPart = getClosestTarget()
-    if not targetPart then return end
-    local behindPosition = targetPart.Position - (targetPart.CFrame.LookVector * 1.4)
-	
-    localPart.CFrame = CFrame.new(behindPosition)
-	localPart.CFrame = CFrame.new(behindPosition)
+    local root = getRoot(char)
+    if not root then return end
+    local target = getClosestTarget()
+    if not target then return end
+    local pos = target.Position - (target.CFrame.LookVector * 1.4)
+    root.CFrame = CFrame.new(pos, target.Position)
 end
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if not Toggle.Value then return end
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        holdingM1 = true
+        if Toggle.Value then
+            teleportBehindTarget() 
+        end
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        holdingM1 = false
+    end
+end)
+RunService.Heartbeat:Connect(function()
+    if not Toggle.Value then return end
+    if holdingM1 then
         teleportBehindTarget()
     end
 end)
