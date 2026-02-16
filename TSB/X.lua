@@ -752,6 +752,8 @@ local walkflinging = false
 local flingOn = false
 local auraFlingOn = false
 local auraRange = 20
+
+local zero = Vector3.zero
 local function getRootUniversal(char)
     return char and (
         char:FindFirstChild("HumanoidRootPart") or
@@ -762,6 +764,19 @@ end
 local walkFlingState = {
     statusParagraph = nil
 }
+
+local flingZone = workspace:FindFirstChild("NOTHING X")
+
+local function isPointInsidePart(part, point)
+    if not part then return false end
+
+    local relative = part.CFrame:PointToObjectSpace(point)
+    local halfSize = part.Size / 2
+
+    return math.abs(relative.X) <= halfSize.X
+        and math.abs(relative.Y) <= halfSize.Y
+        and math.abs(relative.Z) <= halfSize.Z
+end
 
 local function toggleWalkFling()
     walkflinging = not walkflinging
@@ -876,25 +891,39 @@ Tabs.TOG:AddToggle("AuraFlingToggle", {
         if state then auraFling() end
     end
 })
+
+
 local function flingAll()
     task.spawn(function()
         while flingOn do
             local myChar = LocalPlayer.Character
+            if not myChar then RunService.Heartbeat:Wait() continue end
             local myRoot = getRootUniversal(myChar)
-            if myRoot then
-                for _,player in pairs(Players:GetPlayers()) do
-                    if not flingOn then break end
-                    if player ~= LocalPlayer and player.Character then
-                        local targetRoot = getRootUniversal(player.Character)
+            if not myRoot then RunService.Heartbeat:Wait() continue end
+            local power = flingAllPower
+            local players = Players:GetPlayers()
+            for i = 1, #players do
+                if not flingOn then break end
+                local plr = players[i]
+                if plr ~= LocalPlayer then
+                    local char = plr.Character
+                    if char then
+                        local targetRoot = getRootUniversal(char)
                         if targetRoot then
                             myRoot.CFrame = targetRoot.CFrame
-                            local p = flingAllPower
-                            myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
-                            myRoot.AssemblyLinearVelocity =
-                                myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
-                            task.wait()
-                            myRoot.AssemblyAngularVelocity = Vector3.zero
-                            myRoot.AssemblyLinearVelocity = Vector3.zero
+                            local look = myRoot.CFrame.LookVector
+                            local right = myRoot.CFrame.RightVector
+                            local moveVec =
+                                look * power +        
+                                -look * power * 0.5 + 
+                                right * power +       
+                                -right * power * 0.5 +
+                                Vector3.new(0, power * 0.6, 0) 
+                            myRoot.AssemblyAngularVelocity = Vector3.new(power, power, power)
+                            myRoot.AssemblyLinearVelocity = moveVec
+                            RunService.Heartbeat:Wait()
+                            myRoot.AssemblyAngularVelocity = zero
+                            myRoot.AssemblyLinearVelocity = zero
                         end
                     end
                 end
