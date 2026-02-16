@@ -708,11 +708,7 @@ Tabs.XXX:AddKeybind("camKeybind", {
     Callback = function(value)
 
         if value and not IsAlive(LocalPlayer.Character) then
-            Fluent:Notify({
-                Title = "X_^",
-                Content = "Camlock - Cannot enable - you are dead",
-                Duration = 3
-            })
+
             return
         end
 
@@ -1418,55 +1414,20 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     end
 })
 
-task.spawn(function()
-local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
-if not mainPart then
-end
-local ButtonDummy = Tabs.TOG:AddButton({
-    Title = "Teleport to Weakest Dummy",
-    Callback = function()
-        local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
-        if dummy and dummy:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = dummy.HumanoidRootPart.CFrame
-        else
+local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
+
+if dummy then
+    local ButtonDummy = Tabs.TOG:AddButton({
+        Title = "Teleport to Weakest Dummy",
+        Callback = function()
+            if dummy:FindFirstChild("HumanoidRootPart")
+            and LocalPlayer.Character
+            and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                
+                LocalPlayer.Character.HumanoidRootPart.CFrame =
+                    dummy.HumanoidRootPart.CFrame
+            end
         end
-    end
-})
-local player = game:GetService("Players").LocalPlayer
-local hotbar = player:WaitForChild("PlayerGui"):WaitForChild("Hotbar")
-local backpackHotbar = hotbar:WaitForChild("Backpack"):WaitForChild("Hotbar")
-local function hasCooldownOnSlot4()
-    local slot = backpackHotbar:FindFirstChild("4")
-    if not slot then return false end
-    local base = slot:FindFirstChild("Base")
-    if not base then return false end
-    local cooldownFrame = base:FindFirstChild("Cooldown")
-    if not cooldownFrame then return false end
-    return cooldownFrame.Visible == true
+    })
 end
-local function tryUseAndUnequipBindingCloth(character, humanoid)
-    local currentTool = character:FindFirstChildWhichIsA("Tool")
-    if currentTool then
-        local name = currentTool.Name
-        if name:find("Binding") or name:find("Cloth") then
-            currentTool:Activate()
-            task.wait()
-            currentTool.Parent = player.Backpack
-            return true
-        end
-    end
-    local clothTool = player.Backpack:FindFirstChild("Binding Cloth")
-    if not clothTool or not clothTool:IsA("Tool") then
-        return false
-    end
-    humanoid:EquipTool(clothTool)
-    task.wait() 
-    if clothTool.Parent == character then
-        clothTool:Activate()
-        task.wait()
-        clothTool.Parent = player.Backpack
-        return true
-    end
-    return false
-end
-end)
+
