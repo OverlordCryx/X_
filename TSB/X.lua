@@ -748,7 +748,11 @@ local walkflinging = false
 local flingOn = false
 local auraFlingOn = false
 local auraRange = 20
-
+local orbitStepXZ = 0
+local orbitStepY = 0
+local orbitMax = 1.3
+local orbitIncrement = 0.1
+local orbitSpeed = 999999999999999999999
 local zero = Vector3.zero
 local function getRootUniversal(char)
     return char and (
@@ -848,6 +852,7 @@ local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
         auraRange = tonumber(value) or auraRange
     end
 })
+
 local function auraFling()
     task.spawn(function()
         while auraFlingOn do
@@ -891,39 +896,47 @@ Tabs.TOG:AddToggle("AuraFlingToggle", {
 
 local function flingAll()
     task.spawn(function()
+        local t = 0
         while flingOn do
             local myChar = LocalPlayer.Character
             if not myChar then RunService.Heartbeat:Wait() continue end
             local myRoot = getRootUniversal(myChar)
             if not myRoot then RunService.Heartbeat:Wait() continue end
-            local power = flingAllPower
+            local p = flingAllPower
             local players = Players:GetPlayers()
             for i = 1, #players do
                 if not flingOn then break end
                 local plr = players[i]
-                if plr ~= LocalPlayer then
-                    local char = plr.Character
-                    if char then
-                        local targetRoot = getRootUniversal(char)
-                        if targetRoot then
-                            myRoot.CFrame = targetRoot.CFrame
-                            local look = myRoot.CFrame.LookVector
-                            local right = myRoot.CFrame.RightVector
-                            local moveVec =
-                                look * power +        
-                                -look * power * 0.5 + 
-                                right * power +       
-                                -right * power * 0.5 +
-                                Vector3.new(0, power * 0.6, 0) 
-                            myRoot.AssemblyAngularVelocity = Vector3.new(power, power, power)
-                            myRoot.AssemblyLinearVelocity = moveVec
-                            RunService.Heartbeat:Wait()
-                            myRoot.AssemblyAngularVelocity = zero
-                            myRoot.AssemblyLinearVelocity = zero
-                        end
+                if plr ~= LocalPlayer and plr.Character then
+                    local targetRoot = getRootUniversal(plr.Character)
+                    if targetRoot then
+                        local dt = RunService.Heartbeat:Wait()
+                        t += dt * orbitSpeed
+                        local orbitDistanceXZ = orbitStepXZ
+                        local orbitDistanceY = orbitStepY
+                        orbitStepXZ += orbitIncrement
+                        orbitStepY += orbitIncrement
+                        if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
+                        if orbitStepY > orbitMax then orbitStepY = 0 end
+                        local offset = Vector3.new(
+                            math.cos(t) * orbitDistanceXZ,
+                            orbitDistanceY,
+                            math.sin(t) * orbitDistanceXZ
+                        )
+                        myRoot.CFrame = targetRoot.CFrame + offset
+                        myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
+                        myRoot.AssemblyLinearVelocity =
+                            targetRoot.CFrame.LookVector * p +
+                            Vector3.new(0, p * 0.5, 0)
                     end
                 end
             end
+        end
+        local myChar = LocalPlayer.Character
+        local myRoot = myChar and getRootUniversal(myChar)
+        if myRoot then
+            myRoot.AssemblyAngularVelocity = zero
+            myRoot.AssemblyLinearVelocity = zero
         end
     end)
 end
@@ -1384,6 +1397,11 @@ local flingOneConnection = nil
 local autoTpOn = false
 local autoTpConnection = nil
 local FLING_INF_POWER = 1e12
+local orbitStepXZ = 0
+local orbitStepY = 0
+local orbitMax = 1.3
+local orbitIncrement = 0.1
+local orbitSpeed = 999999999999999999999
 local function getRootUniversal(char)
     return char and (
         char:FindFirstChild("HumanoidRootPart") or
@@ -1438,7 +1456,7 @@ local function stopView()
 end
 local function startFlingOne()
     if flingOneConnection then flingOneConnection:Disconnect() end
-    flingOneConnection = RunService.Heartbeat:Connect(function()
+    flingOneConnection = RunService.Heartbeat:Connect(function(dt)
         if not flingOneOn then return end
         if not playerChosen then return end
         if not playerChosen.Parent then
@@ -1457,7 +1475,17 @@ local function startFlingOne()
             FlingOneToggle:SetValue(false)
             return
         end
-        myRoot.CFrame = targetRoot.CFrame
+        orbitStepXZ += orbitIncrement
+        orbitStepY += orbitIncrement
+        if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
+        if orbitStepY > orbitMax then orbitStepY = 0 end
+        local t = tick() * orbitSpeed
+        local offset = Vector3.new(
+            math.cos(t) * orbitStepXZ,
+            orbitStepY,
+            math.sin(t) * orbitStepXZ
+        )
+        myRoot.CFrame = targetRoot.CFrame + offset
         local p = FLING_INF_POWER
         myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
         myRoot.AssemblyLinearVelocity =
