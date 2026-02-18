@@ -1,6 +1,10 @@
+
+
 task.spawn(function()
-local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+local map = workspace:FindFirstChild("Map")
+local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
+    return 
 end
 local partName = "NOTHING X"
 if not workspace:FindFirstChild(partName) then
@@ -25,8 +29,10 @@ end
 	end)
 task.spawn(function()
 task.wait(3)
-local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+local map = workspace:FindFirstChild("Map")
+local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
+    return 
 end
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -34,7 +40,7 @@ local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 local nothingX = workspace["NOTHING X"]
-local spawnPart = workspace.Map.MainPart
+local spawnPart = mainPart
 local function isOutside()
 	local pos = hrp.Position
 	local cf = nothingX.CFrame
@@ -368,22 +374,11 @@ local currentVel = Vector3.new()
 local accel = 16
 local decel = 11
 local tiltMax = 14
-local flyAnim = Instance.new("Animation")
-flyAnim.AnimationId = "rbxassetid://3541044388"
 local track = nil
-local function setupAnimation()
-    if track then
-        track:Stop()
-        track:Destroy()
-    end
-    track = hum:LoadAnimation(flyAnim)
-    track.Priority = Enum.AnimationPriority.Action4
-end
 local function onCharacterAdded(newChar)
     char = newChar
     hum = newChar:WaitForChild("Humanoid")
     root = newChar:WaitForChild("HumanoidRootPart")
-    setupAnimation()
     if flying then
         flying = false
         task.wait(0.1)
@@ -391,7 +386,6 @@ local function onCharacterAdded(newChar)
     end
 end
 plr.CharacterAdded:Connect(onCharacterAdded)
-setupAnimation()
 local flyState = {
     statusParagraph = nil
 }
@@ -507,8 +501,10 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
 })
 
 task.spawn(function()
-local mainPart = workspace.Map and workspace.Map:FindFirstChild("MainPart")
+local map = workspace:FindFirstChild("Map")
+local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
+    return 
 end
 local player = game.Players.LocalPlayer
 local vim = game:GetService("VirtualInputManager")
@@ -966,6 +962,7 @@ AntiFlingToggle:OnChanged(function(state)
         if antiflingConnection then antiflingConnection:Disconnect() end
     end
 end)
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -1181,10 +1178,10 @@ local LocalPlayer = Players.LocalPlayer
 local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
 local ToggleUlt
+local ToggleClass
 if hasUltimate then
     ToggleUlt = Tabs.TOG:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
 end
-local ToggleClass
 if hasCharacter then
     ToggleClass = Tabs.TOG:AddToggle("classtog", { Title = "Show Character Name", Default = false })
 end
@@ -1209,7 +1206,9 @@ local function UpdateBillboard(player)
     local head = player.Character and player.Character:FindFirstChild("Head")
     if not head then return end
     local bb = head:FindFirstChild("CombinedInfoBB")
-    if not ToggleUlt.Value and not ToggleClass.Value then
+    local showUlt = ToggleUlt and ToggleUlt.Value
+    local showClass = ToggleClass and ToggleClass.Value
+    if not showUlt and not showClass then
         if bb then bb:Destroy() end
         return
     end
@@ -1219,7 +1218,7 @@ local function UpdateBillboard(player)
         bb.Adornee = head
         bb.AlwaysOnTop = true
         bb.MaxDistance = 140
-        bb.StudsOffset = Vector3.new(0, 4.2, 0)       
+        bb.StudsOffset = Vector3.new(0, 4.2, 0)
         bb.Size = UDim2.new(5, 0, 1.2, 0)
         bb.LightInfluence = 0
         bb.ResetOnSpawn = false
@@ -1239,7 +1238,7 @@ local function UpdateBillboard(player)
         local classLabel = Instance.new("TextLabel")
         classLabel.Name = "ClassLabel"
         classLabel.Size = UDim2.new(1, 0, 0.5, 0)
-        classLabel.Position = UDim2.new(0, 0, 0.52, 0)   
+        classLabel.Position = UDim2.new(0, 0, 0.52, 0)
         classLabel.BackgroundTransparency = 1
         classLabel.Font = Enum.Font.GothamSemibold
         classLabel.TextSize = 22
@@ -1253,7 +1252,7 @@ local function UpdateBillboard(player)
     local classLabel = bb:FindFirstChild("ClassLabel")
     local visibleLines = 0
     if ultLabel then
-        if ToggleUlt.Value then
+        if showUlt then
             local ult = player:GetAttribute("Ultimate") or 0
             local val = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
             ultLabel.Text = val .. "%"
@@ -1265,7 +1264,7 @@ local function UpdateBillboard(player)
         end
     end
     if classLabel then
-        if ToggleClass.Value then
+        if showClass then
             local name = player:GetAttribute("Character") or "???"
             classLabel.Text = name
             classLabel.TextColor3 = GetClassColor(name)
@@ -1278,13 +1277,13 @@ local function UpdateBillboard(player)
     if visibleLines == 1 then
         bb.Size = UDim2.new(5, 0, 0.6, 0)
         if ultLabel.Visible then
-            ultLabel.Position = UDim2.new(0, 0, 0.25, 0)   
+            ultLabel.Position = UDim2.new(0, 0, 0.25, 0)
         elseif classLabel.Visible then
             classLabel.Position = UDim2.new(0, 0, 0.25, 0)
         end
     elseif visibleLines == 2 then
         bb.Size = UDim2.new(5, 0, 1.2, 0)
-        ultLabel.Position   = UDim2.new(0, 0, 0, 0)
+        ultLabel.Position = UDim2.new(0, 0, 0, 0)
         classLabel.Position = UDim2.new(0, 0, 0.52, 0)
     else
         bb.Size = UDim2.new(5, 0, 0.6, 0)
@@ -1299,7 +1298,9 @@ local function UpdateAll()
 end
 local conn
 local function ManageHeartbeat()
-    if ToggleUlt.Value or ToggleClass.Value then
+    local showUlt = ToggleUlt and ToggleUlt.Value
+    local showClass = ToggleClass and ToggleClass.Value
+    if showUlt or showClass then
         if not conn then
             conn = RunService.Heartbeat:Connect(function()
                 if tick() % 0.4 > 0.12 then return end
@@ -1310,28 +1311,38 @@ local function ManageHeartbeat()
         if conn then conn:Disconnect() conn = nil end
     end
 end
-ToggleUlt:OnChanged(function()
-    UpdateAll()
-    ManageHeartbeat()
-end)
-ToggleClass:OnChanged(function()
-    UpdateAll()
-    ManageHeartbeat()
-end)
+if ToggleUlt then
+    ToggleUlt:OnChanged(function()
+        UpdateAll()
+        ManageHeartbeat()
+    end)
+end
+if ToggleClass then
+    ToggleClass:OnChanged(function()
+        UpdateAll()
+        ManageHeartbeat()
+    end)
+end
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function()
         task.wait(0.7)
         UpdateBillboard(plr)
     end)
-    plr:GetAttributeChangedSignal("Ultimate"):Connect(function()
-        if ToggleUlt.Value then UpdateBillboard(plr) end
-    end)
-    plr:GetAttributeChangedSignal("Character"):Connect(function()
-        if ToggleClass.Value then UpdateBillboard(plr) end
-    end)
+    if ToggleUlt then
+        plr:GetAttributeChangedSignal("Ultimate"):Connect(function()
+            if ToggleUlt.Value then UpdateBillboard(plr) end
+        end)
+    end
+    if ToggleClass then
+        plr:GetAttributeChangedSignal("Character"):Connect(function()
+            if ToggleClass.Value then UpdateBillboard(plr) end
+        end)
+    end
 end)
 task.delay(1.5, function()
-    if ToggleUlt.Value or ToggleClass.Value then
+    local showUlt = ToggleUlt and ToggleUlt.Value
+    local showClass = ToggleClass and ToggleClass.Value
+    if showUlt or showClass then
         UpdateAll()
     end
 end)
@@ -1598,17 +1609,18 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
 })
 
 
-
-local dummy = workspace.Live:FindFirstChild("Weakest Dummy")
-
-if dummy then
+local map = workspace:FindFirstChild("Map")
+local mainPart = map and map:FindFirstChild("MainPart")
+if map and mainPart then
     local ButtonDummy = Tabs.TOG:AddButton({
         Title = "Teleport to Weakest Dummy",
         Callback = function()
-            if dummy:FindFirstChild("HumanoidRootPart")
+            local live = workspace:FindFirstChild("Live")
+            local dummy = live and live:FindFirstChild("Weakest Dummy")
+            if dummy
+            and dummy:FindFirstChild("HumanoidRootPart")
             and LocalPlayer.Character
             and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                
                 LocalPlayer.Character.HumanoidRootPart.CFrame =
                     dummy.HumanoidRootPart.CFrame
             end
