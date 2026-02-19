@@ -606,7 +606,6 @@ local function useTrashCan()
         bodyGyro.CFrame = CFrame.new(hrp.Position, currentTrash:GetModelCFrame().Position)
         click()
         tries += 1
-        task.wait()
     end
     if hrp and hrp.Parent then
         hrp.CFrame = savedCFrame
@@ -620,9 +619,6 @@ local function startHasTrashObserver()
     task.spawn(function()
         while true do
             hasTrashFlag = hasTrash() 
-            if trashState.statusParagraph then
-                trashState.statusParagraph:SetTitle(hasTrashFlag and "Trash : HAS TRASH" or "Trash : NO TRASH")
-            end
             task.wait()
         end
     end)
