@@ -513,6 +513,8 @@ local hrp
 local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
 local running = false
 local debounce = false
+local hasTrashFlag = false
+
 local trashState = {
     statusParagraph = nil
 }
@@ -532,61 +534,98 @@ local function hasTrash()
     local value = character:GetAttribute("HasTrashcan")
     return value and value ~= ""
 end
-local function reallyHasNoTrash() 
-    for i = 1, 9 do
-        if hasTrash() then
-            return false
-        end
-        task.wait() 
-    end
-    return true
-end
-local function getClosestTrashCan()
-    local closest
-    local shortest = math.huge
+
+local function getRandomTrashCan()
+    local candidates = {}
     for _, model in ipairs(trashFolder:GetChildren()) do
         if model.Name == "Trashcan" and not model:GetAttribute("Broken") then
-            local dist = (hrp.Position - model:GetModelCFrame().Position).Magnitude
-            if dist < shortest then
-                shortest = dist
-                closest = model
-            end
+            table.insert(candidates, model)
         end
     end
-    return closest
+    if #candidates == 0 then
+        return nil
+    end
+    return candidates[math.random(1, #candidates)]
 end
+
 local function click()
     vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
     task.wait()
     vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
+local function getRandomTrashCan()
+    local candidates = {}
+    for _, model in ipairs(trashFolder:GetChildren()) do
+        if model.Name == "Trashcan" and not model:GetAttribute("Broken") then
+            table.insert(candidates, model)
+        end
+    end
+    if #candidates == 0 then
+        return nil
+    end
+    return candidates[math.random(1, #candidates)]
+end
 local function useTrashCan()
     if debounce then return end
     debounce = true
-    if hasTrash() then
+    if hasTrashFlag then 
         debounce = false
         return
     end
     local savedCFrame = hrp.CFrame
     local tries = 0
     local maxTries = 1000  
+    local bodyGyro
+    if not hrp:FindFirstChild("TrashGyro") then
+        bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.Name = "TrashGyro"
+        bodyGyro.MaxTorque = Vector3.new(0, math.huge, 0) 
+        bodyGyro.P = 5000
+        bodyGyro.CFrame = hrp.CFrame
+        bodyGyro.Parent = hrp
+    else
+        bodyGyro = hrp.TrashGyro
+    end
+    local currentTrash = getRandomTrashCan()
     while tries < maxTries and running do
-        if hasTrash() then break end
-        local trash = getClosestTrashCan()
-        if not trash then
+        if hasTrashFlag then break end 
+        if not currentTrash or currentTrash:GetAttribute("Broken") then
+            currentTrash = getRandomTrashCan()
+        end
+        if not currentTrash then
             tries += 1
+            task.wait()
             continue
         end
-        hrp.CFrame = trash:GetModelCFrame() * CFrame.new(0, -0.1, 0) 
-        if reallyHasNoTrash() then
-            click()
+        for _, part in ipairs(currentTrash:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
         end
+        hrp.CFrame = currentTrash:GetModelCFrame() * CFrame.new(0, -0.1, 0)
+        bodyGyro.CFrame = CFrame.new(hrp.Position, currentTrash:GetModelCFrame().Position)
+        click()
         tries += 1
+        task.wait()
     end
     if hrp and hrp.Parent then
         hrp.CFrame = savedCFrame
     end
+    if bodyGyro then
+        bodyGyro:Destroy()
+    end
     debounce = false
+end
+local function startHasTrashObserver()
+    task.spawn(function()
+        while true do
+            hasTrashFlag = hasTrash() 
+            if trashState.statusParagraph then
+                trashState.statusParagraph:SetTitle(hasTrashFlag and "Trash : HAS TRASH" or "Trash : NO TRASH")
+            end
+            task.wait()
+        end
+    end)
 end
 Tabs.XXX:AddKeybind("TrashKeybind", {
     Title = "Get Trash Can",
@@ -594,19 +633,17 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
     Default = "LeftControl",
     Callback = function(state)
         running = state
-		 if trashState.statusParagraph then
+        if trashState.statusParagraph then
             trashState.statusParagraph:SetTitle(state and "Trash : ON" or "Trash : OFF")
         end
         if state then
-
             task.spawn(function()
                 while running do
                     useTrashCan()
-                    task.wait() 
+                    task.wait()
                 end
             end)
-        else
-
+            startHasTrashObserver()
         end
     end
 })
