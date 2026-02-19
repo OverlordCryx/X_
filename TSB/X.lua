@@ -742,9 +742,8 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local speaker = LocalPlayer
-local power = 100
-local flingAllPower = 15000
-local walkflinging = false
+local power = 1000
+local flingAllPower = 1000
 local flingOn = false
 local auraFlingOn = false
 local auraRange = 20
@@ -753,7 +752,12 @@ local orbitStepY = 0
 local orbitMax = 1.3
 local orbitIncrement = 0.1
 local orbitSpeed = 999999999999999999999
+local walkflinging = false
+local walkFlingMode = "Normal"
 local zero = Vector3.zero
+local walkFlingState = {
+    statusParagraph = nil
+}
 local function getRootUniversal(char)
     return char and (
         char:FindFirstChild("HumanoidRootPart") or
@@ -761,50 +765,46 @@ local function getRootUniversal(char)
         char:FindFirstChild("UpperTorso")
     )
 end
-local walkFlingState = {
-    statusParagraph = nil
-}
-
-local flingZone = workspace:FindFirstChild("NOTHING X")
-
-local function isPointInsidePart(part, point)
-    if not part then return false end
-
-    local relative = part.CFrame:PointToObjectSpace(point)
-    local halfSize = part.Size / 2
-
-    return math.abs(relative.X) <= halfSize.X
-        and math.abs(relative.Y) <= halfSize.Y
-        and math.abs(relative.Z) <= halfSize.Z
-end
-
-local function toggleWalkFling()
-    walkflinging = not walkflinging
-    if walkFlingState.statusParagraph then
-        walkFlingState.statusParagraph:SetTitle(walkflinging and "Walk Fling : ON" or "Walk Fling : OFF")
-    end
-    if not walkflinging then return end
+local function WalkFlingLoop()
     local movel = 0.1
     while walkflinging do
         RunService.Heartbeat:Wait()
         local char = speaker.Character
         local root = getRootUniversal(char)
-        if char and root then
-            local vel = root.Velocity
-            root.Velocity = vel * power + Vector3.new(0, power, 0)
-            RunService.RenderStepped:Wait()
-            root.Velocity = vel
-            RunService.Stepped:Wait()
-            root.Velocity = vel + Vector3.new(0, movel, 0)
-            movel *= -1
-        end
+if char and root then
+    if walkFlingMode == "Forward" then
+        local vel = root.Velocity
+        local lookVector = char.HumanoidRootPart.CFrame.LookVector
+        root.Velocity = lookVector * power
+        RunService.RenderStepped:Wait()
+        root.Velocity = vel
+    else 
+        local vel = root.Velocity
+        root.Velocity = vel * power + Vector3.new(0, power, 0)
+        RunService.RenderStepped:Wait()
+        root.Velocity = vel
+        RunService.Stepped:Wait()
+        root.Velocity = vel + Vector3.new(0, movel, 0)
+        movel *= -1
+    end
+end
     end
 end
 Tabs.TOG:AddKeybind("WalkFlingKey", {
-    Title = "Walk Fling",
+    Title = "Walk Fling Toggle",
     Mode = "Toggle",
     Default = "X",
-    Callback = toggleWalkFling
+    Callback = function()
+        walkflinging = not walkflinging
+        if walkFlingState.statusParagraph then
+            walkFlingState.statusParagraph:SetTitle(
+                walkflinging and "Walk Fling : ON" or "Walk Fling : OFF"
+            )
+        end
+        if walkflinging then
+            task.spawn(WalkFlingLoop)
+        end
+    end
 })
 if not walkFlingState.statusParagraph then
     walkFlingState.statusParagraph = Tabs.TOG:AddParagraph({
@@ -812,7 +812,6 @@ if not walkFlingState.statusParagraph then
         Content = ""
     })
 end
-
 Tabs.TOG:AddInput("WalkPowerInput", {
     Title = "Walk Fling Power",
     Default = tostring(power),
@@ -826,6 +825,16 @@ Tabs.TOG:AddInput("WalkPowerInput", {
         end
     end
 })
+Tabs.TOG:AddDropdown("Dropdown_F_N", {
+    Title = "Mode WalkFling",
+    Values = {"Normal", "Forward"},
+    Multi = false,
+    Default = "Normal",
+    Callback = function(value)
+        walkFlingMode = value
+    end
+})
+
 Tabs.TOG:AddInput("FlingAllPowerInput", {
     Title = "Fling / Aura Power",
     Default = tostring(flingAllPower),
