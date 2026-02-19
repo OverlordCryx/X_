@@ -533,7 +533,7 @@ local function hasTrash()
     return value and value ~= ""
 end
 local function reallyHasNoTrash() 
-    for i = 1, 6 do
+    for i = 1, 9 do
         if hasTrash() then
             return false
         end
@@ -557,6 +557,7 @@ local function getClosestTrashCan()
 end
 local function click()
     vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    task.wait()
     vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 local function useTrashCan()
@@ -576,7 +577,7 @@ local function useTrashCan()
             tries += 1
             continue
         end
-        hrp.CFrame = trash:GetModelCFrame() * CFrame.new(0, 0, 0) 
+        hrp.CFrame = trash:GetModelCFrame() * CFrame.new(0, -0.1, 0) 
         if reallyHasNoTrash() then
             click()
         end
