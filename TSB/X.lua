@@ -1,3 +1,4 @@
+print("NOTHING X")
 
 
 task.spawn(function()
@@ -54,7 +55,6 @@ RunService.Heartbeat:Connect(function()
 	if not hrp or not hrp.Parent then return end
 	if isOutside() then
 		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 5, 0)
-		task.wait()   
 	end
 end)
 player.CharacterAdded:Connect(function(newChar)
@@ -160,7 +160,7 @@ local function updatePlayerHighlight(plr)
                 createHighlight(char, false)
                 state[plr] = "weak"
                 SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
-                task.delay(math.random(8,9), function()
+                task.delay(10, function()
                     if state[plr] == "weak" then
 
                         SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
@@ -173,22 +173,76 @@ local function updatePlayerHighlight(plr)
 end
 
 
-RunService.Heartbeat:Connect(function()
-    if espEnabled then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            updatePlayerHighlight(plr)
+local connections = {}
+local function disconnectPlayer(plr)
+    local conns = connections[plr]
+    if conns then
+        for _, c in pairs(conns) do
+            if c then c:Disconnect() end
         end
     end
-end)
-
-Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(function(char)
-        task.wait()
-        updatePlayerHighlight(plr)
+    connections[plr] = nil
+    state[plr] = nil
+    if plr.Character then
+        removeHighlight(plr.Character)
+    end
+end
+local function safeUpdate(plr)
+    if not espEnabled then return end
+    updatePlayerHighlight(plr)
+end
+local function bindBackpack(plr, backpack)
+    if not backpack then return end
+    connections[plr] = connections[plr] or {}
+    if connections[plr].bpAdded then connections[plr].bpAdded:Disconnect() end
+    if connections[plr].bpRemoved then connections[plr].bpRemoved:Disconnect() end
+    local function onChange()
+        task.defer(function()
+            safeUpdate(plr)
+        end)
+    end
+    connections[plr].bpAdded = backpack.ChildAdded:Connect(onChange)
+    connections[plr].bpRemoved = backpack.ChildRemoved:Connect(onChange)
+end
+local function onCharacterAdded(plr, char)
+    task.defer(function()
+        safeUpdate(plr)
     end)
+    local bp = plr:FindFirstChildOfClass("Backpack")
+    if bp then
+        bindBackpack(plr, bp)
+    end
+end
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= player then
+        connections[plr] = connections[plr] or {}
+        connections[plr].charAdded = plr.CharacterAdded:Connect(function(char)
+            onCharacterAdded(plr, char)
+        end)
+        local bp = plr:FindFirstChildOfClass("Backpack")
+        if bp then
+            bindBackpack(plr, bp)
+        end
+        if plr.Character then
+            task.defer(function()
+                safeUpdate(plr)
+            end)
+        end
+    end
+end
+Players.PlayerAdded:Connect(function(plr)
+    if plr == player then return end
+    connections[plr] = connections[plr] or {}
+    connections[plr].charAdded = plr.CharacterAdded:Connect(function(char)
+        onCharacterAdded(plr, char)
+    end)
+    local bp = plr:FindFirstChildOfClass("Backpack")
+    if bp then
+        bindBackpack(plr, bp)
+    end
 end)
-player.CharacterAdded:Connect(function(char)
-    task.wait()
+Players.PlayerRemoving:Connect(function(plr)
+    disconnectPlayer(plr)
 end)
 end)
 local speaker = game.Players.LocalPlayer
@@ -514,6 +568,7 @@ local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
 local running = false
 local debounce = false
 local hasTrashFlag = false
+local processedTrash = setmetatable({}, { __mode = "k" })
 
 local trashState = {
     statusParagraph = nil
@@ -586,6 +641,15 @@ local function useTrashCan()
     else
         bodyGyro = hrp.TrashGyro
     end
+    local function ensureNoCollide(model)
+        if processedTrash[model] then return end
+        processedTrash[model] = true
+        for _, part in ipairs(model:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
     local currentTrash = getRandomTrashCan()
     while tries < maxTries and running do
         if hasTrashFlag then break end 
@@ -597,11 +661,7 @@ local function useTrashCan()
             task.wait()
             continue
         end
-        for _, part in ipairs(currentTrash:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
+        ensureNoCollide(currentTrash)
         hrp.CFrame = currentTrash:GetModelCFrame() * CFrame.new(0, -0.1, 0)
         bodyGyro.CFrame = CFrame.new(hrp.Position, currentTrash:GetModelCFrame().Position)
         click()
@@ -715,14 +775,17 @@ local function GetPrediction()
     local ping = LocalPlayer:GetNetworkPing() or 0
     return ping * 1.15 + 0.06
 end
-RunService.RenderStepped:Connect(function(dt)
+local camlockConn
+local function camlockStep(dt)
     if not CamlockEnabled then
         CamlockTarget = nil
+        if camlockConn then camlockConn:Disconnect() camlockConn = nil end
         return
     end
     if not IsAlive(LocalPlayer.Character) then
         CamlockEnabled = false
         CamlockTarget = nil
+        if camlockConn then camlockConn:Disconnect() camlockConn = nil end
         return
     end
     scanTimer += dt
@@ -744,7 +807,7 @@ RunService.RenderStepped:Connect(function(dt)
     local velocity = CamlockTarget.AssemblyLinearVelocity or Vector3.zero
     local predicted = CamlockTarget.Position + velocity * BasePrediction
     Camera.CFrame = CFrame.new(Camera.CFrame.Position, predicted)
-end)
+end
 Tabs.XXX:AddKeybind("camKeybind", {
     Title = "Cam Lock",
     Mode = "Toggle",
@@ -760,8 +823,12 @@ Tabs.XXX:AddKeybind("camKeybind", {
         if v then
             RefreshTargets()
             CamlockTarget = GetClosestTarget()
+            if not camlockConn then
+                camlockConn = RunService.RenderStepped:Connect(camlockStep)
+            end
         else
             CamlockTarget = nil
+            if camlockConn then camlockConn:Disconnect() camlockConn = nil end
         end
     end
 })
@@ -1038,6 +1105,8 @@ local holdingM1 = false
 local lastTP = 0
 local BEHIND_OFFSET = 0.8
 local DOWN_OFFSET = -2.1
+local cacheLoopActive = false
+local cacheLoopTask
 local function getCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
@@ -1095,10 +1164,27 @@ local function rebuildTargetCache()
         end
     end
 end
-task.spawn(function()
-    while true do
+local function startCacheLoop()
+    if cacheLoopTask then return end
+    cacheLoopActive = true
+    cacheLoopTask = task.spawn(function()
+        while cacheLoopActive do
+            rebuildTargetCache()
+            task.wait(1.5)
+        end
+        cacheLoopTask = nil
+    end)
+end
+local function stopCacheLoop()
+    cacheLoopActive = false
+end
+Toggle:OnChanged(function(state)
+    if state then
         rebuildTargetCache()
-        task.wait(1.5) 
+        startCacheLoop()
+    else
+        stopCacheLoop()
+        table.clear(cachedTargets)
     end
 end)
 local function getClosestTarget()
