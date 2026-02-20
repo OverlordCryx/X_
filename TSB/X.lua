@@ -1085,7 +1085,6 @@ AntiFlingToggle:OnChanged(function(state)
         if antiflingConnection then antiflingConnection:Disconnect() end
     end
 end)
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -1096,17 +1095,11 @@ local Toggle = Tabs.TOG:AddToggle("attacktog", {
     Default = false
 })
 local TRASH_DISTANCE = 11
-local TRASH_DISTANCE_SQ = TRASH_DISTANCE * TRASH_DISTANCE
-local TP_DELAY = 0
-local mapFolder = workspace:FindFirstChild("Map")
+local BACK_OFFSET = 0.45 
+local mapFolder = Workspace:FindFirstChild("Map")
 local trashFolder = mapFolder and mapFolder:FindFirstChild("Trash")
-local liveFolder = workspace:FindFirstChild("Live")
-local holdingM1 = false
-local lastTP = 0
-local BEHIND_OFFSET = 0.8
-local DOWN_OFFSET = -2.1
-local cacheLoopActive = false
-local cacheLoopTask
+local liveFolder = Workspace:FindFirstChild("Live")
+local holdingMouse = false
 local function getCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
@@ -1115,139 +1108,86 @@ local function getRoot(character)
         or character:FindFirstChild("UpperTorso")
         or character:FindFirstChild("Torso")
 end
-local function getLiveModel()
-    if not liveFolder then return nil end
-    for _, model in ipairs(liveFolder:GetChildren()) do
-        if model:IsA("Model") and model.Name:find(LocalPlayer.Name) then
-            return model
-        end
-    end
-end
 local function hasTrash()
-    local model = getLiveModel()
+    if not liveFolder then return false end
+    local model = liveFolder:FindFirstChild(LocalPlayer.Name)
     if not model then return false end
-    local v = model:GetAttribute("HasTrashcan")
-    return v and v ~= ""
+    local value = model:GetAttribute("HasTrashcan")
+    return value and value ~= ""
 end
-local function getClosestTrash()
+local function getClosestTrash(hrp)
     if not trashFolder then return nil end
-    local char = getCharacter()
-    local hrp = getRoot(char)
-    if not hrp then return nil end
     local closest
-    local shortest = TRASH_DISTANCE_SQ
+    local shortest = TRASH_DISTANCE
     for _, m in ipairs(trashFolder:GetChildren()) do
         if m.Name ~= "Trashcan" then continue end
         if m:GetAttribute("Broken") then continue end
         local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
         if not part then continue end
-        local diff = hrp.Position - part.Position
-        local distSq = diff.X*diff.X + diff.Y*diff.Y + diff.Z*diff.Z
-        if distSq < shortest then
-            shortest = distSq
+        local dist = (hrp.Position - part.Position).Magnitude
+        if dist < shortest then
+            shortest = dist
             closest = m
         end
     end
     return closest
 end
-local cachedTargets = {}
-local function rebuildTargetCache()
-    table.clear(cachedTargets)
-    if not liveFolder then return end
-    for _, model in ipairs(liveFolder:GetChildren()) do
-        if model ~= LocalPlayer.Character then
-            local hum = model:FindFirstChildOfClass("Humanoid")
-            local hrp = model:FindFirstChild("HumanoidRootPart")
-            if hum and hrp and hum.Health > 0 then
-                cachedTargets[#cachedTargets+1] = hrp
-            end
-        end
-    end
-end
-local function startCacheLoop()
-    if cacheLoopTask then return end
-    cacheLoopActive = true
-    cacheLoopTask = task.spawn(function()
-        while cacheLoopActive do
-            rebuildTargetCache()
-            task.wait(1.5)
-        end
-        cacheLoopTask = nil
-    end)
-end
-local function stopCacheLoop()
-    cacheLoopActive = false
-end
-Toggle:OnChanged(function(state)
-    if state then
-        rebuildTargetCache()
-        startCacheLoop()
-    else
-        stopCacheLoop()
-        table.clear(cachedTargets)
-    end
-end)
-local function getClosestTarget()
-    local char = getCharacter()
-    local root = getRoot(char)
-    if not root then return end
-    local closest
+local function getClosestTarget(hrp)
+    local closestPart
     local shortest = math.huge
-    local rx, ry, rz = root.Position.X, root.Position.Y, root.Position.Z
-    for i = 1, #cachedTargets do
-        local hrp = cachedTargets[i]
-        if hrp and hrp.Parent then
-            local p = hrp.Position
-            local dx = rx - p.X
-            local dy = ry - p.Y
-            local dz = rz - p.Z
-            local distSq = dx*dx + dy*dy + dz*dz
-            if distSq < shortest then
-                shortest = distSq
-                closest = hrp
-            end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if not obj:IsA("Humanoid") then continue end
+        if obj.Health <= 0 then continue end
+        local model = obj.Parent
+        if not model or model == hrp.Parent then continue end
+        local root = model:FindFirstChild("HumanoidRootPart")
+        if not root then continue end
+        local dist = (root.Position - hrp.Position).Magnitude
+        if dist < shortest then
+            shortest = dist
+            closestPart = root
         end
     end
-    return closest
+    return closestPart
 end
 local function teleportBehindTarget()
-    local now = tick()
-    if now - lastTP < TP_DELAY then return end
-    lastTP = now
     if hasTrash() then return end
-    if getClosestTrash() then return end
     local char = getCharacter()
-    local root = getRoot(char)
-    if not root then return end
-    local target = getClosestTarget()
-    if not target then return end
-    local look = target.CFrame.LookVector
-    local velY = target.AssemblyLinearVelocity.Y
-    local yOffset = DOWN_OFFSET
-    if velY < -2 then 
-        yOffset = math.abs(DOWN_OFFSET) 
+    local hrp = getRoot(char)
+    if not hrp then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.AutoRotate = false 
     end
-    local basePos = target.Position - (look * BEHIND_OFFSET)
-    local finalPos = basePos + Vector3.new(0, yOffset, 0)
-    root.CFrame = CFrame.new(finalPos, target.Position)
+    if getClosestTrash(hrp) then return end
+    local target = getClosestTarget(hrp)
+    if not target then return end
+    local behindPos = target.Position - (target.CFrame.LookVector * BACK_OFFSET)
+    hrp.CFrame = CFrame.lookAt(behindPos, target.Position)
 end
+RunService.RenderStepped:Connect(function()
+    if not Toggle.Value then return end
+    if not holdingMouse then return end
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.AutoRotate = false
+        end
+    end
+    teleportBehindTarget()
+end)
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
+    if not Toggle.Value then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        holdingM1 = true
-        if Toggle.Value then
-            teleportBehindTarget()
-        end
+        holdingMouse = true
+        teleportBehindTarget()
     end
 end)
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        holdingM1 = false
-    end
-end)
-RunService.Heartbeat:Connect(function()
-    if Toggle.Value and holdingM1 then
-        teleportBehindTarget()
+        holdingMouse = false
     end
 end)
 local Players = game:GetService("Players")
