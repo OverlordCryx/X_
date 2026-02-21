@@ -1166,7 +1166,7 @@ local function getClosestTrash(hrp)
 end
 local targetCache = {}
 local targetCacheTimer = 0
-local TARGET_CACHE_INTERVAL = 0.1
+local TARGET_CACHE_INTERVAL = 0
 local function refreshTargetCache(hrp)
     table.clear(targetCache)
     local container = Workspace:FindFirstChild("Live")
