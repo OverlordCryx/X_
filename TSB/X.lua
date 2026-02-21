@@ -1081,7 +1081,7 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
 })
 local antiflingConnection
 local antiFlingTimer = 0
-local ANTI_FLING_INTERVAL = 0.2
+local ANTI_FLING_INTERVAL = 0
 local processedAntiFling = setmetatable({}, { __mode = "k" })
 local function disableCharacterCollision(character)
     if processedAntiFling[character] then return end
@@ -1105,7 +1105,7 @@ AntiFlingToggle:OnChanged(function(state)
             local myPos = myChar.PrimaryPart.Position
             for _, player in ipairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
-                    if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 75 then
+                    if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 100 then
                         disableCharacterCollision(player.Character)
                     end
                 end
