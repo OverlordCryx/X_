@@ -311,9 +311,9 @@ local state = {
     inputBeganConnection = nil,
     inputEndedConnection = nil
 }
-local function updateMovement()
+local function updateMovement(dt)
     if not state.active then return end
-    local moveVector = Vector3.new(0, 0, 0)
+    local moveVector = Vector3.zero
     if holdingWKey then
         moveVector = moveVector + Vector3.new(0, 0, -Speed)
     end
@@ -329,7 +329,10 @@ local function updateMovement()
     if moveVector.Magnitude > 0 then
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
-            hrp.CFrame = hrp.CFrame * CFrame.new(moveVector)
+            local safeDt = math.clamp(dt or 0, 0, 1 / 30)
+            local frameScale = safeDt * 60
+            local step = moveVector.Unit * Speed * frameScale
+            hrp.CFrame = hrp.CFrame * CFrame.new(step)
         end
     end
 end
@@ -429,11 +432,17 @@ local accel = 16
 local decel = 11
 local tiltMax = 14
 local track = nil
+local toggleFly
+
+local function smoothAlpha(rate, dt)
+    return 1 - math.exp(-rate * dt)
+end
+
 local function onCharacterAdded(newChar)
     char = newChar
     hum = newChar:WaitForChild("Humanoid")
     root = newChar:WaitForChild("HumanoidRootPart")
-    if flying then
+    if flying and toggleFly then
         flying = false
         task.wait(0.1)
         toggleFly()
@@ -443,24 +452,22 @@ plr.CharacterAdded:Connect(onCharacterAdded)
 local flyState = {
     statusParagraph = nil
 }
-local function toggleFly()
+toggleFly = function()
     flying = not flying
 
     if flyState.statusParagraph then
         flyState.statusParagraph:SetTitle(flying and "Fly : ON" or "Fly : OFF")
     end
 
-
-
     if flying then
         hum.PlatformStand = true
+        hum.AutoRotate = false
         hum.WalkSpeed = 0
 
-        bv = Instance.new("BodyPosition")
-        bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-        bv.Position = root.Position
-        bv.D = 2000
-        bv.P = 18000
+        bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(1e8, 1e8, 1e8)
+        bv.P = 30000
+        bv.Velocity = Vector3.new()
         bv.Parent = root
 
         bg = Instance.new("BodyGyro")
@@ -472,6 +479,7 @@ local function toggleFly()
         if track then track:Play(0.2, 1, 1.2) end
     else
         hum.PlatformStand = false
+        hum.AutoRotate = true
         hum.WalkSpeed = 16
 
         if bv then bv:Destroy() bv = nil end
@@ -497,26 +505,32 @@ RS.Heartbeat:Connect(function(dt)
     if not flying or not bv or not bg or not root or not root.Parent then
         return
     end
+
+    local smoothDt = math.clamp(dt, 0, 0.1)
     local z, x, mult = getMovementInput()
     local camLook = cam.CFrame.LookVector
     local camRight = cam.CFrame.RightVector
     local inputDir = (camLook * z) + (camRight * x)
     local targetVel = Vector3.new()
+
     if inputDir.Magnitude > 0.01 then
         targetVel = inputDir.Unit * (speed * mult)
     end
+
     local lerpSpeed = (targetVel.Magnitude > 0) and accel or decel
-    velocity = velocity:Lerp(targetVel, dt * lerpSpeed)
-    currentVel = currentVel:Lerp(velocity, dt * 22)
-    bv.Position = root.Position + currentVel * dt * 65
+    velocity = velocity:Lerp(targetVel, smoothAlpha(lerpSpeed, smoothDt))
+    currentVel = currentVel:Lerp(velocity, smoothAlpha(22, smoothDt))
+    bv.Velocity = currentVel
+
     if currentVel.Magnitude > 3 then
         local moveDir = currentVel.Unit
         local tilt = -x * math.rad(tiltMax)
         local targetCF = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
-        bg.CFrame = bg.CFrame:Lerp(targetCF, dt * 16)
+        bg.CFrame = bg.CFrame:Lerp(targetCF, smoothAlpha(16, smoothDt))
     else
-        bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), dt * 11)
+        bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), smoothAlpha(11, smoothDt))
     end
+
     if track then
         if currentVel.Magnitude > 14 and z > 0.6 then
             if not track.IsPlaying then
@@ -573,6 +587,9 @@ local processedTrash = setmetatable({}, { __mode = "k" })
 local trashState = {
     statusParagraph = nil
 }
+local trashAttrConn
+local startHasTrashObserver
+local hasTrash
 
 local function setupCharacter(char)
     character = char
@@ -584,11 +601,21 @@ end
 player.CharacterAdded:Connect(function(char)
     task.wait(1)
     setupCharacter(char)
+    hasTrashFlag = hasTrash()
+    if trashAttrConn then
+        trashAttrConn:Disconnect()
+        trashAttrConn = nil
+    end
+    if startHasTrashObserver then
+        startHasTrashObserver()
+    end
 end)
-local function hasTrash()
+hasTrash = function()
+    if not character then return false end
     local value = character:GetAttribute("HasTrashcan")
     return value and value ~= ""
 end
+hasTrashFlag = hasTrash()
 
 local function getRandomTrashCan()
     local candidates = {}
@@ -608,18 +635,6 @@ local function click()
     task.wait()
     vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
-local function getRandomTrashCan()
-    local candidates = {}
-    for _, model in ipairs(trashFolder:GetChildren()) do
-        if model.Name == "Trashcan" and not model:GetAttribute("Broken") then
-            table.insert(candidates, model)
-        end
-    end
-    if #candidates == 0 then
-        return nil
-    end
-    return candidates[math.random(1, #candidates)]
-end
 local function useTrashCan()
     if debounce then return end
     debounce = true
@@ -627,9 +642,13 @@ local function useTrashCan()
         debounce = false
         return
     end
+    if not hrp or not hrp.Parent then
+        debounce = false
+        return
+    end
     local savedCFrame = hrp.CFrame
     local tries = 0
-    local maxTries = 1000  
+    local maxTries = 180  
     local bodyGyro
     if not hrp:FindFirstChild("TrashGyro") then
         bodyGyro = Instance.new("BodyGyro")
@@ -675,12 +694,12 @@ local function useTrashCan()
     end
     debounce = false
 end
-local function startHasTrashObserver()
-    task.spawn(function()
-        while true do
-            hasTrashFlag = hasTrash() 
-            task.wait()
-        end
+startHasTrashObserver = function()
+    if trashAttrConn then return end
+    if not character then return end
+    hasTrashFlag = hasTrash()
+    trashAttrConn = character:GetAttributeChangedSignal("HasTrashcan"):Connect(function()
+        hasTrashFlag = hasTrash()
     end)
 end
 Tabs.XXX:AddKeybind("TrashKeybind", {
@@ -693,13 +712,15 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
             trashState.statusParagraph:SetTitle(state and "Trash : ON" or "Trash : OFF")
         end
         if state then
+            startHasTrashObserver()
             task.spawn(function()
                 while running do
                     useTrashCan()
-                    task.wait()
+                    task.wait(0.03)
                 end
             end)
-            startHasTrashObserver()
+        else
+            if trashAttrConn then trashAttrConn:Disconnect() trashAttrConn = nil end
         end
     end
 })
@@ -724,6 +745,7 @@ local camlockState = { statusParagraph = nil }
 local SCAN_INTERVAL = 1.5
 local scanTimer = 0
 local CachedTargets = {}
+local targetPool = Workspace:FindFirstChild("Live")
 local function IsAlive(model)
     if not model then return false end
     local hum = model:FindFirstChildOfClass("Humanoid")
@@ -737,14 +759,23 @@ local function GetRoot(model)
 end
 local function RefreshTargets()
     table.clear(CachedTargets)
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Humanoid") then
-            local model = obj.Parent
+    targetPool = Workspace:FindFirstChild("Live") or targetPool
+    if targetPool and targetPool.Parent then
+        for _, model in ipairs(targetPool:GetChildren()) do
             if model ~= LocalPlayer.Character and IsAlive(model) then
                 local root = GetRoot(model)
                 if root then
-                    CachedTargets[#CachedTargets+1] = root
+                    CachedTargets[#CachedTargets + 1] = root
                 end
+            end
+        end
+        return
+    end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and IsAlive(plr.Character) then
+            local root = GetRoot(plr.Character)
+            if root then
+                CachedTargets[#CachedTargets + 1] = root
             end
         end
     end
@@ -838,7 +869,6 @@ if not camlockState.statusParagraph then
         Content = ""
     })
 end
-
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -1063,26 +1093,40 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
     Default = false
 })
 local antiflingConnection
+local antiFlingTimer = 0
+local ANTI_FLING_INTERVAL = 0.2
+local processedAntiFling = setmetatable({}, { __mode = "k" })
+local function disableCharacterCollision(character)
+    if processedAntiFling[character] then return end
+    processedAntiFling[character] = true
+    for _, v in ipairs(character:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+        end
+    end
+end
 AntiFlingToggle:OnChanged(function(state)
     if state then
-        antiflingConnection = RunService.Stepped:Connect(function()
+        if antiflingConnection then antiflingConnection:Disconnect() antiflingConnection = nil end
+        antiFlingTimer = 0
+        antiflingConnection = RunService.Stepped:Connect(function(_, dt)
+            antiFlingTimer += dt
+            if antiFlingTimer < ANTI_FLING_INTERVAL then return end
+            antiFlingTimer = 0
             local myChar = LocalPlayer.Character
             if not myChar or not myChar.PrimaryPart then return end
             local myPos = myChar.PrimaryPart.Position
-            for _,player in pairs(Players:GetPlayers()) do
+            for _, player in ipairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
                     if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 75 then
-                        for _,v in pairs(player.Character:GetDescendants()) do
-                            if v:IsA("BasePart") then
-                                v.CanCollide = false
-                            end
-                        end
+                        disableCharacterCollision(player.Character)
                     end
                 end
             end
         end)
     else
-        if antiflingConnection then antiflingConnection:Disconnect() end
+        if antiflingConnection then antiflingConnection:Disconnect() antiflingConnection = nil end
+        table.clear(processedAntiFling)
     end
 end)
 local Players = game:GetService("Players")
@@ -1101,9 +1145,10 @@ local trashFolder = mapFolder and mapFolder:FindFirstChild("Trash")
 local liveFolder = Workspace:FindFirstChild("Live")
 local holdingMouse = false
 local function getCharacter()
-    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return LocalPlayer.Character
 end
 local function getRoot(character)
+    if not character then return nil end
     return character:FindFirstChild("HumanoidRootPart")
         or character:FindFirstChild("UpperTorso")
         or character:FindFirstChild("Torso")
@@ -1132,25 +1177,57 @@ local function getClosestTrash(hrp)
     end
     return closest
 end
-local function getClosestTarget(hrp)
+local targetCache = {}
+local targetCacheTimer = 0
+local TARGET_CACHE_INTERVAL = 0.25
+local function refreshTargetCache(hrp)
+    table.clear(targetCache)
+    local container = Workspace:FindFirstChild("Live")
+    if container then
+        for _, model in ipairs(container:GetChildren()) do
+            if model ~= hrp.Parent then
+                local hum = model:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    local root = getRoot(model)
+                    if root then
+                        targetCache[#targetCache + 1] = root
+                    end
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                local root = getRoot(plr.Character)
+                if hum and hum.Health > 0 and root then
+                    targetCache[#targetCache + 1] = root
+                end
+            end
+        end
+    end
+end
+local function getClosestTarget(hrp, dt)
+    targetCacheTimer += dt or 0
+    if targetCacheTimer >= TARGET_CACHE_INTERVAL or #targetCache == 0 then
+        targetCacheTimer = 0
+        refreshTargetCache(hrp)
+    end
     local closestPart
     local shortest = math.huge
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if not obj:IsA("Humanoid") then continue end
-        if obj.Health <= 0 then continue end
-        local model = obj.Parent
-        if not model or model == hrp.Parent then continue end
-        local root = model:FindFirstChild("HumanoidRootPart")
-        if not root then continue end
-        local dist = (root.Position - hrp.Position).Magnitude
-        if dist < shortest then
-            shortest = dist
-            closestPart = root
+    for i = 1, #targetCache do
+        local root = targetCache[i]
+        if root and root.Parent and root ~= hrp then
+            local dist = (root.Position - hrp.Position).Magnitude
+            if dist < shortest then
+                shortest = dist
+                closestPart = root
+            end
         end
     end
     return closestPart
 end
-local function teleportBehindTarget()
+local function teleportBehindTarget(dt)
     if hasTrash() then return end
     local char = getCharacter()
     local hrp = getRoot(char)
@@ -1160,14 +1237,30 @@ local function teleportBehindTarget()
         humanoid.AutoRotate = false 
     end
     if getClosestTrash(hrp) then return end
-    local target = getClosestTarget(hrp)
+    local target = getClosestTarget(hrp, dt)
     if not target then return end
     local behindPos = target.Position - (target.CFrame.LookVector * BACK_OFFSET)
     hrp.CFrame = CFrame.lookAt(behindPos, target.Position)
 end
-RunService.RenderStepped:Connect(function()
+local attackTpTimer = 0
+local ATTACK_TP_INTERVAL = 1 / 30
+
+Toggle:OnChanged(function(state)
+    if state then return end
+    holdingMouse = false
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.AutoRotate = true
+    end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
     if not Toggle.Value then return end
     if not holdingMouse then return end
+    attackTpTimer += dt
+    if attackTpTimer < ATTACK_TP_INTERVAL then return end
+    attackTpTimer = 0
     local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1175,7 +1268,7 @@ RunService.RenderStepped:Connect(function()
             hum.AutoRotate = false
         end
     end
-    teleportBehindTarget()
+    teleportBehindTarget(dt)
 end)
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
@@ -1379,13 +1472,18 @@ local function UpdateAll()
     end
 end
 local conn
+local billboardInterval = 0.4
+local billboardTimer = 0
 local function ManageHeartbeat()
     local showUlt = ToggleUlt and ToggleUlt.Value
     local showClass = ToggleClass and ToggleClass.Value
     if showUlt or showClass then
         if not conn then
-            conn = RunService.Heartbeat:Connect(function()
-                if tick() % 0.4 > 0.12 then return end
+            billboardTimer = 0
+            conn = RunService.Heartbeat:Connect(function(dt)
+                billboardTimer += dt
+                if billboardTimer < billboardInterval then return end
+                billboardTimer = 0
                 UpdateAll()
             end)
         end
