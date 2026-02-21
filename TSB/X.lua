@@ -413,7 +413,6 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -432,17 +431,11 @@ local accel = 16
 local decel = 11
 local tiltMax = 14
 local track = nil
-local toggleFly
-
-local function smoothAlpha(rate, dt)
-    return 1 - math.exp(-rate * dt)
-end
-
 local function onCharacterAdded(newChar)
     char = newChar
     hum = newChar:WaitForChild("Humanoid")
     root = newChar:WaitForChild("HumanoidRootPart")
-    if flying and toggleFly then
+    if flying then
         flying = false
         task.wait(0.1)
         toggleFly()
@@ -452,22 +445,24 @@ plr.CharacterAdded:Connect(onCharacterAdded)
 local flyState = {
     statusParagraph = nil
 }
-toggleFly = function()
+local function toggleFly()
     flying = not flying
 
     if flyState.statusParagraph then
         flyState.statusParagraph:SetTitle(flying and "Fly : ON" or "Fly : OFF")
     end
 
+
+
     if flying then
         hum.PlatformStand = true
-        hum.AutoRotate = false
         hum.WalkSpeed = 0
 
-        bv = Instance.new("BodyVelocity")
-        bv.MaxForce = Vector3.new(1e8, 1e8, 1e8)
-        bv.P = 30000
-        bv.Velocity = Vector3.new()
+        bv = Instance.new("BodyPosition")
+        bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+        bv.Position = root.Position
+        bv.D = 2000
+        bv.P = 18000
         bv.Parent = root
 
         bg = Instance.new("BodyGyro")
@@ -479,7 +474,6 @@ toggleFly = function()
         if track then track:Play(0.2, 1, 1.2) end
     else
         hum.PlatformStand = false
-        hum.AutoRotate = true
         hum.WalkSpeed = 16
 
         if bv then bv:Destroy() bv = nil end
@@ -505,32 +499,26 @@ RS.Heartbeat:Connect(function(dt)
     if not flying or not bv or not bg or not root or not root.Parent then
         return
     end
-
-    local smoothDt = math.clamp(dt, 0, 0.1)
     local z, x, mult = getMovementInput()
     local camLook = cam.CFrame.LookVector
     local camRight = cam.CFrame.RightVector
     local inputDir = (camLook * z) + (camRight * x)
     local targetVel = Vector3.new()
-
     if inputDir.Magnitude > 0.01 then
         targetVel = inputDir.Unit * (speed * mult)
     end
-
     local lerpSpeed = (targetVel.Magnitude > 0) and accel or decel
-    velocity = velocity:Lerp(targetVel, smoothAlpha(lerpSpeed, smoothDt))
-    currentVel = currentVel:Lerp(velocity, smoothAlpha(22, smoothDt))
-    bv.Velocity = currentVel
-
+    velocity = velocity:Lerp(targetVel, dt * lerpSpeed)
+    currentVel = currentVel:Lerp(velocity, dt * 22)
+    bv.Position = root.Position + currentVel * dt * 65
     if currentVel.Magnitude > 3 then
         local moveDir = currentVel.Unit
         local tilt = -x * math.rad(tiltMax)
         local targetCF = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
-        bg.CFrame = bg.CFrame:Lerp(targetCF, smoothAlpha(16, smoothDt))
+        bg.CFrame = bg.CFrame:Lerp(targetCF, dt * 16)
     else
-        bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), smoothAlpha(11, smoothDt))
+        bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), dt * 11)
     end
-
     if track then
         if currentVel.Magnitude > 14 and z > 0.6 then
             if not track.IsPlaying then
@@ -567,7 +555,6 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
-
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
