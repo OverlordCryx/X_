@@ -311,9 +311,9 @@ local state = {
     inputBeganConnection = nil,
     inputEndedConnection = nil
 }
-local function updateMovement(dt)
+local function updateMovement()
     if not state.active then return end
-    local moveVector = Vector3.zero
+    local moveVector = Vector3.new(0, 0, 0)
     if holdingWKey then
         moveVector = moveVector + Vector3.new(0, 0, -Speed)
     end
@@ -329,10 +329,7 @@ local function updateMovement(dt)
     if moveVector.Magnitude > 0 then
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
-            local safeDt = math.clamp(dt or 0, 0, 1 / 30)
-            local frameScale = safeDt * 60
-            local step = moveVector.Unit * Speed * frameScale
-            hrp.CFrame = hrp.CFrame * CFrame.new(step)
+            hrp.CFrame = hrp.CFrame * CFrame.new(moveVector)
         end
     end
 end
@@ -413,6 +410,7 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
+
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -555,6 +553,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
+
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
