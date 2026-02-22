@@ -1464,49 +1464,36 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
         end
     end
 })
-local player = game:GetService("Players").LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local communicate = character:WaitForChild("Communicate")
+local player = game.Players.LocalPlayer
+local comm = player.Character:WaitForChild("Communicate")
 
-local directions = {
-    Enum.KeyCode.A,
-    Enum.KeyCode.D,
-    Enum.KeyCode.S,
-}
-
-local DashBlockRunning = false
+local DashBlockEnabled = false
 local DashThread = nil
 
-Dashblock = Tabs.TOG:AddToggle("DashBlock", {
+Tabs.TOG:AddToggle("DashBlock", {
     Title = "Dash Block FE",
     Default = false,
 
     Callback = function(state)
-        DashBlockRunning = state
+        DashBlockEnabled = state
 
-        if state then
-            if DashThread then return end
-
+        if DashBlockEnabled then
             DashThread = task.spawn(function()
-                while DashBlockRunning do
-                    for _, dashKey in ipairs(directions) do
-                        if not DashBlockRunning then break end
-
-                        local args = {
-                            {
-                                Dash = dashKey,
-                                Key  = Enum.KeyCode.Q,
-                                Goal = "KeyPress"
-                            }
-                        }
-
-                        communicate:FireServer(unpack(args))
+                while DashBlockEnabled do
+                    for _, dir in {Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D} do
+                        comm:FireServer({
+                            Dash = dir,
+                            Key  = Enum.KeyCode.Q,
+                            Goal = "KeyPress"
+                        })
+						    comm:FireServer({
+                            Dash = dir,
+                            Key  = Enum.KeyCode.Q,
+                            Goal = "KeyPress"
+                        })
                     end
-
                     task.wait()
                 end
-
-                DashThread = nil
             end)
         end
     end
