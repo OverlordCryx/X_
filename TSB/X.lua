@@ -29,7 +29,7 @@ if not workspace:FindFirstChild(partName) then
 end
 	end)
 task.spawn(function()
-task.wait(3)
+task.wait(0.5)
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
