@@ -29,7 +29,7 @@ if not workspace:FindFirstChild(partName) then
 end
 	end)
 task.spawn(function()
-task.wait(3)
+task.wait(1.1)
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -569,14 +569,12 @@ local running = false
 local debounce = false
 local hasTrashFlag = false
 local processedTrash = setmetatable({}, { __mode = "k" })
-
 local trashState = {
     statusParagraph = nil
 }
 local trashAttrConn
 local startHasTrashObserver
 local hasTrash
-
 local function setupCharacter(char)
     character = char
     hrp = character:WaitForChild("HumanoidRootPart")
@@ -602,7 +600,6 @@ hasTrash = function()
     return value and value ~= ""
 end
 hasTrashFlag = hasTrash()
-
 local function getRandomTrashCan()
     local candidates = {}
     for _, model in ipairs(trashFolder:GetChildren()) do
@@ -615,10 +612,8 @@ local function getRandomTrashCan()
     end
     return candidates[math.random(1, #candidates)]
 end
-
 local function click()
     vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-    task.wait()
     vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 local function useTrashCan()
@@ -657,20 +652,34 @@ local function useTrashCan()
     end
     local currentTrash = getRandomTrashCan()
     while tries < maxTries and running do
+        task.wait() 
         if hasTrashFlag then break end 
         if not currentTrash or currentTrash:GetAttribute("Broken") then
             currentTrash = getRandomTrashCan()
+            if not currentTrash then
+                tries = tries + 1
+            else
+                ensureNoCollide(currentTrash)
+                local targetCFrame = currentTrash.PrimaryPart and currentTrash.PrimaryPart.CFrame
+                    or currentTrash:FindFirstChildWhichIsA("BasePart", true).CFrame
+                if targetCFrame then
+                    hrp.CFrame = targetCFrame * CFrame.new(0, -0.1, 0)
+                    bodyGyro.CFrame = CFrame.new(hrp.Position, targetCFrame.Position)
+                    click()
+                end
+                tries = tries + 1
+            end
+        else
+            ensureNoCollide(currentTrash)
+            local targetCFrame = currentTrash.PrimaryPart and currentTrash.PrimaryPart.CFrame
+                or currentTrash:FindFirstChildWhichIsA("BasePart", true).CFrame
+            if targetCFrame then
+                hrp.CFrame = targetCFrame * CFrame.new(0, -0.1, 0)
+                bodyGyro.CFrame = CFrame.new(hrp.Position, targetCFrame.Position)
+                click()
+            end
+            tries = tries + 1
         end
-if not currentTrash then
-    tries = tries + 1
-    task.wait()
-    continue
-end
-        ensureNoCollide(currentTrash)
-        hrp.CFrame = currentTrash:GetModelCFrame() * CFrame.new(0, -0.1, 0)
-        bodyGyro.CFrame = CFrame.new(hrp.Position, currentTrash:GetModelCFrame().Position)
-        click()
-        tries += 1
     end
     if hrp and hrp.Parent then
         hrp.CFrame = savedCFrame
@@ -716,7 +725,6 @@ if not trashState.statusParagraph then
         Content = ""
     })
 end
-
 end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -778,7 +786,7 @@ local function GetClosestTarget()
         if root and root.Parent and root:IsDescendantOf(Workspace) then
             local pos, visible = Camera:WorldToViewportPoint(root.Position)
             if visible then
-                local dist = (Vector2.new(pos.X,pos.Y) - screenCenter).Magnitude
+                local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
                 if dist < closest and dist <= FOV then
                     closest = dist
                     best = root
@@ -796,16 +804,22 @@ local camlockConn
 local function camlockStep(dt)
     if not CamlockEnabled then
         CamlockTarget = nil
-        if camlockConn then camlockConn:Disconnect() camlockConn = nil end
+        if camlockConn then
+            camlockConn:Disconnect()
+            camlockConn = nil
+        end
         return
     end
     if not IsAlive(LocalPlayer.Character) then
         CamlockEnabled = false
         CamlockTarget = nil
-        if camlockConn then camlockConn:Disconnect() camlockConn = nil end
+        if camlockConn then
+            camlockConn:Disconnect()
+            camlockConn = nil
+        end
         return
     end
-    scanTimer += dt
+    scanTimer = scanTimer + dt
     if scanTimer >= SCAN_INTERVAL then
         scanTimer = 0
         RefreshTargets()
@@ -845,7 +859,10 @@ Tabs.XXX:AddKeybind("camKeybind", {
             end
         else
             CamlockTarget = nil
-            if camlockConn then camlockConn:Disconnect() camlockConn = nil end
+            if camlockConn then
+                camlockConn:Disconnect()
+                camlockConn = nil
+            end
         end
     end
 })
@@ -902,7 +919,7 @@ if char and root then
         root.Velocity = vel
         RunService.Stepped:Wait()
         root.Velocity = vel + Vector3.new(0, movel, 0)
-        movel *= -1
+        movel = movel * -1
     end
 end
     end
@@ -1025,39 +1042,57 @@ local function flingAll()
         local t = 0
         while flingOn do
             local myChar = LocalPlayer.Character
-            if not myChar then RunService.Heartbeat:Wait() continue end
-            local myRoot = getRootUniversal(myChar)
-            if not myRoot then RunService.Heartbeat:Wait() continue end
-            local p = flingAllPower
-            local players = Players:GetPlayers()
-            for i = 1, #players do
-                if not flingOn then break end
-                local plr = players[i]
-                if plr ~= LocalPlayer and plr.Character then
-                    local targetRoot = getRootUniversal(plr.Character)
-                    if targetRoot then
-                        local dt = RunService.Heartbeat:Wait()
-                        t += dt * orbitSpeed
-                        local orbitDistanceXZ = orbitStepXZ
-                        local orbitDistanceY = orbitStepY
-                        orbitStepXZ += orbitIncrement
-                        orbitStepY += orbitIncrement
-                        if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
-                        if orbitStepY > orbitMax then orbitStepY = 0 end
-                        local offset = Vector3.new(
-                            math.cos(t) * orbitDistanceXZ,
-                            orbitDistanceY,
-                            math.sin(t) * orbitDistanceXZ
-                        )
-                        myRoot.CFrame = targetRoot.CFrame + offset
-                        myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
-                        myRoot.AssemblyLinearVelocity =
-                            targetRoot.CFrame.LookVector * p +
-                            Vector3.new(0, p * 0.5, 0)
+
+            if not myChar then
+                RunService.Heartbeat:Wait()
+            else
+                local myRoot = getRootUniversal(myChar)
+
+                if not myRoot then
+                    RunService.Heartbeat:Wait()
+                else
+                    local p = flingAllPower
+                    local players = Players:GetPlayers()
+
+                    for i = 1, #players do
+                        if not flingOn then break end
+
+                        local plr = players[i]
+                        if plr ~= LocalPlayer and plr.Character then
+                            local targetRoot = getRootUniversal(plr.Character)
+
+                            if targetRoot then
+                                local dt = RunService.Heartbeat:Wait()
+
+                                t = t + dt * orbitSpeed
+
+                                local orbitDistanceXZ = orbitStepXZ
+                                local orbitDistanceY = orbitStepY
+
+                                orbitStepXZ = orbitStepXZ + orbitIncrement
+                                orbitStepY = orbitStepY + orbitIncrement
+
+                                if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
+                                if orbitStepY > orbitMax then orbitStepY = 0 end
+
+                                local offset = Vector3.new(
+                                    math.cos(t) * orbitDistanceXZ,
+                                    orbitDistanceY,
+                                    math.sin(t) * orbitDistanceXZ
+                                )
+
+                                myRoot.CFrame = targetRoot.CFrame + offset
+                                myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
+                                myRoot.AssemblyLinearVelocity =
+                                    targetRoot.CFrame.LookVector * p +
+                                    Vector3.new(0, p * 0.5, 0)
+                            end
+                        end
                     end
                 end
             end
         end
+
         local myChar = LocalPlayer.Character
         local myRoot = myChar and getRootUniversal(myChar)
         if myRoot then
@@ -1093,15 +1128,24 @@ local function disableCharacterCollision(character)
 end
 AntiFlingToggle:OnChanged(function(state)
     if state then
-        if antiflingConnection then antiflingConnection:Disconnect() antiflingConnection = nil end
+        if antiflingConnection then
+            antiflingConnection:Disconnect()
+            antiflingConnection = nil
+        end
+
         antiFlingTimer = 0
+
         antiflingConnection = RunService.Stepped:Connect(function(_, dt)
-            antiFlingTimer += dt
+            antiFlingTimer = antiFlingTimer + dt
+
             if antiFlingTimer < ANTI_FLING_INTERVAL then return end
             antiFlingTimer = 0
+
             local myChar = LocalPlayer.Character
             if not myChar or not myChar.PrimaryPart then return end
+
             local myPos = myChar.PrimaryPart.Position
+
             for _, player in ipairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
                     if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 100 then
@@ -1110,8 +1154,13 @@ AntiFlingToggle:OnChanged(function(state)
                 end
             end
         end)
+
     else
-        if antiflingConnection then antiflingConnection:Disconnect() antiflingConnection = nil end
+        if antiflingConnection then
+            antiflingConnection:Disconnect()
+            antiflingConnection = nil
+        end
+
         table.clear(processedAntiFling)
     end
 end)
@@ -1178,16 +1227,16 @@ local function getClosestTrash(hrp)
     local shortest = TRASH_DISTANCE
 
     for _, m in ipairs(trashFolder:GetChildren()) do
-        if m.Name ~= "Trashcan" then continue end
-        if m:GetAttribute("Broken") then continue end
+        if m.Name == "Trashcan" and not m:GetAttribute("Broken") then
+            local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
 
-        local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-        if not part then continue end
-
-        local dist = (hrp.Position - part.Position).Magnitude
-        if dist < shortest then
-            shortest = dist
-            closest = m
+            if part then
+                local dist = (hrp.Position - part.Position).Magnitude
+                if dist < shortest then
+                    shortest = dist
+                    closest = m
+                end
+            end
         end
     end
 
@@ -1235,7 +1284,7 @@ local function refreshTargetCache(hrp)
 end
 
 local function getClosestTarget(hrp, dt)
-    targetCacheTimer += dt or 0
+    targetCacheTimer = targetCacheTimer + (dt or 0)
 
     if targetCacheTimer >= TARGET_CACHE_INTERVAL or #targetCache == 0 then
         targetCacheTimer = 0
@@ -1299,10 +1348,10 @@ RunService.RenderStepped:Connect(function(dt)
     if not Toggle.Value then return end
     if not holdingMouse then return end
 
-    attackTpTimer += dt
+    attackTpTimer = attackTpTimer + dt
     if attackTpTimer < ATTACK_TP_INTERVAL then return end
     attackTpTimer = 0
-
+     
     local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1313,7 +1362,6 @@ RunService.RenderStepped:Connect(function(dt)
 
     teleportBehindTarget(dt)
 end)
-
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if not Toggle.Value then return end
@@ -1473,29 +1521,29 @@ local function UpdateBillboard(player)
     local ultLabel   = bb:FindFirstChild("UltLabel")
     local classLabel = bb:FindFirstChild("ClassLabel")
     local visibleLines = 0
-    if ultLabel then
-        if showUlt then
-            local ult = player:GetAttribute("Ultimate") or 0
-            local val = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
-            ultLabel.Text = val .. "%"
-            ultLabel.TextColor3 = (val > 0) and Color3.fromRGB(255, 210, 90) or Color3.fromRGB(220, 220, 130)
-            ultLabel.Visible = true
-            visibleLines += 1
-        else
-            ultLabel.Visible = false
-        end
+if ultLabel then
+    if showUlt then
+        local ult = player:GetAttribute("Ultimate") or 0
+        local val = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
+        ultLabel.Text = val .. "%"
+        ultLabel.TextColor3 = (val > 0) and Color3.fromRGB(255, 210, 90) or Color3.fromRGB(220, 220, 130)
+        ultLabel.Visible = true
+        visibleLines = visibleLines + 1
+    else
+        ultLabel.Visible = false
     end
-    if classLabel then
-        if showClass then
-            local name = player:GetAttribute("Character") or "???"
-            classLabel.Text = name
-            classLabel.TextColor3 = GetClassColor(name)
-            classLabel.Visible = true
-            visibleLines += 1
-        else
-            classLabel.Visible = false
-        end
+end
+if classLabel then
+    if showClass then
+        local name = player:GetAttribute("Character") or "???"
+        classLabel.Text = name
+        classLabel.TextColor3 = GetClassColor(name)
+        classLabel.Visible = true 
+        visibleLines = visibleLines + 1
+    else
+        classLabel.Visible = false
     end
+end
     if visibleLines == 1 then
         bb.Size = UDim2.new(5, 0, 0.6, 0)
         if ultLabel.Visible then
@@ -1524,18 +1572,22 @@ local billboardTimer = 0
 local function ManageHeartbeat()
     local showUlt = ToggleUlt and ToggleUlt.Value
     local showClass = ToggleClass and ToggleClass.Value
+
     if showUlt or showClass then
         if not conn then
             billboardTimer = 0
             conn = RunService.Heartbeat:Connect(function(dt)
-                billboardTimer += dt
+                billboardTimer = billboardTimer + dt
                 if billboardTimer < billboardInterval then return end
                 billboardTimer = 0
                 UpdateAll()
             end)
         end
     else
-        if conn then conn:Disconnect() conn = nil end
+        if conn then
+            conn:Disconnect()
+            conn = nil
+        end
     end
 end
 if ToggleUlt then
@@ -1670,6 +1722,7 @@ local function stopView()
 end
 local function startFlingOne()
     if flingOneConnection then flingOneConnection:Disconnect() end
+
     flingOneConnection = RunService.Heartbeat:Connect(function(dt)
         if not flingOneOn then return end
         if not playerChosen then return end
@@ -1677,33 +1730,40 @@ local function startFlingOne()
             FlingOneToggle:SetValue(false)
             return
         end
+
         local myChar = LocalPlayer.Character
         local targetChar = playerChosen.Character
         if not (myChar and targetChar) then
             FlingOneToggle:SetValue(false)
             return
         end
+
         local myRoot = getRootUniversal(myChar)
         local targetRoot = getRootUniversal(targetChar)
         if not (myRoot and targetRoot) then
             FlingOneToggle:SetValue(false)
             return
         end
-        orbitStepXZ += orbitIncrement
-        orbitStepY += orbitIncrement
+
+        orbitStepXZ = orbitStepXZ + orbitIncrement
+        orbitStepY = orbitStepY + orbitIncrement
+
         if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
         if orbitStepY > orbitMax then orbitStepY = 0 end
+
         local t = tick() * orbitSpeed
         local offset = Vector3.new(
             math.cos(t) * orbitStepXZ,
             orbitStepY,
             math.sin(t) * orbitStepXZ
         )
+
         myRoot.CFrame = targetRoot.CFrame + offset
+
         local p = FLING_INF_POWER
-        myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
+        myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
         myRoot.AssemblyLinearVelocity =
-            myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
+            myRoot.CFrame.LookVector * p + Vector3.new(0, p/2, 0)
     end)
 end
 local function startAutoTp()
