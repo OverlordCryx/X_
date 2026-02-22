@@ -1190,218 +1190,194 @@ AntiFlingToggle:OnChanged(function(state)
 end)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-
 local LocalPlayer = Players.LocalPlayer
-
 local Toggle = Tabs.TOG:AddToggle("attacktog", {
     Title = "Attack TP",
     Default = false
 })
-
-local TRASH_DISTANCE = 11
-local BACK_OFFSET = 0.45
-
-local function getMapFolder()
-    return Workspace:FindFirstChild("Map")
+local ATTACK_RATE = 0.001/35
+local MODEL_SCAN_RATE = 0.3
+local MAX_TARGET_DISTANCE = 160
+local TRASH_DISTANCE = 12
+local BACK_OFFSET = 0.97
+local MapFolder
+local TrashFolder
+local LiveFolder
+local function refreshFolders()
+    MapFolder = Workspace:FindFirstChild("Map")
+    TrashFolder = MapFolder and MapFolder:FindFirstChild("Trash")
+    LiveFolder = Workspace:FindFirstChild("Live")
 end
-
-local function getTrashFolder()
-    local mapFolder = getMapFolder()
-    return mapFolder and mapFolder:FindFirstChild("Trash")
+refreshFolders()
+local Character
+local Humanoid
+local Root
+local function refreshCharacter()
+    Character = LocalPlayer.Character
+    if not Character then return end
+    Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    Root =
+        Character:FindFirstChild("HumanoidRootPart")
+        or Character:FindFirstChild("UpperTorso")
+        or Character:FindFirstChild("Torso")
+        or Character.PrimaryPart
+        or Character:FindFirstChildWhichIsA("BasePart")
 end
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.1)
+    refreshCharacter()
+end)
+refreshCharacter()
+local HasTrash = false
+local TrashNearby = false
+local trashLoopRunning = true
+task.spawn(function()
+    while trashLoopRunning do
+        if LiveFolder then
+            local model = LiveFolder:FindFirstChild(LocalPlayer.Name)
+            if model then
+                local val = model:GetAttribute("HasTrashcan")
+                HasTrash = val and val ~= "" or false
+            else
+                HasTrash = false
+            end
+        else
+            HasTrash = false
+        end
 
-local function getLiveFolder()
-    return Workspace:FindFirstChild("Live")
-end
+        TrashNearby = false
 
-local holdingMouse = false
+        if Root and TrashFolder then
+            local rootPos = Root.Position
 
-local function getCharacter()
-    return LocalPlayer.Character
-end
-
-local function getRoot(character)
-    if not character then return nil end
-
-    return character:FindFirstChild("HumanoidRootPart")
-        or character:FindFirstChild("UpperTorso")
-        or character:FindFirstChild("Torso")
-        or character.PrimaryPart
-        or character:FindFirstChildWhichIsA("BasePart")
-end
-
-local function hasTrash()
-    local liveFolder = getLiveFolder()
-    if not liveFolder then return false end
-
-    local model = liveFolder:FindFirstChild(LocalPlayer.Name)
-    if not model then return false end
-
-    local value = model:GetAttribute("HasTrashcan")
-    return value and value ~= ""
-end
-
-local function getClosestTrash(hrp)
-    local trashFolder = getTrashFolder()
-    if not trashFolder then return nil end
-
-    local closest
-    local shortest = TRASH_DISTANCE
-
-    for _, m in ipairs(trashFolder:GetChildren()) do
-        if m.Name == "Trashcan" and not m:GetAttribute("Broken") then
-            local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-
-            if part then
-                local dist = (hrp.Position - part.Position).Magnitude
-                if dist < shortest then
-                    shortest = dist
-                    closest = m
+            for _, m in ipairs(TrashFolder:GetChildren()) do
+                if m.Name == "Trashcan" and not m:GetAttribute("Broken") then
+                    local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                    if part then
+                        if (rootPos - part.Position).Magnitude < TRASH_DISTANCE then
+                            TrashNearby = true
+                            break
+                        end
+                    end
                 end
             end
         end
+
+        task.wait()
     end
-
-    return closest
-end
-
-local function isAliveHumanoidModel(model)
-    if not model or not model:IsA("Model") then return false end
-
-    local hum = model:FindFirstChildOfClass("Humanoid")
+end)
+local TargetCache = {}
+local scanLoopRunning = true
+local function isAlive(model)
+    local hum = model and model:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
 end
-
-local targetCache = {}
-local targetCacheTimer = 0
-local TARGET_CACHE_INTERVAL = 0
-
-local function refreshTargetCache(hrp)
-    table.clear(targetCache)
-
-    local localCharacter = hrp and hrp.Parent
-    local container = getLiveFolder()
-
-    if container then
-        for _, model in ipairs(container:GetChildren()) do
-            if model ~= localCharacter and isAliveHumanoidModel(model) then
-                local root = getRoot(model)
-                if root and root ~= hrp then
-                    targetCache[#targetCache + 1] = root
+task.spawn(function()
+    while scanLoopRunning do
+        table.clear(TargetCache)
+        if Root then
+            local rootPos = Root.Position
+            local localChar = Character
+            if LiveFolder then
+                for _, model in ipairs(LiveFolder:GetChildren()) do
+                    if model ~= localChar and isAlive(model) then
+                        local part =
+                            model:FindFirstChild("HumanoidRootPart")
+                            or model.PrimaryPart
+                            or model:FindFirstChildWhichIsA("BasePart")
+                        if part then
+                            local dist = (rootPos - part.Position).Magnitude
+                            if dist < MAX_TARGET_DISTANCE then
+                                table.insert(TargetCache, {part = part, dist = dist})
+                            end
+                        end
+                    end
+                end
+            end
+            if #TargetCache == 0 then
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
+                        local part =
+                            plr.Character:FindFirstChild("HumanoidRootPart")
+                            or plr.Character.PrimaryPart
+                        if part then
+                            local dist = (rootPos - part.Position).Magnitude
+                            if dist < MAX_TARGET_DISTANCE then
+                                table.insert(TargetCache, {part = part, dist = dist})
+                            end
+                        end
+                    end
                 end
             end
         end
+        task.wait(MODEL_SCAN_RATE)
     end
-
-    if #targetCache == 0 then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character and isAliveHumanoidModel(plr.Character) then
-                local root = getRoot(plr.Character)
-                if root and root ~= hrp then
-                    targetCache[#targetCache + 1] = root
-                end
-            end
-        end
-    end
-end
-
-local function getClosestTarget(hrp, dt)
-    targetCacheTimer = targetCacheTimer + (dt or 0)
-
-    if targetCacheTimer >= TARGET_CACHE_INTERVAL or #targetCache == 0 then
-        targetCacheTimer = 0
-        refreshTargetCache(hrp)
-    end
-
-    local closestPart
+end)
+local function getClosestTarget()
+    local closest
     local shortest = math.huge
-
-    for i = 1, #targetCache do
-        local root = targetCache[i]
-        if root and root.Parent and root ~= hrp then
-            local dist = (root.Position - hrp.Position).Magnitude
-            if dist < shortest then
-                shortest = dist
-                closestPart = root
+    for i = 1, #TargetCache do
+        local entry = TargetCache[i]
+        if entry.part and entry.part.Parent then
+            if entry.dist < shortest then
+                shortest = entry.dist
+                closest = entry.part
             end
         end
     end
-
-    return closestPart
+    return closest
 end
-
-local function teleportBehindTarget(dt)
-    if hasTrash() then return end
-
-    local char = getCharacter()
-    local hrp = getRoot(char)
-    if not hrp then return end
-
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.AutoRotate = false
-    end
-
-    if getClosestTrash(hrp) then return end
-
-    local target = getClosestTarget(hrp, dt)
-    if not target then return end
-
-    local behindPos = target.Position - (target.CFrame.LookVector * BACK_OFFSET)
-    hrp.CFrame = CFrame.lookAt(behindPos, target.Position)
-end
-
-local attackTpTimer = 0
-local ATTACK_TP_INTERVAL = 1 / 30
-
-Toggle:OnChanged(function(state)
-    if state then return end
-
-    holdingMouse = false
-
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.AutoRotate = true
-    end
-end)
-
-RunService.RenderStepped:Connect(function(dt)
-    if not Toggle.Value then return end
-    if not holdingMouse then return end
-
-    attackTpTimer = attackTpTimer + dt
-    if attackTpTimer < ATTACK_TP_INTERVAL then return end
-    attackTpTimer = 0
-     
-    local char = LocalPlayer.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.AutoRotate = false
+local holdingMouse = false
+local attackLoopRunning = false
+local function startAttackLoop()
+    if attackLoopRunning then return end
+    attackLoopRunning = true
+    task.spawn(function()
+        while attackLoopRunning do
+            if Toggle.Value and holdingMouse and Root and not HasTrash and not TrashNearby then
+                local target = getClosestTarget()
+                if target then
+                    if Humanoid then
+                        Humanoid.AutoRotate = false
+                    end
+                    local behindPos =
+                        target.Position - (target.CFrame.LookVector * BACK_OFFSET)
+                    Root.CFrame = CFrame.lookAt(behindPos, target.Position)
+                end
+            end
+            task.wait(ATTACK_RATE)
         end
+    end)
+end
+local function stopAttackLoop()
+    attackLoopRunning = false
+    holdingMouse = false
+    if Humanoid then
+        Humanoid.AutoRotate = true
     end
-
-    teleportBehindTarget(dt)
-end)
+end
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if not Toggle.Value then return end
-
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         holdingMouse = true
-        teleportBehindTarget()
     end
 end)
-
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         holdingMouse = false
     end
 end)
-
+Toggle:OnChanged(function(state)
+    if state then
+        refreshFolders()
+        refreshCharacter()
+        startAttackLoop()
+    else
+        stopAttackLoop()
+    end
+end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
