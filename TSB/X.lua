@@ -29,7 +29,7 @@ if not workspace:FindFirstChild(partName) then
 end
 	end)
 task.spawn(function()
-task.wait(1)
+task.wait(3)
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -868,7 +868,7 @@ local orbitStepXZ = 0
 local orbitStepY = 0
 local orbitMax = 1.3
 local orbitIncrement = 0.1
-local orbitSpeed = 999999999999999999999
+local orbitSpeed = 999999999999999
 local walkflinging = false
 local walkFlingMode = "Normal"
 local zero = Vector3.zero
