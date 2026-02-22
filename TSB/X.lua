@@ -29,7 +29,7 @@ if not workspace:FindFirstChild(partName) then
 end
 	end)
 task.spawn(function()
-task.wait(1.1)
+task.wait(3)
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -293,6 +293,30 @@ speaker.CharacterAdded:Connect(function(Char)
     local Human = Char:WaitForChild("Humanoid")
     SetupWalkSpeed(Char, Human)
     SetupJumpPower(Char, Human)
+end)
+
+local player = game.Players.LocalPlayer
+local function usunPusteAccessory(char)
+    if not char then return end
+    for _, obj in ipairs(char:GetChildren()) do
+        if obj.ClassName == "Accessory" then
+            if #obj:GetChildren() == 0 then
+                obj:Destroy()
+            end
+        end
+    end
+end
+if player.Character then
+    usunPusteAccessory(player.Character)
+end
+player.CharacterAdded:Connect(usunPusteAccessory)
+task.spawn(function()
+    while true do
+        if player.Character then
+            usunPusteAccessory(player.Character)
+        end
+        task.wait(0.05)   
+    end
 end)
 
 local RunService = game:GetService("RunService")
@@ -1437,6 +1461,53 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
             end)
         else
             cleanup()
+        end
+    end
+})
+local player = game:GetService("Players").LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local communicate = character:WaitForChild("Communicate")
+
+local directions = {
+    Enum.KeyCode.A,
+    Enum.KeyCode.D,
+    Enum.KeyCode.S,
+}
+
+local DashBlockRunning = false
+local DashThread = nil
+
+Dashblock = Tabs.TOG:AddToggle("DashBlock", {
+    Title = "Dash Block FE",
+    Default = false,
+
+    Callback = function(state)
+        DashBlockRunning = state
+
+        if state then
+            if DashThread then return end
+
+            DashThread = task.spawn(function()
+                while DashBlockRunning do
+                    for _, dashKey in ipairs(directions) do
+                        if not DashBlockRunning then break end
+
+                        local args = {
+                            {
+                                Dash = dashKey,
+                                Key  = Enum.KeyCode.Q,
+                                Goal = "KeyPress"
+                            }
+                        }
+
+                        communicate:FireServer(unpack(args))
+                    end
+
+                    task.wait()
+                end
+
+                DashThread = nil
+            end)
         end
     end
 })
