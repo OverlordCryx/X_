@@ -27,6 +27,7 @@ if not workspace:FindFirstChild(partName) then
     part.Anchored = true
     part.Parent = workspace
 end
+print("•")
 	end)
 task.spawn(function()
 task.wait(0.5)
@@ -61,6 +62,7 @@ player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	hrp = newChar:WaitForChild("HumanoidRootPart", 5)
 end)
+print("•")
 	end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
@@ -244,6 +246,7 @@ end)
 Players.PlayerRemoving:Connect(function(plr)
     disconnectPlayer(plr)
 end)
+print("•")
 end)
 local speaker = game.Players.LocalPlayer
 local speed = 25
@@ -294,10 +297,33 @@ speaker.CharacterAdded:Connect(function(Char)
     SetupWalkSpeed(Char, Human)
     SetupJumpPower(Char, Human)
 end)
-
+print("•")
 local player = game.Players.LocalPlayer
+local function czyHumanoidBliskoDead()
+    if not player.Character then return false end
+    local myHRP = player.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return false end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Humanoid") then
+            local model = obj.Parent
+            if model and model ~= player.Character then
+                local hrp = model:FindFirstChild("HumanoidRootPart")
+                if hrp and obj.Health <= 30 then
+                    local dist = (hrp.Position - myHRP.Position).Magnitude
+                    if dist <= 14 then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
 local function usunPusteAccessory(char)
     if not char then return end
+    if czyHumanoidBliskoDead() then
+        return
+    end
     for _, obj in ipairs(char:GetChildren()) do
         if obj.ClassName == "Accessory" then
             if #obj:GetChildren() == 0 then
@@ -315,10 +341,10 @@ task.spawn(function()
         if player.Character then
             usunPusteAccessory(player.Character)
         end
-        task.wait(0.05)   
+        task.wait(0.05)
     end
 end)
-
+print("•")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -434,7 +460,7 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-
+print("•")
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -577,7 +603,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
-
+print("•")
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -749,6 +775,7 @@ if not trashState.statusParagraph then
         Content = ""
     })
 end
+print("•")
 end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -896,6 +923,7 @@ if not camlockState.statusParagraph then
         Content = ""
     })
 end
+print("•")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -1188,6 +1216,7 @@ AntiFlingToggle:OnChanged(function(state)
         table.clear(processedAntiFling)
     end
 end)
+print("•")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -1378,6 +1407,7 @@ Toggle:OnChanged(function(state)
         stopAttackLoop()
     end
 end)
+print("•")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -1440,6 +1470,7 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
         end
     end
 })
+print("•")
 local player = game.Players.LocalPlayer
 local comm = player.Character:WaitForChild("Communicate")
 
@@ -1474,6 +1505,7 @@ Tabs.TOG:AddToggle("DashBlock", {
         end
     end
 })
+print("•")
 task.spawn(function()
 
 local Players = game:GetService("Players")
@@ -1659,6 +1691,7 @@ task.delay(1.5, function()
         UpdateAll()
     end
 end)
+print("•")
 end)
 
 Tabs.TOG:AddButton({
@@ -1680,7 +1713,7 @@ Tabs.TOG:AddButton({
         end
     end
 })
-
+print("•")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1943,7 +1976,7 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
         end
     end
 })
-
+print("•")
 
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -1962,4 +1995,5 @@ if map and mainPart then
             end
         end
     })
+print("•")
 end
