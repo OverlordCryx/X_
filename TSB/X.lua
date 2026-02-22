@@ -1,5 +1,19 @@
 print("NOTHING X")
-
+local __loaderStep = 0
+local __loaderTotal = 17
+local function __loadTick(label)
+    __loaderStep = __loaderStep + 1
+    if __loaderStep > __loaderTotal then
+        __loaderStep = __loaderTotal
+    end
+    local percent = math.floor((__loaderStep / __loaderTotal) * 100 + 0.5)
+    if label and label ~= "" then
+        print(string.format("[LOAD] %d%% %s", percent, label))
+    else
+        print(string.format("[LOAD] %d%%", percent))
+    end
+end
+print("[LOAD] 0%")
 
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
@@ -27,7 +41,7 @@ if not workspace:FindFirstChild(partName) then
     part.Anchored = true
     part.Parent = workspace
 end
-print("•")
+__loadTick()
 	end)
 task.spawn(function()
 task.wait(0.5)
@@ -52,7 +66,12 @@ local function isOutside()
 	       localPos.Y < -s.Y or localPos.Y > s.Y or
 	       localPos.Z < -s.Z or localPos.Z > s.Z
 end
-RunService.Heartbeat:Connect(function()
+local boundaryCheckInterval = 0.08
+local boundaryCheckAccumulator = 0
+RunService.Heartbeat:Connect(function(dt)
+	boundaryCheckAccumulator = boundaryCheckAccumulator + dt
+	if boundaryCheckAccumulator < boundaryCheckInterval then return end
+	boundaryCheckAccumulator = 0
 	if not hrp or not hrp.Parent then return end
 	if isOutside() then
 		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 5, 0)
@@ -62,7 +81,7 @@ player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	hrp = newChar:WaitForChild("HumanoidRootPart", 5)
 end)
-print("•")
+__loadTick()
 	end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
@@ -246,7 +265,7 @@ end)
 Players.PlayerRemoving:Connect(function(plr)
     disconnectPlayer(plr)
 end)
-print("•")
+__loadTick()
 end)
 local speaker = game.Players.LocalPlayer
 local speed = 25
@@ -297,23 +316,26 @@ speaker.CharacterAdded:Connect(function(Char)
     SetupWalkSpeed(Char, Human)
     SetupJumpPower(Char, Human)
 end)
-print("•")
+__loadTick()
 local player = game.Players.LocalPlayer
+local nearbyDeadOverlapParams = OverlapParams.new()
+nearbyDeadOverlapParams.FilterType = Enum.RaycastFilterType.Exclude
 local function czyHumanoidBliskoDead()
-    if not player.Character then return false end
-    local myHRP = player.Character:FindFirstChild("HumanoidRootPart")
+    local character = player.Character
+    if not character then return false end
+    local myHRP = character:FindFirstChild("HumanoidRootPart")
     if not myHRP then return false end
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Humanoid") then
-            local model = obj.Parent
-            if model and model ~= player.Character then
-                local hrp = model:FindFirstChild("HumanoidRootPart")
-                if hrp and obj.Health <= 30 then
-                    local dist = (hrp.Position - myHRP.Position).Magnitude
-                    if dist <= 14 then
-                        return true
-                    end
-                end
+    nearbyDeadOverlapParams.FilterDescendantsInstances = {character}
+    local nearbyParts = workspace:GetPartBoundsInRadius(myHRP.Position, 14, nearbyDeadOverlapParams)
+    local seenModels = {}
+    for _, part in ipairs(nearbyParts) do
+        local model = part:FindFirstAncestorOfClass("Model")
+        if model and model ~= character and not seenModels[model] then
+            seenModels[model] = true
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            local hrp = model:FindFirstChild("HumanoidRootPart")
+            if hum and hrp and hum.Health <= 30 then
+                return true
             end
         end
     end
@@ -341,10 +363,10 @@ task.spawn(function()
         if player.Character then
             usunPusteAccessory(player.Character)
         end
-        task.wait(0.05)
+        task.wait(0.2)
     end
 end)
-print("•")
+__loadTick()
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -460,7 +482,7 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-print("•")
+__loadTick()
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -603,7 +625,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
-print("•")
+__loadTick()
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -702,7 +724,7 @@ local function useTrashCan()
     end
     local currentTrash = getRandomTrashCan()
     while tries < maxTries and running do
-        task.wait() 
+        task.wait(0.02) 
         if hasTrashFlag then break end 
         if not currentTrash or currentTrash:GetAttribute("Broken") then
             currentTrash = getRandomTrashCan()
@@ -761,7 +783,7 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
             task.spawn(function()
                 while running do
                     useTrashCan()
-                    task.wait()
+                    task.wait(0.03)
                 end
             end)
         else
@@ -775,7 +797,7 @@ if not trashState.statusParagraph then
         Content = ""
     })
 end
-print("•")
+__loadTick()
 end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -923,7 +945,7 @@ if not camlockState.statusParagraph then
         Content = ""
     })
 end
-print("•")
+__loadTick()
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -1167,7 +1189,7 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
 })
 local antiflingConnection
 local antiFlingTimer = 0
-local ANTI_FLING_INTERVAL = 0
+local ANTI_FLING_INTERVAL = 0.08
 local processedAntiFling = setmetatable({}, { __mode = "k" })
 local function disableCharacterCollision(character)
     if processedAntiFling[character] then return end
@@ -1216,7 +1238,7 @@ AntiFlingToggle:OnChanged(function(state)
         table.clear(processedAntiFling)
     end
 end)
-print("•")
+__loadTick()
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -1225,7 +1247,7 @@ local Toggle = Tabs.TOG:AddToggle("attacktog", {
     Title = "Attack TP",
     Default = false
 })
-local ATTACK_RATE = 0.001/35
+local ATTACK_RATE = 1/120
 local MODEL_SCAN_RATE = 0.3
 local MAX_TARGET_DISTANCE = 160
 local TRASH_DISTANCE = 12
@@ -1293,7 +1315,7 @@ task.spawn(function()
             end
         end
 
-        task.wait()
+        task.wait(0.08)
     end
 end)
 local TargetCache = {}
@@ -1407,7 +1429,7 @@ Toggle:OnChanged(function(state)
         stopAttackLoop()
     end
 end)
-print("•")
+__loadTick()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -1470,7 +1492,7 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
         end
     end
 })
-print("•")
+__loadTick()
 local player = game:GetService("Players").LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local communicate = character:WaitForChild("Communicate")
@@ -1504,7 +1526,7 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
                         })
                     end
 
-                    task.wait() 
+                    task.wait(0.03) 
                 end
 
                 DashThread = nil
@@ -1512,7 +1534,7 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
         end
     end
 })
-print("•")
+__loadTick()
 task.spawn(function()
 
 local Players = game:GetService("Players")
@@ -1698,7 +1720,7 @@ task.delay(1.5, function()
         UpdateAll()
     end
 end)
-print("•")
+__loadTick()
 end)
 
 Tabs.TOG:AddButton({
@@ -1720,7 +1742,7 @@ Tabs.TOG:AddButton({
         end
     end
 })
-print("•")
+__loadTick()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1983,7 +2005,7 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
         end
     end
 })
-print("•")
+__loadTick()
 
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -2002,5 +2024,6 @@ if map and mainPart then
             end
         end
     })
-print("•")
+__loadTick()
 end
+
