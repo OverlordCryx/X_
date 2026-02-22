@@ -162,7 +162,7 @@ local function updatePlayerHighlight(plr)
                 createHighlight(char, false)
                 state[plr] = "weak"
                 SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
-                task.delay(10, function()
+                task.delay(4, function()
                     if state[plr] == "weak" then
 
                         SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
