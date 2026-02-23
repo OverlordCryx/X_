@@ -318,36 +318,10 @@ speaker.CharacterAdded:Connect(function(Char)
 end)
 __loadTick()
 local player = game.Players.LocalPlayer
-local nearbyDeadOverlapParams = OverlapParams.new()
-nearbyDeadOverlapParams.FilterType = Enum.RaycastFilterType.Exclude
-local function czyHumanoidBliskoDead()
-    local character = player.Character
-    if not character then return false end
-    local myHRP = character:FindFirstChild("HumanoidRootPart")
-    if not myHRP then return false end
-    nearbyDeadOverlapParams.FilterDescendantsInstances = {character}
-    local nearbyParts = workspace:GetPartBoundsInRadius(myHRP.Position, 14, nearbyDeadOverlapParams)
-    local seenModels = {}
-    for _, part in ipairs(nearbyParts) do
-        local model = part:FindFirstAncestorOfClass("Model")
-        if model and model ~= character and not seenModels[model] then
-            seenModels[model] = true
-            local hum = model:FindFirstChildOfClass("Humanoid")
-            local hrp = model:FindFirstChild("HumanoidRootPart")
-            if hum and hrp and hum.Health <= 30 then
-                return true
-            end
-        end
-    end
-    return false
-end
 local function usunPusteAccessory(char)
     if not char then return end
-    if czyHumanoidBliskoDead() then
-        return
-    end
     for _, obj in ipairs(char:GetChildren()) do
-        if obj.ClassName == "Accessory" then
+        if obj:IsA("Accessory") then
             if #obj:GetChildren() == 0 then
                 obj:Destroy()
             end
@@ -357,13 +331,15 @@ end
 if player.Character then
     usunPusteAccessory(player.Character)
 end
-player.CharacterAdded:Connect(usunPusteAccessory)
+player.CharacterAdded:Connect(function(char)
+    usunPusteAccessory(char)
+end)
 task.spawn(function()
     while true do
         if player.Character then
             usunPusteAccessory(player.Character)
         end
-        task.wait(0.2)
+        task.wait(0.1)
     end
 end)
 __loadTick()
@@ -2003,7 +1979,19 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     end
 })
 __loadTick()
+local FixCam = Tabs.TOG:AddButton({
+    Title = "Rest Camera",
+    Callback = function()
+	local player = game.Players.LocalPlayer
+        local character = player.Character
+        if not character then return end
 
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+
+        humanoid.CameraOffset = Vector3.new(0, 0, 0)
+    end
+})
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if map and mainPart then
@@ -2023,3 +2011,4 @@ if map and mainPart then
     })
 __loadTick()
 end
+
