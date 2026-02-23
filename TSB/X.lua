@@ -181,7 +181,7 @@ local function updatePlayerHighlight(plr)
                 createHighlight(char, false)
                 state[plr] = "weak"
                 SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
-                task.delay(9.4, function()
+                task.delay(9.2, function()
                     if state[plr] == "weak" then
 
                         SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
@@ -1485,42 +1485,47 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
     end
 })
 __loadTick()
-local player = game:GetService("Players").LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local communicate = character:WaitForChild("Communicate")
-
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character
+local communicate
 local directions = {
     Enum.KeyCode.A,
     Enum.KeyCode.D,
     Enum.KeyCode.S,
 }
-
 local DashBlockRunning = false
 local DashThread = nil
-
+local function setupCharacter(char)
+    character = char
+    communicate = character:WaitForChild("Communicate")
+end
+if player.Character then
+    setupCharacter(player.Character)
+end
+player.CharacterAdded:Connect(function(char)
+    setupCharacter(char)
+end)
 Dashblock = Tabs.TOG:AddToggle("DashBlock", {
     Title = "Dash Block FE",
     Default = false,
-
     Callback = function(state)
         DashBlockRunning = state
-
         if state then
             if DashThread then return end
-
             DashThread = task.spawn(function()
                 while DashBlockRunning do
-                    for _, dashKey in ipairs(directions) do
-                        communicate:FireServer({
-                            Dash = dashKey,
-                            Key  = Enum.KeyCode.Q,
-                            Goal = "KeyPress"
-                        })
+                    if communicate then
+                        for _, dashKey in ipairs(directions) do
+                            communicate:FireServer({
+                                Dash = dashKey,
+                                Key  = Enum.KeyCode.Q,
+                                Goal = "KeyPress"
+                            })
+                        end
                     end
-
-                    task.wait() 
+                    task.wait()
                 end
-
                 DashThread = nil
             end)
         end
