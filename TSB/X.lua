@@ -181,7 +181,7 @@ local function updatePlayerHighlight(plr)
                 createHighlight(char, false)
                 state[plr] = "weak"
                 SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
-                task.delay(10.2, function()
+                task.delay(9.4, function()
                     if state[plr] == "weak" then
 
                         SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
@@ -724,7 +724,7 @@ local function useTrashCan()
     end
     local currentTrash = getRandomTrashCan()
     while tries < maxTries and running do
-        task.wait(0.02) 
+        task.wait() 
         if hasTrashFlag then break end 
         if not currentTrash or currentTrash:GetAttribute("Broken") then
             currentTrash = getRandomTrashCan()
@@ -783,7 +783,7 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
             task.spawn(function()
                 while running do
                     useTrashCan()
-                    task.wait(0.03)
+                    task.wait()
                 end
             end)
         else
@@ -1307,7 +1307,7 @@ task.spawn(function()
             end
         end
 
-        task.wait(0.08)
+        task.wait()
     end
 end)
 local TargetCache = {}
@@ -1518,7 +1518,7 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
                         })
                     end
 
-                    task.wait(0.03) 
+                    task.wait() 
                 end
 
                 DashThread = nil
