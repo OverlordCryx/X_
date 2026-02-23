@@ -66,7 +66,7 @@ local function isOutside()
 	       localPos.Y < -s.Y or localPos.Y > s.Y or
 	       localPos.Z < -s.Z or localPos.Z > s.Z
 end
-local boundaryCheckInterval = 0.08
+local boundaryCheckInterval = 0
 local boundaryCheckAccumulator = 0
 RunService.Heartbeat:Connect(function(dt)
 	boundaryCheckAccumulator = boundaryCheckAccumulator + dt
