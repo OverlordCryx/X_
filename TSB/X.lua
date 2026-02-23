@@ -1,4 +1,4 @@
-print("NOTHING X")
+warn("NOTHING X")
 local __loaderStep = 0
 local __loaderTotal = 17
 local function __loadTick(label)
@@ -1183,61 +1183,53 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
         if state then flingAll() end
     end
 })
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local speaker = Players.LocalPlayer
+local antifling
+
 local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
     Title = "Anti Fling",
     Default = false
 })
-local antiflingConnection
-local antiFlingTimer = 0
-local ANTI_FLING_INTERVAL = 0.08
-local processedAntiFling = setmetatable({}, { __mode = "k" })
-local function disableCharacterCollision(character)
-    if processedAntiFling[character] then return end
-    processedAntiFling[character] = true
-    for _, v in ipairs(character:GetDescendants()) do
-        if v:IsA("BasePart") then
-            v.CanCollide = false
-        end
-    end
-end
+
 AntiFlingToggle:OnChanged(function(state)
     if state then
-        if antiflingConnection then
-            antiflingConnection:Disconnect()
-            antiflingConnection = nil
+        if antifling then
+            antifling:Disconnect()
+            antifling = nil
         end
 
-        antiFlingTimer = 0
+        antifling = RunService.Stepped:Connect(function()
+            local myCharacter = speaker.Character
+            if not myCharacter or not myCharacter:FindFirstChild("HumanoidRootPart") then return end
 
-        antiflingConnection = RunService.Stepped:Connect(function(_, dt)
-            antiFlingTimer = antiFlingTimer + dt
-
-            if antiFlingTimer < ANTI_FLING_INTERVAL then return end
-            antiFlingTimer = 0
-
-            local myChar = LocalPlayer.Character
-            if not myChar or not myChar.PrimaryPart then return end
-
-            local myPos = myChar.PrimaryPart.Position
+            local myHRP = myCharacter.HumanoidRootPart
 
             for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
-                    if (player.Character.PrimaryPart.Position - myPos).Magnitude <= 100 then
-                        disableCharacterCollision(player.Character)
+                if player ~= speaker and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetHRP = player.Character.HumanoidRootPart
+                    local distance = (targetHRP.Position - myHRP.Position).Magnitude
+
+                    if distance <= 50 then
+                        for _, v in ipairs(player.Character:GetDescendants()) do
+                            if v:IsA("BasePart") then
+                                v.CanCollide = false
+                            end
+                        end
                     end
                 end
             end
         end)
-
     else
-        if antiflingConnection then
-            antiflingConnection:Disconnect()
-            antiflingConnection = nil
+        if antifling then
+            antifling:Disconnect()
+            antifling = nil
         end
-
-        table.clear(processedAntiFling)
     end
 end)
+
 __loadTick()
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -2026,4 +2018,3 @@ if map and mainPart then
     })
 __loadTick()
 end
-
