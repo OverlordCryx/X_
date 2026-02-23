@@ -69,10 +69,15 @@ end
 local boundaryCheckInterval = 0
 local boundaryCheckAccumulator = 0
 RunService.Heartbeat:Connect(function(dt)
+	if _G.SafeTeleportLock then
+		return
+	end
 	boundaryCheckAccumulator = boundaryCheckAccumulator + dt
 	if boundaryCheckAccumulator < boundaryCheckInterval then return end
 	boundaryCheckAccumulator = 0
+
 	if not hrp or not hrp.Parent then return end
+
 	if isOutside() then
 		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 5, 0)
 	end
@@ -339,7 +344,7 @@ task.spawn(function()
 		if player.Character then
 			usunPusteAccessory(player.Character)
 		end
-		task.wait(0.1)
+		task.wait(0.21)
 	end
 end)
 __loadTick()
@@ -1511,6 +1516,93 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
             end)
         end
     end
+})
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+_G.SafeTeleportLock = false
+local savedPosition = nil
+local inSafe = false
+local monitorConnection
+local antiMoveConnection
+local positions = {}
+for i = 1, 700 do
+	table.insert(positions, CFrame.new(0, i * 1000000000000, 0))
+end
+local currentIndex = 1
+local positionAccumulator = 0
+local positionInterval = 0
+local function returnBack(character)
+	if not character then return end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not hrp or not humanoid then return end
+	if not savedPosition then return end
+	hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+	hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+	hrp.CFrame = savedPosition + Vector3.new(0,1,0)
+	task.wait()
+	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+	task.wait(0.1)
+	humanoid:ChangeState(Enum.HumanoidStateType.Running)
+end
+Lowhp = Tabs.TOG:AddToggle("lowhp", {
+	Title = "Auto Safe Zone 28% hp",
+	Default = false,
+	Callback = function(state)
+		if state then
+			monitorConnection = RunService.Heartbeat:Connect(function(dt)
+				local character = player.Character
+				if not character then return end
+				local humanoid = character:FindFirstChildOfClass("Humanoid")
+				local hrp = character:FindFirstChild("HumanoidRootPart")
+				if not humanoid or not hrp then return end
+				if humanoid.Health <= humanoid.MaxHealth * 0.28 and not inSafe then
+					_G.SafeTeleportLock = true
+					savedPosition = hrp.CFrame
+					inSafe = true
+					currentIndex = 1
+					positionAccumulator = 0
+					antiMoveConnection = RunService.Heartbeat:Connect(function(dt2)
+						if not inSafe then return end
+						positionAccumulator = positionAccumulator + dt2
+						if positionAccumulator >= positionInterval then
+							positionAccumulator = 0
+							currentIndex = currentIndex + 1
+							if currentIndex > #positions then
+								currentIndex = 1
+							end
+						end
+						hrp.CFrame = positions[currentIndex]
+					end)
+				end
+				if inSafe and humanoid.Health > humanoid.MaxHealth * 0.49 then
+					inSafe = false
+					_G.SafeTeleportLock = false
+					if antiMoveConnection then
+						antiMoveConnection:Disconnect()
+						antiMoveConnection = nil
+					end
+					returnBack(character)
+				end
+			end)
+		else
+			local character = player.Character
+			if monitorConnection then
+				monitorConnection:Disconnect()
+				monitorConnection = nil
+			end
+			if antiMoveConnection then
+				antiMoveConnection:Disconnect()
+				antiMoveConnection = nil
+			end
+			if inSafe then
+				returnBack(character)
+			end
+			inSafe = false
+			_G.SafeTeleportLock = false
+		end
+	end
 })
 __loadTick()
 task.spawn(function()
