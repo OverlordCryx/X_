@@ -319,28 +319,28 @@ end)
 __loadTick()
 local player = game.Players.LocalPlayer
 local function usunPusteAccessory(char)
-    if not char then return end
-    for _, obj in ipairs(char:GetChildren()) do
-        if obj:IsA("Accessory") then
-            if #obj:GetChildren() == 0 then
-                obj:Destroy()
-            end
-        end
-    end
+	if not char then return end
+	for _, obj in ipairs(char:GetChildren()) do
+		if obj:IsA("Accessory") then
+			if not next(obj:GetChildren()) then
+				obj:Destroy()
+			end
+		end
+	end
 end
 if player.Character then
-    usunPusteAccessory(player.Character)
+	usunPusteAccessory(player.Character)
 end
 player.CharacterAdded:Connect(function(char)
-    usunPusteAccessory(char)
+	usunPusteAccessory(char)
 end)
 task.spawn(function()
-    while true do
-        if player.Character then
-            usunPusteAccessory(player.Character)
-        end
-        task.wait(0.1)
-    end
+	while true do
+		if player.Character then
+			usunPusteAccessory(player.Character)
+		end
+		task.wait(0.1)
+	end
 end)
 __loadTick()
 local RunService = game:GetService("RunService")
@@ -1498,6 +1498,11 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
                                 Key  = Enum.KeyCode.Q,
                                 Goal = "KeyPress"
                             })
+							communicate:FireServer({
+                                Dash = dashKey,
+                                Key  = Enum.KeyCode.Q,
+                                Goal = "KeyPress"
+                            })
                         end
                     end
                     task.wait()
@@ -2011,4 +2016,3 @@ if map and mainPart then
     })
 __loadTick()
 end
-
