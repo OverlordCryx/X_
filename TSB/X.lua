@@ -1,3 +1,13 @@
+local game = game
+local workspace = workspace
+local getService = game.GetService
+
+local Players = getService(game, "Players")
+local RunService = getService(game, "RunService")
+local UserInputService = getService(game, "UserInputService")
+local StarterGui = getService(game, "StarterGui")
+local VirtualInputManager = getService(game, "VirtualInputManager")
+
 warn("NOTHING X")
 local __loaderStep = 0
 local __loaderTotal = 17
@@ -50,8 +60,6 @@ local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
     return 
 end
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -110,9 +118,6 @@ task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
 task.spawn(function()
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
 local player = Players.LocalPlayer
 local strongSkills = {
     ["Omni Directional Punch"] = true,
@@ -188,7 +193,7 @@ local function updatePlayerHighlight(plr)
                 createHighlight(char, false)
                 state[plr] = "weak"
                 SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
-                task.delay(math.random(8.1,9.1), function()
+                task.delay(math.random(8,9), function()
                     if state[plr] == "weak" then
 
                         SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
@@ -201,13 +206,19 @@ local function updatePlayerHighlight(plr)
 end
 
 
+
+local lastEspUpdate = 0
 RunService.Heartbeat:Connect(function()
-    if espEnabled then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            updatePlayerHighlight(plr)
+    local now = os.clock()
+    if espEnabled and now - lastEspUpdate > 0.1 then
+        lastEspUpdate = now
+        local players = Players:GetPlayers()
+        for i = 1, #players do
+            updatePlayerHighlight(players[i])
         end
     end
 end)
+
 
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function(char)
@@ -298,9 +309,6 @@ task.spawn(function()
 	end
 end)
 __loadTick()
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local holdingWKey = false
 local holdingSKey = false
@@ -414,11 +422,10 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     end
 end)
 __loadTick()
-local UIS = game:GetService("UserInputService")
-local RS = game:GetService("RunService")
-local Players = game:GetService("Players")
 local plr = Players.LocalPlayer
 local cam = workspace.CurrentCamera
+local RS = RunService
+local UIS = UserInputService
 local char = plr.Character or plr.CharacterAdded:Wait()
 local hum = char:WaitForChild("Humanoid")
 local root = char:WaitForChild("HumanoidRootPart")
@@ -487,16 +494,16 @@ local function toggleFly()
 end
 
 local function getMovementInput()
-    local forward = UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0
-    local backward = UIS:IsKeyDown(Enum.KeyCode.S) and 1 or 0
-    local left = UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0
-    local right = UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0
+    local forward = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0
+    local backward = UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0
+    local left = UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0
+    local right = UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0
     local z = forward - backward
     local x = right - left
     local mult = 1
     return z, x, mult
 end
-RS.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function(dt)
     if not flying or not bv or not bg or not root or not root.Parent then
         return
     end
@@ -564,7 +571,7 @@ if not mainPart then
     return 
 end
 local player = game.Players.LocalPlayer
-local vim = game:GetService("VirtualInputManager")
+local vim = VirtualInputManager
 local character
 local hrp
 local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
@@ -730,11 +737,8 @@ if not trashState.statusParagraph then
 end
 __loadTick()
 end)
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
+local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
 local CamlockTarget = nil
 local BasePrediction = 0.135
@@ -743,7 +747,7 @@ local camlockState = { statusParagraph = nil }
 local SCAN_INTERVAL = 1.5
 local scanTimer = 0
 local CachedTargets = {}
-local targetPool = Workspace:FindFirstChild("Live")
+local targetPool = workspace:FindFirstChild("Live")
 local function IsAlive(model)
     if not model then return false end
     local hum = model:FindFirstChildOfClass("Humanoid")
@@ -757,7 +761,7 @@ local function GetRoot(model)
 end
 local function RefreshTargets()
     table.clear(CachedTargets)
-    targetPool = Workspace:FindFirstChild("Live") or targetPool
+    targetPool = workspace:FindFirstChild("Live") or targetPool
     if targetPool and targetPool.Parent then
         for _, model in ipairs(targetPool:GetChildren()) do
             if model ~= LocalPlayer.Character and IsAlive(model) then
@@ -787,7 +791,7 @@ local function GetClosestTarget()
     )
     for i = 1, #CachedTargets do
         local root = CachedTargets[i]
-        if root and root.Parent and root:IsDescendantOf(Workspace) then
+        if root and root.Parent and root:IsDescendantOf(workspace) then
             local pos, visible = Camera:WorldToViewportPoint(root.Position)
             if visible then
                 local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
@@ -877,8 +881,6 @@ if not camlockState.statusParagraph then
     })
 end
 __loadTick()
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local speaker = LocalPlayer
 local power = 1000
@@ -1216,9 +1218,6 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
         end
     end
 })
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
 local speaker = Players.LocalPlayer
 local antifling
 
@@ -1264,9 +1263,6 @@ AntiFlingToggle:OnChanged(function(state)
 end)
 
 __loadTick()
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Toggle = Tabs.TOG:AddToggle("attacktog", {
     Title = "Attack TP",
@@ -1281,9 +1277,9 @@ local MapFolder
 local TrashFolder
 local LiveFolder
 local function refreshFolders()
-    MapFolder = Workspace:FindFirstChild("Map")
+    MapFolder = workspace:FindFirstChild("Map")
     TrashFolder = MapFolder and MapFolder:FindFirstChild("Trash")
-    LiveFolder = Workspace:FindFirstChild("Live")
+    LiveFolder = workspace:FindFirstChild("Live")
 end
 refreshFolders()
 local Character
@@ -1455,8 +1451,6 @@ Toggle:OnChanged(function(state)
     end
 end)
 __loadTick()
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -1518,7 +1512,6 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
     end
 })
 __loadTick()
-local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local character
 local communicate
@@ -1569,8 +1562,6 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
         end
     end
 })
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 _G.SafeTeleportLock = false
 local savedPosition = nil
@@ -1599,7 +1590,7 @@ local function returnBack(character)
 	humanoid:ChangeState(Enum.HumanoidStateType.Running)
 end
 Lowhp = Tabs.TOG:AddToggle("lowhp", {
-	Title = "Auto Safe Zone 28% hp",
+	Title = "Auto Safe Zone 28% hp back on 40% hp",
 	Default = false,
 	Callback = function(state)
 		if state then
@@ -1628,7 +1619,7 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 						hrp.CFrame = positions[currentIndex]
 					end)
 				end
-				if inSafe and humanoid.Health > humanoid.MaxHealth * 0.49 then
+				if inSafe and humanoid.Health > humanoid.MaxHealth * 0.39 then
 					inSafe = false
 					_G.SafeTeleportLock = false
 					if antiMoveConnection then
@@ -1659,8 +1650,6 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 __loadTick()
 task.spawn(function()
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
@@ -1848,7 +1837,7 @@ end)
 Tabs.TOG:AddButton({
     Title = "Lay",
     Callback = function()
-        local player = game.Players.LocalPlayer  
+        local player = Players.LocalPlayer  
         local character = player.Character
         if not character then return end
         local humanoid = character:FindFirstChildWhichIsA("Humanoid")
@@ -1866,8 +1855,6 @@ Tabs.TOG:AddButton({
 })
 __loadTick()
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local playerChosen = nil        
@@ -2131,7 +2118,7 @@ __loadTick()
 local FixCam = Tabs.TOG:AddButton({
     Title = "Rest Camera",
     Callback = function()
-	local player = game.Players.LocalPlayer
+	local player = Players.LocalPlayer
         local character = player.Character
         if not character then return end
 
