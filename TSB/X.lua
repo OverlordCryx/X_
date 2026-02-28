@@ -79,6 +79,8 @@ RunService.Heartbeat:Connect(function(dt)
 	if not hrp or not hrp.Parent then return end
 
 	if isOutside() then
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
 		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 5, 0)
 	end
 end)
@@ -186,7 +188,7 @@ local function updatePlayerHighlight(plr)
                 createHighlight(char, false)
                 state[plr] = "weak"
                 SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
-                task.delay(9.2, function()
+                task.delay(math.random(8.1,9.1), function()
                     if state[plr] == "weak" then
 
                         SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
@@ -199,79 +201,27 @@ local function updatePlayerHighlight(plr)
 end
 
 
-local connections = {}
-local function disconnectPlayer(plr)
-    local conns = connections[plr]
-    if conns then
-        for _, c in pairs(conns) do
-            if c then c:Disconnect() end
+RunService.Heartbeat:Connect(function()
+    if espEnabled then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            updatePlayerHighlight(plr)
         end
-    end
-    connections[plr] = nil
-    state[plr] = nil
-    if plr.Character then
-        removeHighlight(plr.Character)
-    end
-end
-local function safeUpdate(plr)
-    if not espEnabled then return end
-    updatePlayerHighlight(plr)
-end
-local function bindBackpack(plr, backpack)
-    if not backpack then return end
-    connections[plr] = connections[plr] or {}
-    if connections[plr].bpAdded then connections[plr].bpAdded:Disconnect() end
-    if connections[plr].bpRemoved then connections[plr].bpRemoved:Disconnect() end
-    local function onChange()
-        task.defer(function()
-            safeUpdate(plr)
-        end)
-    end
-    connections[plr].bpAdded = backpack.ChildAdded:Connect(onChange)
-    connections[plr].bpRemoved = backpack.ChildRemoved:Connect(onChange)
-end
-local function onCharacterAdded(plr, char)
-    task.defer(function()
-        safeUpdate(plr)
-    end)
-    local bp = plr:FindFirstChildOfClass("Backpack")
-    if bp then
-        bindBackpack(plr, bp)
-    end
-end
-for _, plr in ipairs(Players:GetPlayers()) do
-    if plr ~= player then
-        connections[plr] = connections[plr] or {}
-        connections[plr].charAdded = plr.CharacterAdded:Connect(function(char)
-            onCharacterAdded(plr, char)
-        end)
-        local bp = plr:FindFirstChildOfClass("Backpack")
-        if bp then
-            bindBackpack(plr, bp)
-        end
-        if plr.Character then
-            task.defer(function()
-                safeUpdate(plr)
-            end)
-        end
-    end
-end
-Players.PlayerAdded:Connect(function(plr)
-    if plr == player then return end
-    connections[plr] = connections[plr] or {}
-    connections[plr].charAdded = plr.CharacterAdded:Connect(function(char)
-        onCharacterAdded(plr, char)
-    end)
-    local bp = plr:FindFirstChildOfClass("Backpack")
-    if bp then
-        bindBackpack(plr, bp)
     end
 end)
-Players.PlayerRemoving:Connect(function(plr)
-    disconnectPlayer(plr)
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        task.wait()
+        updatePlayerHighlight(plr)
+    end)
+end)
+player.CharacterAdded:Connect(function(char)
+    task.wait()
 end)
 __loadTick()
+
 end)
+
 local speaker = game.Players.LocalPlayer
 local speed = 25
 local jpower = 50
@@ -935,6 +885,7 @@ local power = 1000
 local flingAllPower = 1000
 local flingOn = false
 local auraFlingOn = false
+local clickFlingOn = false
 local auraRange = 20
 local orbitStepXZ = 0
 local orbitStepY = 0
@@ -1091,6 +1042,98 @@ Tabs.TOG:AddToggle("AuraFlingToggle", {
     end
 })
 
+local clickFlingConnection
+local clickFlingBusy = false
+
+local function getPlayerFromClickedPart(part)
+    local current = part
+    while current do
+        if current:IsA("Model") then
+            local plr = Players:GetPlayerFromCharacter(current)
+            if plr and plr ~= LocalPlayer then
+                return plr
+            end
+        end
+        current = current.Parent
+    end
+    return nil
+end
+
+local function clickFlingTarget(targetPlayer)
+    if clickFlingBusy then return end
+    clickFlingBusy = true
+    task.spawn(function()
+        local myChar = LocalPlayer.Character
+        local targetChar = targetPlayer and targetPlayer.Character
+        local myRoot = getRootUniversal(myChar)
+        local targetRoot = getRootUniversal(targetChar)
+        if myRoot and targetRoot then
+            local savedCFrame = myRoot.CFrame
+            local p = flingAllPower
+            local t = 0
+            local startTime = tick()
+            while tick() - startTime < 8 do
+                if not clickFlingOn then break end
+                targetChar = targetPlayer and targetPlayer.Character
+                targetRoot = getRootUniversal(targetChar)
+                if not targetRoot or not targetRoot.Parent then break end
+
+                local dt = RunService.Heartbeat:Wait()
+                t = t + dt * orbitSpeed
+
+                local orbitDistanceXZ = orbitStepXZ
+                local orbitDistanceY = orbitStepY
+
+                orbitStepXZ = orbitStepXZ + orbitIncrement
+                orbitStepY = orbitStepY + orbitIncrement
+
+                if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
+                if orbitStepY > orbitMax then orbitStepY = 0 end
+
+                local offset = Vector3.new(
+                    math.cos(t) * orbitDistanceXZ,
+                    orbitDistanceY,
+                    math.sin(t) * orbitDistanceXZ
+                )
+
+                myRoot.CFrame = targetRoot.CFrame + offset
+                myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
+                myRoot.AssemblyLinearVelocity =
+                    targetRoot.CFrame.LookVector * p + Vector3.new(0, p * 0.5, 0)
+            end
+            myRoot.AssemblyAngularVelocity = zero
+            myRoot.AssemblyLinearVelocity = zero
+            if myRoot.Parent then
+                myRoot.CFrame = savedCFrame
+            end
+        end
+        clickFlingBusy = false
+    end)
+end
+
+Tabs.TOG:AddToggle("ClickFlingToggle", {
+    Title = "Click Fling",
+    Default = false,
+    Callback = function(state)
+        clickFlingOn = state
+        if clickFlingConnection then
+            clickFlingConnection:Disconnect()
+            clickFlingConnection = nil
+        end
+        if state then
+            local mouse = LocalPlayer:GetMouse()
+            clickFlingConnection = mouse.Button1Down:Connect(function()
+                if not clickFlingOn then return end
+                local hitPart = mouse.Target
+                local targetPlayer = hitPart and getPlayerFromClickedPart(hitPart)
+                if targetPlayer then
+                    clickFlingTarget(targetPlayer)
+                end
+            end)
+        end
+    end
+})
+
 
 local function flingAll()
     task.spawn(function()
@@ -1161,7 +1204,16 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
     Default = false,
     Callback = function(state)
         flingOn = state
-        if state then flingAll() end
+        if state then
+            flingAll()
+        else
+            local myChar = LocalPlayer.Character
+            local myRoot = myChar and getRootUniversal(myChar)
+            if myRoot then
+                myRoot.AssemblyAngularVelocity = zero
+                myRoot.AssemblyLinearVelocity = zero
+            end
+        end
     end
 })
 local Players = game:GetService("Players")
