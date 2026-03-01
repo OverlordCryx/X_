@@ -215,13 +215,13 @@ local function updatePlayer(plr)
         cancelTimer(plr)
         state[plr] = "strong"
         createImmortalHighlight(plr, true)
-        SendNotification("SERIOUS MODE", plr.Name.."ACTIVE", 4)
+        SendNotification("SERIOUS MODE", plr.Name.." -ACTIVE", 4)
         return
     end
     if skillType == "weak" and lastState == "strong" then
         state[plr] = "weak"
         createImmortalHighlight(plr, false)
-        SendNotification("SERIOUS MODE", plr.Name.."DEATH", 4)
+        SendNotification("SERIOUS MODE", plr.Name.." -DEATH", 4)
         local currentId = tick()
         activeTimers[plr] = currentId
         task.delay(9.1, function()
@@ -229,7 +229,7 @@ local function updatePlayer(plr)
             if state[plr] == "weak" then
                 state[plr] = nil
                 safeDestroyHighlight(plr)
-                SendNotification("SERIOUS MODE", plr.Name.."END", 4)
+                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
             end
         end)
         return
