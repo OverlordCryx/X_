@@ -224,7 +224,7 @@ local function updatePlayer(plr)
         SendNotification("SERIOUS MODE", plr.Name.." -DEATH", 4)
         local currentId = tick()
         activeTimers[plr] = currentId
-        task.delay(9.1, function()
+        task.delay(9.4, function()
             if activeTimers[plr] ~= currentId then return end
             if state[plr] == "weak" then
                 state[plr] = nil
