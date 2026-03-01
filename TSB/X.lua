@@ -118,7 +118,8 @@ task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
 task.spawn(function()
-local player = Players.LocalPlayer
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
     ["Omni Directional Punch"] = true,
     ["Death Counter"] = true,
@@ -131,103 +132,147 @@ local weakSkills = {
     ["Shove"] = true,
     ["Uppercut"] = true
 }
-local espEnabled = true
 local state = {}
-local function createHighlight(char, isStrong)
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+local protectConnections = {}
+local allowDestroy = {}
+local activeTimers = {}
+local function SendNotification(title, text, duration)
+    Fluent:Notify({
+        Title = title,
+        Content = text,
+        Duration = duration
+    })
+end
+local function safeDestroyHighlight(plr)
+    local char = plr.Character
+    if not char then return end
+    allowDestroy[plr] = true
     local hl = char:FindFirstChild("SkillHighlight")
-    if not hl then
-        hl = Instance.new("Highlight")
-        hl.Name = "SkillHighlight"
-        hl.Adornee = char
-        hl.Parent = char
+    if hl then
+        hl:Destroy()
     end
-    hl.FillColor = Color3.fromRGB(0, 0, 0)
-    hl.OutlineColor = isStrong and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(255, 165, 0)
+    allowDestroy[plr] = false
+end
+local function createImmortalHighlight(plr, isStrong)
+    local char = plr.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    safeDestroyHighlight(plr)
+    local hl = Instance.new("Highlight")
+    hl.Name = "SkillHighlight"
+    hl.Adornee = char
+    hl.Parent = char
+    hl.FillColor = Color3.fromRGB(0,0,0)
+    hl.OutlineColor = isStrong and Color3.fromRGB(255,255,255) or Color3.fromRGB(255,165,0)
     hl.FillTransparency = 0.8
     hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-end
-local function removeHighlight(char)
-    if char then
-        local hl = char:FindFirstChild("SkillHighlight")
-        if hl then
-            hl:Destroy()
-        end
+    if protectConnections[plr] then
+        protectConnections[plr]:Disconnect()
     end
+    protectConnections[plr] = char.DescendantRemoving:Connect(function(obj)
+        if obj.Name == "SkillHighlight" and state[plr] ~= nil then
+            if allowDestroy[plr] then return end
+            task.defer(function()
+                if state[plr] == "strong" then
+                    createImmortalHighlight(plr, true)
+                elseif state[plr] == "weak" then
+                    createImmortalHighlight(plr, false)
+                end
+            end)
+        end
+    end)
 end
 local function getSkillType(backpack)
     for _, tool in ipairs(backpack:GetChildren()) do
-        if strongSkills[tool.Name] then return "strong" end
-        if weakSkills[tool.Name] then return "weak" end
+        if strongSkills[tool.Name] then
+            return "strong"
+        end
+        if weakSkills[tool.Name] then
+            return "weak"
+        end
     end
+    return nil
 end
-local function SendNotification(title, text, duration)
-Fluent:Notify({
- Title = title,
-Content = text,
- Duration = duration
- })
+local function cancelTimer(plr)
+    activeTimers[plr] = nil
 end
-local function updatePlayerHighlight(plr)
-    if plr == player then return end 
+local function updatePlayer(plr)
+    if plr == LocalPlayer then return end
     local char = plr.Character
     local backpack = plr:FindFirstChildOfClass("Backpack")
-    if char and backpack then
-        local skillType = getSkillType(backpack)
-        local lastState = state[plr]
-        if not lastState then
-            state[plr] = skillType
-            if skillType == "strong" then
-                createHighlight(char, true)
-                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 7.4)
+    if not char or not backpack then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    if humanoid.Health <= 0 then
+        cancelTimer(plr)
+        state[plr] = nil
+        safeDestroyHighlight(plr)
+        return
+    end
+    local skillType = getSkillType(backpack)
+    local lastState = state[plr]
+    if skillType == "strong" and lastState ~= "strong" then
+        cancelTimer(plr)
+        state[plr] = "strong"
+        createImmortalHighlight(plr, true)
+        SendNotification("SERIOUS MODE", plr.Name.."ACTIVE", 4)
+        return
+    end
+    if skillType == "weak" and lastState == "strong" then
+        state[plr] = "weak"
+        createImmortalHighlight(plr, false)
+        SendNotification("SERIOUS MODE", plr.Name.."DEATH", 4)
+        local currentId = tick()
+        activeTimers[plr] = currentId
+        task.delay(9.1, function()
+            if activeTimers[plr] ~= currentId then return end
+            if state[plr] == "weak" then
+                state[plr] = nil
+                safeDestroyHighlight(plr)
+                SendNotification("SERIOUS MODE", plr.Name.."END", 4)
             end
-        else
-            if skillType == "strong" then
-                if lastState ~= "strong" then
-                    createHighlight(char, true)
-                    SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE ON", 7.4)
-                end
-                state[plr] = "strong"
-            elseif skillType == "weak" and lastState == "strong" then
-                createHighlight(char, false)
-                state[plr] = "weak"
-                SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE DEATH", 8.4)
-                task.delay(math.random(8,9), function()
-                    if state[plr] == "weak" then
-
-                        SendNotification("NOTHING X", plr.Name .. "  SERIOUS MODE END", 6)
-                        removeHighlight(char)
-                    end
-                end)
-            end
-        end
+        end)
+        return
     end
 end
-
-
-
-local lastEspUpdate = 0
-RunService.Heartbeat:Connect(function()
-    local now = os.clock()
-    if espEnabled and now - lastEspUpdate > 0.1 then
-        lastEspUpdate = now
-        local players = Players:GetPlayers()
-        for i = 1, #players do
-            updatePlayerHighlight(players[i])
-        end
+local function setupPlayer(plr)
+    if plr == LocalPlayer then return end
+    local function onCharacter()
+        cancelTimer(plr)
+        state[plr] = nil
+        safeDestroyHighlight(plr)
+        local backpack = plr:WaitForChild("Backpack")
+        local humanoid = plr.Character:WaitForChild("Humanoid")
+        humanoid.Died:Connect(function()
+            cancelTimer(plr)
+            state[plr] = nil
+            safeDestroyHighlight(plr)
+        end)
+        updatePlayer(plr)
+        backpack.ChildAdded:Connect(function()
+            updatePlayer(plr)
+        end)
+        backpack.ChildRemoved:Connect(function()
+            updatePlayer(plr)
+        end)
     end
-end)
-
-
-Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(function(char)
-        task.wait()
-        updatePlayerHighlight(plr)
-    end)
-end)
-player.CharacterAdded:Connect(function(char)
-    task.wait()
+    if plr.Character then
+        onCharacter()
+    end
+    plr.CharacterAdded:Connect(onCharacter)
+end
+for _, plr in ipairs(Players:GetPlayers()) do
+    setupPlayer(plr)
+end
+Players.PlayerAdded:Connect(setupPlayer)
+Players.PlayerRemoving:Connect(function(plr)
+    cancelTimer(plr)
+    state[plr] = nil
+    allowDestroy[plr] = nil
+    if protectConnections[plr] then
+        protectConnections[plr]:Disconnect()
+        protectConnections[plr] = nil
+    end
 end)
 __loadTick()
 
