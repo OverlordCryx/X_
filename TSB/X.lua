@@ -60,41 +60,59 @@ local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
     return 
 end
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local map = workspace:FindFirstChild("Map")
+local mainPart = map and map:FindFirstChild("MainPart")
+local nothingX = workspace:FindFirstChild("NOTHING X")
+
+if not mainPart or not nothingX then
+	return
+end
+
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
-local nothingX = workspace["NOTHING X"]
+
 local spawnPart = mainPart
+
 local function isOutside()
 	local pos = hrp.Position
 	local cf = nothingX.CFrame
 	local localPos = cf:PointToObjectSpace(pos)
 	local s = nothingX.Size / 2
-	return localPos.X < -s.X or localPos.X > s.X or
-	       localPos.Y < -s.Y or localPos.Y > s.Y or
-	       localPos.Z < -s.Z or localPos.Z > s.Z
+
+	return localPos.X < -s.X or localPos.X > s.X
+	or localPos.Y < -s.Y or localPos.Y > s.Y
+	or localPos.Z < -s.Z or localPos.Z > s.Z
 end
-local boundaryCheckInterval = 0
-local boundaryCheckAccumulator = 0
+
+local checkTime = 0
+local interval = 0
+
 RunService.Heartbeat:Connect(function(dt)
+
 	if _G.SafeTeleportLock then
 		return
 	end
-	boundaryCheckAccumulator = boundaryCheckAccumulator + dt
-	if boundaryCheckAccumulator < boundaryCheckInterval then return end
-	boundaryCheckAccumulator = 0
+
+	checkTime += dt
+	if checkTime < interval then return end
+	checkTime = 0
 
 	if not hrp or not hrp.Parent then return end
 
 	if isOutside() then
 		hrp.AssemblyLinearVelocity = Vector3.zero
 		hrp.AssemblyAngularVelocity = Vector3.zero
-		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 5, 0)
+		hrp.CFrame = spawnPart.CFrame + Vector3.new(0,5,0)
 	end
 end)
-player.CharacterAdded:Connect(function(newChar)
-	character = newChar
-	hrp = newChar:WaitForChild("HumanoidRootPart", 5)
+
+player.CharacterAdded:Connect(function(char)
+	character = char
+	hrp = char:WaitForChild("HumanoidRootPart")
 end)
 __loadTick()
 	end)
