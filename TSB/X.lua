@@ -1739,11 +1739,116 @@ local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
 local ToggleUlt
 local ToggleClass
+local ToggleDetectUlt
 if hasUltimate then
     ToggleUlt = Tabs.TOG:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
+    ToggleDetectUlt = Tabs.TOG:AddToggle("detectult", { Title = "Detect Use Ult (ESP Yellow)", Default = false })
 end
 if hasCharacter then
     ToggleClass = Tabs.TOG:AddToggle("classtog", { Title = "Show Character Name", Default = false })
+end
+local ULT_USE_DURATION = 51
+local UltEspState = {
+    esp = {},
+    timer = {},
+    conns = {},
+    lastUlt = {}
+}
+local function destroyUltEsp(plr)
+    local hl = UltEspState.esp[plr]
+    if hl then
+        hl:Destroy()
+    end
+    UltEspState.esp[plr] = nil
+    UltEspState.timer[plr] = nil
+end
+local function createUltEsp(plr)
+    if plr == LocalPlayer then return end
+    local char = plr.Character
+    if not char then return end
+    local className = plr:GetAttribute("Character")
+    if className == "Bald" then return end
+    destroyUltEsp(plr)
+    local hl = Instance.new("Highlight")
+    hl.Name = "UltUseESP"
+    hl.Adornee = char
+    hl.FillColor = Color3.fromRGB(0, 0, 0)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 0)
+    hl.FillTransparency = 0.6
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = char
+    UltEspState.esp[plr] = hl
+    local id = tick()
+    UltEspState.timer[plr] = id
+    task.delay(ULT_USE_DURATION, function()
+        if UltEspState.timer[plr] ~= id then return end
+        destroyUltEsp(plr)
+    end)
+end
+local function onUltimateChanged(plr)
+    local val = tonumber(plr:GetAttribute("Ultimate") or 0) or 0
+    local prev = UltEspState.lastUlt[plr]
+    UltEspState.lastUlt[plr] = val
+    if not ToggleDetectUlt or not ToggleDetectUlt.Value then return end
+    if prev == nil then return end
+    if prev >= 100 and val <= 0 then
+        createUltEsp(plr)
+        return
+    end
+    if val > 0 then
+        destroyUltEsp(plr)
+    end
+end
+local function clearDetectConns(plr)
+    local c = UltEspState.conns[plr]
+    if not c then return end
+    for _, conn in pairs(c) do
+        if conn then conn:Disconnect() end
+    end
+    UltEspState.conns[plr] = nil
+end
+local function setupDetectPlayer(plr)
+    if plr == LocalPlayer then return end
+    clearDetectConns(plr)
+    UltEspState.conns[plr] = {}
+    local c = UltEspState.conns[plr]
+    UltEspState.lastUlt[plr] = tonumber(plr:GetAttribute("Ultimate") or 0) or 0
+    c.ult = plr:GetAttributeChangedSignal("Ultimate"):Connect(function()
+        onUltimateChanged(plr)
+    end)
+    c.charAttr = plr:GetAttributeChangedSignal("Character"):Connect(function()
+        if plr:GetAttribute("Character") == "Bald" then
+            destroyUltEsp(plr)
+        end
+    end)
+    c.charAdded = plr.CharacterAdded:Connect(function(char)
+        destroyUltEsp(plr)
+        task.wait(0.1)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            if c.died then c.died:Disconnect() end
+            c.died = hum.Died:Connect(function()
+                destroyUltEsp(plr)
+            end)
+        end
+    end)
+    if plr.Character then
+        local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            c.died = hum.Died:Connect(function()
+                destroyUltEsp(plr)
+            end)
+        end
+    end
+end
+local function teardownDetect()
+    for plr, _ in pairs(UltEspState.esp) do
+        destroyUltEsp(plr)
+    end
+    for plr, _ in pairs(UltEspState.conns) do
+        clearDetectConns(plr)
+    end
 end
 local ClassColors = {
     ["Bald"]     = Color3.fromRGB(220, 220, 220),
@@ -1892,6 +1997,17 @@ if ToggleClass then
         ManageHeartbeat()
     end)
 end
+if ToggleDetectUlt then
+    ToggleDetectUlt:OnChanged(function(state)
+        if state then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                setupDetectPlayer(plr)
+            end
+        else
+            teardownDetect()
+        end
+    end)
+end
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function()
         task.wait(0.7)
@@ -1907,6 +2023,14 @@ Players.PlayerAdded:Connect(function(plr)
             if ToggleClass.Value then UpdateBillboard(plr) end
         end)
     end
+    if ToggleDetectUlt and ToggleDetectUlt.Value then
+        setupDetectPlayer(plr)
+    end
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    destroyUltEsp(plr)
+    clearDetectConns(plr)
+    UltEspState.lastUlt[plr] = nil
 end)
 task.delay(1.5, function()
     local showUlt = ToggleUlt and ToggleUlt.Value
