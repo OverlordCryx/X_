@@ -1463,6 +1463,27 @@ local function getClosestTarget()
     end
     return closest
 end
+local function getAttackTarget()
+    if CamlockEnabled then
+        local t = CamlockTarget
+        if t and t.Parent and t:IsDescendantOf(workspace) then
+            local model = t:FindFirstAncestorOfClass("Model")
+            local hum = model and model:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and Root then
+                local dist = (t.Position - Root.Position).Magnitude
+                if dist <= MAX_TARGET_DISTANCE then
+                    return t
+                end
+                return nil
+            end
+            if hum and hum.Health > 0 then
+                return t
+            end
+        end
+        return nil
+    end
+    return getClosestTarget()
+end
 local holdingMouse = false
 local attackLoopRunning = false
 local function startAttackLoop()
@@ -1471,7 +1492,7 @@ local function startAttackLoop()
     task.spawn(function()
         while attackLoopRunning do
             if Toggle.Value and holdingMouse and Root and not HasTrash and not TrashNearby then
-                local target = getClosestTarget()
+                local target = getAttackTarget()
                 if target then
                     if Humanoid then
                         Humanoid.AutoRotate = false
