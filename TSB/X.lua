@@ -1480,7 +1480,7 @@ local function getAttackTarget()
                 return t
             end
         end
-        return nil
+        return getClosestTarget()
     end
     return getClosestTarget()
 end
