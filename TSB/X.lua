@@ -1366,9 +1366,13 @@ end)
 refreshCharacter()
 local HasTrash = false
 local TrashNearby = false
-local trashLoopRunning = true
-task.spawn(function()
-    while trashLoopRunning do
+local trashLoopRunning = false
+local trashLoopThread
+local function startTrashLoop()
+    if trashLoopRunning then return end
+    trashLoopRunning = true
+    trashLoopThread = task.spawn(function()
+        while trashLoopRunning do
         if LiveFolder then
             local model = LiveFolder:FindFirstChild(LocalPlayer.Name)
             if model then
@@ -1400,16 +1404,24 @@ task.spawn(function()
         end
 
         task.wait()
-    end
-end)
+        end
+    end)
+end
+local function stopTrashLoop()
+    trashLoopRunning = false
+end
 local TargetCache = {}
-local scanLoopRunning = true
+local scanLoopRunning = false
+local scanLoopThread
 local function isAlive(model)
     local hum = model and model:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
 end
-task.spawn(function()
-    while scanLoopRunning do
+local function startScanLoop()
+    if scanLoopRunning then return end
+    scanLoopRunning = true
+    scanLoopThread = task.spawn(function()
+        while scanLoopRunning do
         table.clear(TargetCache)
         if Root then
             local rootPos = Root.Position
@@ -1447,8 +1459,13 @@ task.spawn(function()
             end
         end
         task.wait(MODEL_SCAN_RATE)
-    end
-end)
+        end
+    end)
+end
+local function stopScanLoop()
+    scanLoopRunning = false
+    table.clear(TargetCache)
+end
 local function getClosestTarget()
     local closest
     local shortest = math.huge
@@ -1529,9 +1546,13 @@ Toggle:OnChanged(function(state)
     if state then
         refreshFolders()
         refreshCharacter()
+        startTrashLoop()
+        startScanLoop()
         startAttackLoop()
     else
         stopAttackLoop()
+        stopTrashLoop()
+        stopScanLoop()
     end
 end)
 __loadTick()
@@ -1747,7 +1768,7 @@ end
 if hasCharacter then
     ToggleClass = Tabs.TOG:AddToggle("classtog", { Title = "Show Character Name", Default = false })
 end
-local ULT_USE_DURATION = 51
+local ULT_USE_DURATION = 50.3
 local UltEspState = {
     esp = {},
     timer = {},
