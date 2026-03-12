@@ -637,6 +637,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
     end
 })
 __loadBurst(6)
+local playerChosen = nil
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -648,12 +649,20 @@ local vim = VirtualInputManager
 local character
 local hrp
 local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
-local running = false
+local trashKeybindRunning = false
 local debounce = false
 local hasTrashFlag = false
 local processedTrash = setmetatable({}, { __mode = "k" })
 local trashState = {
     statusParagraph = nil
+}
+local trashPlayerState = {
+    statusParagraph = nil
+}
+local trashPlayer = {
+    running = false,
+    thread = nil,
+    distance = 5
 }
 local trashAttrConn
 local startHasTrashObserver
@@ -721,7 +730,7 @@ local function click()
     vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
     vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
-local function useTrashCan()
+local function useTrashCan(isRunning)
     if debounce then return end
     debounce = true
     if isSafeTeleportLocked() then
@@ -760,7 +769,7 @@ local function useTrashCan()
         end
     end
     local currentTrash = getRandomTrashCan()
-    while tries < maxTries and running do
+    while tries < maxTries and isRunning() do
         if isSafeTeleportLocked() then
             task.wait()
         else
@@ -802,6 +811,39 @@ local function useTrashCan()
     end
     debounce = false
 end
+local function deliverTrashToPlayer(targetPlayer, behindDist)
+    if not hasTrashFlag then return end
+    if not hrp or not hrp.Parent then return end
+    if not targetPlayer or not targetPlayer.Character then return end
+    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        or targetPlayer.Character:FindFirstChild("UpperTorso")
+        or targetPlayer.Character:FindFirstChild("Torso")
+    if not targetRoot then return end
+
+    local backOffset = -(targetRoot.CFrame.LookVector) * 1.3
+    local targetPos = targetRoot.Position + backOffset + Vector3.new(0, -2.5, 0)
+    hrp.CFrame = CFrame.new(targetPos, targetRoot.Position)
+    click()
+end
+local function startTrashPlayerLoop()
+    if trashPlayer.thread then return end
+    trashPlayer.thread = task.spawn(function()
+        while trashPlayer.running do
+            if not isSafeTeleportLocked() then
+                startHasTrashObserver()
+                if hasTrashFlag then
+                    if playerChosen then
+                        deliverTrashToPlayer(playerChosen, trashPlayer.distance)
+                    end
+                else
+                    useTrashCan(function() return trashPlayer.running end)
+                end
+            end
+            task.wait()
+        end
+        trashPlayer.thread = nil
+    end)
+end
 startHasTrashObserver = function()
     if trashAttrConn then return end
     if not character then return end
@@ -815,16 +857,25 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
     Mode = "Toggle",
     Default = "LeftControl",
     Callback = function(state)
-        running = state
+        if trashPlayer.running then
+            if trashState.statusParagraph then
+                trashState.statusParagraph:SetTitle("Trash : OFF")
+            end
+            return
+        end
+        trashKeybindRunning = state
         if trashState.statusParagraph then
             trashState.statusParagraph:SetTitle(state and "Trash : ON" or "Trash : OFF")
         end
         if state then
+            if _G.NOTHINGX_TrashPlayer then
+                _G.NOTHINGX_TrashPlayer.SetRunning(false)
+            end
             startHasTrashObserver()
             task.spawn(function()
-                while running do
+                while trashKeybindRunning do
                     if not isSafeTeleportLocked() then
-                        useTrashCan()
+                        useTrashCan(function() return trashKeybindRunning end)
                     end
                     task.wait()
                 end
@@ -840,6 +891,35 @@ if not trashState.statusParagraph then
         Content = ""
     })
 end
+if not trashPlayerState.statusParagraph then
+task.wait(0.1)
+    trashPlayerState.statusParagraph = Tabs.PLYR:AddParagraph({
+        Title = "Trash Player : OFF",
+        Content = ""
+    })
+end
+_G.NOTHINGX_TrashPlayer = {
+    SetRunning = function(state)
+        trashPlayer.running = state
+        if state then
+            trashKeybindRunning = false
+            if trashState.statusParagraph then
+                trashState.statusParagraph:SetTitle("Trash : OFF")
+            end
+            startHasTrashObserver()
+            startTrashPlayerLoop()
+        end
+        if trashPlayerState.statusParagraph then
+            trashPlayerState.statusParagraph:SetTitle(state and "Trash Player : ON" or "Trash Player : OFF")
+        end
+    end,
+    SetDistance = function(v)
+        trashPlayer.distance = v
+    end,
+    IsRunning = function()
+        return trashPlayer.running
+    end
+}
 end)
 __loadBurst(6)
 local LocalPlayer = Players.LocalPlayer
@@ -2240,7 +2320,6 @@ Tabs.TOG:AddButton({
 })
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local playerChosen = nil        
 local viewing = false
 local currentTarget = nil
 local viewDied = nil
@@ -2250,6 +2329,7 @@ local flingOneOn = false
 local flingOneConnection = nil
 local autoTpOn = false
 local autoTpConnection = nil
+local TrashPlayerKeybind = nil
 local FLING_INF_POWER = 1e12
 local orbitStepXZ = 0
 local orbitStepY = 0
@@ -2386,6 +2466,9 @@ Callback = function(value)
         if autoTpOn then AutoTpToggle:SetValue(false) end
         if flingOneOn then FlingOneToggle:SetValue(false) end
         if viewing then ViewToggle:SetValue(false) end
+        if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
+            _G.NOTHINGX_TrashPlayer.SetRunning(false)
+        end
         return
     end
 
@@ -2418,6 +2501,9 @@ Players.PlayerRemoving:Connect(function(plr)
     end
     if flingOneOn and playerChosen == plr then
         FlingOneToggle:SetValue(false)
+    end
+    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() and playerChosen == plr then
+        _G.NOTHINGX_TrashPlayer.SetRunning(false)
     end
     refreshDropdown()
 end)
@@ -2458,6 +2544,22 @@ AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
                 autoTpConnection:Disconnect()
                 autoTpConnection = nil
             end
+        end
+    end
+})
+
+TrashPlayerKeybind = Tabs.PLYR:AddKeybind("TrashPlayerKeybind", {
+    Title = "Trash Player",
+    Mode = "Toggle",
+    Default = "V",
+    Callback = function(state)
+        if state then
+            if not playerChosen then
+                return
+            end
+        end
+        if _G.NOTHINGX_TrashPlayer then
+            _G.NOTHINGX_TrashPlayer.SetRunning(state)
         end
     end
 })
