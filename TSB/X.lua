@@ -7,6 +7,9 @@ local RunService = getService(game, "RunService")
 local UserInputService = getService(game, "UserInputService")
 local StarterGui = getService(game, "StarterGui")
 local VirtualInputManager = getService(game, "VirtualInputManager")
+local function isSafeTeleportLocked()
+    return _G.SafeTeleportLock == true
+end
 
 warn("NOTHING X")
 local __loaderStep = 0
@@ -365,8 +368,10 @@ player.CharacterAdded:Connect(function(char)
 end)
 task.spawn(function()
 	while true do
-		if player.Character then
-			usunPusteAccessory(player.Character)
+		if not isSafeTeleportLocked() then
+			if player.Character then
+				usunPusteAccessory(player.Character)
+			end
 		end
 		task.wait(0.21)
 	end
@@ -386,6 +391,7 @@ local state = {
     inputEndedConnection = nil
 }
 local function updateMovement()
+    if isSafeTeleportLocked() then return end
     if not state.active then return end
     local moveVector = Vector3.new(0, 0, 0)
     if holdingWKey then
@@ -567,6 +573,9 @@ local function getMovementInput()
     return z, x, mult
 end
 RunService.Heartbeat:Connect(function(dt)
+    if isSafeTeleportLocked() then
+        return
+    end
     if not flying or not bv or not bg or not root or not root.Parent then
         return
     end
@@ -692,6 +701,10 @@ end
 local function useTrashCan()
     if debounce then return end
     debounce = true
+    if isSafeTeleportLocked() then
+        debounce = false
+        return
+    end
     if hasTrashFlag then 
         debounce = false
         return
@@ -725,7 +738,10 @@ local function useTrashCan()
     end
     local currentTrash = getRandomTrashCan()
     while tries < maxTries and running do
-        task.wait() 
+        if isSafeTeleportLocked() then
+            task.wait()
+        else
+            task.wait()
         if hasTrashFlag then break end 
         if not currentTrash or currentTrash:GetAttribute("Broken") then
             currentTrash = getRandomTrashCan()
@@ -752,6 +768,7 @@ local function useTrashCan()
                 click()
             end
             tries = tries + 1
+        end
         end
     end
     if hrp and hrp.Parent then
@@ -783,7 +800,9 @@ Tabs.XXX:AddKeybind("TrashKeybind", {
             startHasTrashObserver()
             task.spawn(function()
                 while running do
-                    useTrashCan()
+                    if not isSafeTeleportLocked() then
+                        useTrashCan()
+                    end
                     task.wait()
                 end
             end)
@@ -873,6 +892,9 @@ local function GetPrediction()
 end
 local camlockConn
 local function camlockStep(dt)
+    if isSafeTeleportLocked() then
+        return
+    end
     if not CamlockEnabled then
         CamlockTarget = nil
         if camlockConn then
@@ -1297,6 +1319,9 @@ AntiFlingToggle:OnChanged(function(state)
         end
 
         antifling = RunService.Stepped:Connect(function()
+            if isSafeTeleportLocked() then
+                return
+            end
             local myCharacter = speaker.Character
             if not myCharacter or not myCharacter:FindFirstChild("HumanoidRootPart") then return end
 
@@ -1373,6 +1398,7 @@ local function startTrashLoop()
     trashLoopRunning = true
     trashLoopThread = task.spawn(function()
         while trashLoopRunning do
+        if not isSafeTeleportLocked() then
         if LiveFolder then
             local model = LiveFolder:FindFirstChild(LocalPlayer.Name)
             if model then
@@ -1402,6 +1428,7 @@ local function startTrashLoop()
                 end
             end
         end
+        end
 
         task.wait()
         end
@@ -1422,36 +1449,38 @@ local function startScanLoop()
     scanLoopRunning = true
     scanLoopThread = task.spawn(function()
         while scanLoopRunning do
-        table.clear(TargetCache)
-        if Root then
-            local rootPos = Root.Position
-            local localChar = Character
-            if LiveFolder then
-                for _, model in ipairs(LiveFolder:GetChildren()) do
-                    if model ~= localChar and isAlive(model) then
-                        local part =
-                            model:FindFirstChild("HumanoidRootPart")
-                            or model.PrimaryPart
-                            or model:FindFirstChildWhichIsA("BasePart")
-                        if part then
-                            local dist = (rootPos - part.Position).Magnitude
-                            if dist < MAX_TARGET_DISTANCE then
-                                table.insert(TargetCache, {part = part, dist = dist})
+        if not isSafeTeleportLocked() then
+            table.clear(TargetCache)
+            if Root then
+                local rootPos = Root.Position
+                local localChar = Character
+                if LiveFolder then
+                    for _, model in ipairs(LiveFolder:GetChildren()) do
+                        if model ~= localChar and isAlive(model) then
+                            local part =
+                                model:FindFirstChild("HumanoidRootPart")
+                                or model.PrimaryPart
+                                or model:FindFirstChildWhichIsA("BasePart")
+                            if part then
+                                local dist = (rootPos - part.Position).Magnitude
+                                if dist < MAX_TARGET_DISTANCE then
+                                    table.insert(TargetCache, {part = part, dist = dist})
+                                end
                             end
                         end
                     end
                 end
-            end
-            if #TargetCache == 0 then
-                for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
-                        local part =
-                            plr.Character:FindFirstChild("HumanoidRootPart")
-                            or plr.Character.PrimaryPart
-                        if part then
-                            local dist = (rootPos - part.Position).Magnitude
-                            if dist < MAX_TARGET_DISTANCE then
-                                table.insert(TargetCache, {part = part, dist = dist})
+                if #TargetCache == 0 then
+                    for _, plr in ipairs(Players:GetPlayers()) do
+                        if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
+                            local part =
+                                plr.Character:FindFirstChild("HumanoidRootPart")
+                                or plr.Character.PrimaryPart
+                            if part then
+                                local dist = (rootPos - part.Position).Magnitude
+                                if dist < MAX_TARGET_DISTANCE then
+                                    table.insert(TargetCache, {part = part, dist = dist})
+                                end
                             end
                         end
                     end
@@ -1508,18 +1537,22 @@ local function startAttackLoop()
     attackLoopRunning = true
     task.spawn(function()
         while attackLoopRunning do
-            if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
-                local target = getAttackTarget()
-                if target then
-                    if Humanoid then
-                        Humanoid.AutoRotate = false
+            if isSafeTeleportLocked() then
+                task.wait(ATTACK_RATE)
+            else
+                if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
+                    local target = getAttackTarget()
+                    if target then
+                        if Humanoid then
+                            Humanoid.AutoRotate = false
+                        end
+                        local behindPos =
+                            target.Position - (target.CFrame.LookVector * BACK_OFFSET)
+                        Root.CFrame = CFrame.lookAt(behindPos, target.Position)
                     end
-                    local behindPos =
-                        target.Position - (target.CFrame.LookVector * BACK_OFFSET)
-                    Root.CFrame = CFrame.lookAt(behindPos, target.Position)
                 end
+                task.wait(ATTACK_RATE)
             end
-            task.wait(ATTACK_RATE)
         end
     end)
 end
@@ -1617,6 +1650,9 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
             gyro.CFrame = root.CFrame
             gyro.Parent = root
             conn = RunService.RenderStepped:Connect(function()
+                if isSafeTeleportLocked() then
+                    return
+                end
                 if root and stayPos then
                     root.AssemblyLinearVelocity = Vector3.zero
                     root.AssemblyAngularVelocity = Vector3.zero
@@ -1665,18 +1701,20 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
             if DashThread then return end
             DashThread = task.spawn(function()
                 while DashBlockRunning do
-                    if communicate then
-                        for _, dashKey in ipairs(directions) do
-                            communicate:FireServer({
-                                Dash = dashKey,
-                                Key  = Enum.KeyCode.Q,
-                                Goal = "KeyPress"
-                            })
-							communicate:FireServer({
-                                Dash = dashKey,
-                                Key  = Enum.KeyCode.Q,
-                                Goal = "KeyPress"
-                            })
+                    if not isSafeTeleportLocked() then
+                        if communicate then
+                            for _, dashKey in ipairs(directions) do
+                                communicate:FireServer({
+                                    Dash = dashKey,
+                                    Key  = Enum.KeyCode.Q,
+                                    Goal = "KeyPress"
+                                })
+                                communicate:FireServer({
+                                    Dash = dashKey,
+                                    Key  = Enum.KeyCode.Q,
+                                    Goal = "KeyPress"
+                                })
+                            end
                         end
                     end
                     task.wait()
@@ -1792,15 +1830,33 @@ local UltEspState = {
     esp = {},
     timer = {},
     conns = {},
-    lastUlt = {}
+    lastUlt = {},
+    active = {},
+    allowDestroy = {},
+    protectConnections = {}
 }
-local function destroyUltEsp(plr)
+local function safeDestroyUltEsp(plr)
+    UltEspState.allowDestroy[plr] = true
     local hl = UltEspState.esp[plr]
     if hl then
         hl:Destroy()
     end
     UltEspState.esp[plr] = nil
+    UltEspState.allowDestroy[plr] = false
+end
+local function clearUltProtect(plr)
+    local c = UltEspState.protectConnections[plr]
+    if c then c:Disconnect() end
+    UltEspState.protectConnections[plr] = nil
+end
+local function hideUltEsp(plr)
+    safeDestroyUltEsp(plr)
+    clearUltProtect(plr)
+end
+local function finishUltEsp(plr)
+    UltEspState.active[plr] = false
     UltEspState.timer[plr] = nil
+    hideUltEsp(plr)
 end
 local function createUltEsp(plr)
     if plr == LocalPlayer then return end
@@ -1808,7 +1864,7 @@ local function createUltEsp(plr)
     if not char then return end
     local className = plr:GetAttribute("Character")
     if className == "Bald" then return end
-    destroyUltEsp(plr)
+    safeDestroyUltEsp(plr)
     local hl = Instance.new("Highlight")
     hl.Name = "UltUseESP"
     hl.Adornee = char
@@ -1819,25 +1875,47 @@ local function createUltEsp(plr)
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Parent = char
     UltEspState.esp[plr] = hl
+    clearUltProtect(plr)
+    UltEspState.protectConnections[plr] = char.DescendantRemoving:Connect(function(obj)
+        if obj.Name == "UltUseESP" and UltEspState.active[plr] then
+            if UltEspState.allowDestroy[plr] then return end
+            if ToggleDetectUlt and ToggleDetectUlt.Value then
+                task.defer(function()
+                    if UltEspState.active[plr] then
+                        createUltEsp(plr)
+                    end
+                end)
+            end
+        end
+    end)
+end
+local function startUltTimer(plr)
     local id = tick()
     UltEspState.timer[plr] = id
     task.delay(ULT_USE_DURATION, function()
         if UltEspState.timer[plr] ~= id then return end
-        destroyUltEsp(plr)
+        UltEspState.active[plr] = false
+        UltEspState.timer[plr] = nil
+        if ToggleDetectUlt and ToggleDetectUlt.Value then
+            hideUltEsp(plr)
+        end
     end)
 end
 local function onUltimateChanged(plr)
     local val = tonumber(plr:GetAttribute("Ultimate") or 0) or 0
     local prev = UltEspState.lastUlt[plr]
     UltEspState.lastUlt[plr] = val
-    if not ToggleDetectUlt or not ToggleDetectUlt.Value then return end
     if prev == nil then return end
     if prev >= 100 and val <= 0 then
-        createUltEsp(plr)
+        UltEspState.active[plr] = true
+        startUltTimer(plr)
+        if ToggleDetectUlt and ToggleDetectUlt.Value then
+            createUltEsp(plr)
+        end
         return
     end
     if val > 0 then
-        destroyUltEsp(plr)
+        finishUltEsp(plr)
     end
 end
 local function clearDetectConns(plr)
@@ -1859,35 +1937,35 @@ local function setupDetectPlayer(plr)
     end)
     c.charAttr = plr:GetAttributeChangedSignal("Character"):Connect(function()
         if plr:GetAttribute("Character") == "Bald" then
-            destroyUltEsp(plr)
+            finishUltEsp(plr)
         end
     end)
     c.charAdded = plr.CharacterAdded:Connect(function(char)
-        destroyUltEsp(plr)
+        hideUltEsp(plr)
         task.wait(0.1)
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             if c.died then c.died:Disconnect() end
             c.died = hum.Died:Connect(function()
-                destroyUltEsp(plr)
+                finishUltEsp(plr)
             end)
+        end
+        if UltEspState.active[plr] and ToggleDetectUlt and ToggleDetectUlt.Value then
+            createUltEsp(plr)
         end
     end)
     if plr.Character then
         local hum = plr.Character:FindFirstChildOfClass("Humanoid")
         if hum then
             c.died = hum.Died:Connect(function()
-                destroyUltEsp(plr)
+                finishUltEsp(plr)
             end)
         end
     end
 end
-local function teardownDetect()
+local function hideAllUltEsp()
     for plr, _ in pairs(UltEspState.esp) do
-        destroyUltEsp(plr)
-    end
-    for plr, _ in pairs(UltEspState.conns) do
-        clearDetectConns(plr)
+        hideUltEsp(plr)
     end
 end
 local ClassColors = {
@@ -2012,6 +2090,9 @@ local function ManageHeartbeat()
         if not conn then
             billboardTimer = 0
             conn = RunService.Heartbeat:Connect(function(dt)
+                if isSafeTeleportLocked() then
+                    return
+                end
                 billboardTimer = billboardTimer + dt
                 if billboardTimer < billboardInterval then return end
                 billboardTimer = 0
@@ -2042,9 +2123,12 @@ if ToggleDetectUlt then
         if state then
             for _, plr in ipairs(Players:GetPlayers()) do
                 setupDetectPlayer(plr)
+                if UltEspState.active[plr] then
+                    createUltEsp(plr)
+                end
             end
         else
-            teardownDetect()
+            hideAllUltEsp()
         end
     end)
 end
@@ -2063,15 +2147,23 @@ Players.PlayerAdded:Connect(function(plr)
             if ToggleClass.Value then UpdateBillboard(plr) end
         end)
     end
-    if ToggleDetectUlt and ToggleDetectUlt.Value then
+    if ToggleDetectUlt then
         setupDetectPlayer(plr)
     end
 end)
 Players.PlayerRemoving:Connect(function(plr)
-    destroyUltEsp(plr)
+    finishUltEsp(plr)
     clearDetectConns(plr)
     UltEspState.lastUlt[plr] = nil
+    UltEspState.active[plr] = nil
+    UltEspState.allowDestroy[plr] = nil
+    UltEspState.protectConnections[plr] = nil
 end)
+if ToggleDetectUlt then
+    for _, plr in ipairs(Players:GetPlayers()) do
+        setupDetectPlayer(plr)
+    end
+end
 task.delay(1.5, function()
     local showUlt = ToggleUlt and ToggleUlt.Value
     local showClass = ToggleClass and ToggleClass.Value
@@ -2177,6 +2269,9 @@ local function startFlingOne()
     if flingOneConnection then flingOneConnection:Disconnect() end
 
     flingOneConnection = RunService.Heartbeat:Connect(function(dt)
+        if isSafeTeleportLocked() then
+            return
+        end
         if not flingOneOn then return end
         if not playerChosen then return end
         if not playerChosen.Parent then
@@ -2222,6 +2317,9 @@ end
 local function startAutoTp()
     if autoTpConnection then autoTpConnection:Disconnect() end
     autoTpConnection = RunService.Heartbeat:Connect(function()
+        if isSafeTeleportLocked() then
+            return
+        end
         if not autoTpOn then return end
         if not playerChosen then return end
         local myChar = LocalPlayer.Character
