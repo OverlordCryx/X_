@@ -1327,10 +1327,10 @@ end)
 
 __loadTick()
 local LocalPlayer = Players.LocalPlayer
-local Toggle = Tabs.TOG:AddToggle("attacktog", {
-    Title = "Attack TP",
-    Default = false
-})
+local attackState = {
+    active = false,
+    statusParagraph = nil
+}
 local ATTACK_RATE = 1/120
 local MODEL_SCAN_RATE = 0.3
 local MAX_TARGET_DISTANCE = 160
@@ -1508,7 +1508,7 @@ local function startAttackLoop()
     attackLoopRunning = true
     task.spawn(function()
         while attackLoopRunning do
-            if Toggle.Value and holdingMouse and Root and not HasTrash and not TrashNearby then
+            if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
                 local target = getAttackTarget()
                 if target then
                     if Humanoid then
@@ -1532,7 +1532,7 @@ local function stopAttackLoop()
 end
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
-    if not Toggle.Value then return end
+    if not attackState.active then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         holdingMouse = true
     end
@@ -1542,8 +1542,12 @@ UserInputService.InputEnded:Connect(function(input)
         holdingMouse = false
     end
 end)
-Toggle:OnChanged(function(state)
-    if state then
+local function setAttackState(enabled)
+    attackState.active = enabled
+    if attackState.statusParagraph then
+        attackState.statusParagraph:SetTitle(enabled and "Attack TP : ON" or "Attack TP : OFF")
+    end
+    if enabled then
         refreshFolders()
         refreshCharacter()
         startTrashLoop()
@@ -1554,7 +1558,22 @@ Toggle:OnChanged(function(state)
         stopTrashLoop()
         stopScanLoop()
     end
-end)
+end
+
+Tabs.XXX:AddKeybind("AttackTPKeybind", {
+    Title = "Attack TP",
+    Mode = "Toggle",
+    Default = "T",
+    Callback = function()
+        setAttackState(not attackState.active)
+    end
+})
+if not attackState.statusParagraph then
+    attackState.statusParagraph = Tabs.XXX:AddParagraph({
+        Title = "Attack TP : OFF",
+        Content = ""
+    })
+end
 __loadTick()
 local LocalPlayer = Players.LocalPlayer
 local stayPos
