@@ -12,22 +12,24 @@ local function isSafeTeleportLocked()
 end
 
 warn("NOTHING X")
+print("[NOTHING_X] Loading 0%")
 local __loaderStep = 0
-local __loaderTotal = 17
-local function __loadTick(label)
+local __loaderTotal = 100
+local function __loadTick()
     __loaderStep = __loaderStep + 1
     if __loaderStep > __loaderTotal then
         __loaderStep = __loaderTotal
     end
-    local percent = math.floor((__loaderStep / __loaderTotal) * 100 + 0.5)
-    if label and label ~= "" then
-        print(string.format("[LOAD] %d%% %s", percent, label))
-    else
-        print(string.format("[LOAD] %d%%", percent))
+    print(string.format("[NOTHING_X] Loading %d%%", __loaderStep))
+end
+local function __loadBurst(n)
+    for _ = 1, n do
+        if __loaderStep >= __loaderTotal then
+            break
+        end
+        __loadTick()
     end
 end
-print("[LOAD] 0%")
-
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -54,8 +56,8 @@ if not workspace:FindFirstChild(partName) then
     part.Anchored = true
     part.Parent = workspace
 end
-__loadTick()
-	end)
+end)
+__loadBurst(6)
 task.spawn(function()
 task.wait(0.5)
 local map = workspace:FindFirstChild("Map")
@@ -117,8 +119,8 @@ player.CharacterAdded:Connect(function(char)
 	character = char
 	hrp = char:WaitForChild("HumanoidRootPart")
 end)
-__loadTick()
-	end)
+end)
+__loadBurst(6)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
@@ -138,6 +140,7 @@ Window:SelectTab()
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
+__loadBurst(6)
 task.spawn(function()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -295,9 +298,8 @@ Players.PlayerRemoving:Connect(function(plr)
         protectConnections[plr] = nil
     end
 end)
-__loadTick()
-
 end)
+__loadBurst(6)
 
 local speaker = game.Players.LocalPlayer
 local speed = 25
@@ -348,7 +350,6 @@ speaker.CharacterAdded:Connect(function(Char)
     SetupWalkSpeed(Char, Human)
     SetupJumpPower(Char, Human)
 end)
-__loadTick()
 local player = game.Players.LocalPlayer
 local function usunPusteAccessory(char)
 	if not char then return end
@@ -376,7 +377,7 @@ task.spawn(function()
 		task.wait(0.21)
 	end
 end)
-__loadTick()
+__loadBurst(6)
 local player = Players.LocalPlayer
 local holdingWKey = false
 local holdingSKey = false
@@ -490,7 +491,7 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-__loadTick()
+__loadBurst(6)
 local plr = Players.LocalPlayer
 local cam = workspace.CurrentCamera
 local RS = RunService
@@ -635,7 +636,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
-__loadTick()
+__loadBurst(6)
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -839,8 +840,8 @@ if not trashState.statusParagraph then
         Content = ""
     })
 end
-__loadTick()
 end)
+__loadBurst(6)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
@@ -987,7 +988,6 @@ if not camlockState.statusParagraph then
         Content = ""
     })
 end
-__loadTick()
 local LocalPlayer = Players.LocalPlayer
 local speaker = LocalPlayer
 local power = 1000
@@ -1243,6 +1243,7 @@ Tabs.TOG:AddToggle("ClickFlingToggle", {
     end
 })
 
+__loadBurst(6)
 
 local function flingAll()
     task.spawn(function()
@@ -1325,6 +1326,7 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
         end
     end
 })
+__loadBurst(6)
 local speaker = Players.LocalPlayer
 local antifling
 
@@ -1371,8 +1373,7 @@ AntiFlingToggle:OnChanged(function(state)
         end
     end
 end)
-
-__loadTick()
+__loadBurst(6)
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
@@ -1629,7 +1630,7 @@ if not attackState.statusParagraph then
         Content = ""
     })
 end
-__loadTick()
+__loadBurst(6)
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -1693,7 +1694,7 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
         end
     end
 })
-__loadTick()
+__loadBurst(6)
 local player = Players.LocalPlayer
 local character
 local communicate
@@ -1704,27 +1705,27 @@ local directions = {
 }
 local DashBlockRunning = false
 local DashThread = nil
-local function setupCharacter(char)
-    character = char
-    communicate = character:WaitForChild("Communicate")
-end
-if player.Character then
-    setupCharacter(player.Character)
-end
-player.CharacterAdded:Connect(function(char)
-    setupCharacter(char)
-end)
-Dashblock = Tabs.TOG:AddToggle("DashBlock", {
-    Title = "Dash Block FE",
-    Default = false,
-    Callback = function(state)
-        DashBlockRunning = state
-        if state then
-            if DashThread then return end
-            DashThread = task.spawn(function()
-                while DashBlockRunning do
-                    if not isSafeTeleportLocked() then
-                        if communicate then
+local Dashblock
+local communicateConn
+local function createDashToggle()
+    if Dashblock then return end
+    if not communicate then return end
+    Dashblock = Tabs.TOG:AddToggle("DashBlock", {
+        Title = "Dash Block FE",
+        Default = false,
+        Callback = function(state)
+            if state and not communicate then
+                return
+            end
+            DashBlockRunning = state
+            if state then
+                if DashThread then return end
+                DashThread = task.spawn(function()
+                    while DashBlockRunning do
+                        if not isSafeTeleportLocked() then
+                            if not communicate then
+                                break
+                            end
                             for _, dashKey in ipairs(directions) do
                                 communicate:FireServer({
                                     Dash = dashKey,
@@ -1738,14 +1739,36 @@ Dashblock = Tabs.TOG:AddToggle("DashBlock", {
                                 })
                             end
                         end
+                        task.wait()
                     end
-                    task.wait()
-                end
-                DashThread = nil
-            end)
+                    DashThread = nil
+                end)
+            end
         end
+    })
+end
+local function setupCharacter(char)
+    character = char
+    communicate = character:FindFirstChild("Communicate")
+    createDashToggle()
+    if communicateConn then
+        communicateConn:Disconnect()
+        communicateConn = nil
     end
-})
+    communicateConn = character.ChildAdded:Connect(function(child)
+        if child.Name == "Communicate" then
+            communicate = child
+            createDashToggle()
+        end
+    end)
+end
+if player.Character then
+    setupCharacter(player.Character)
+end
+player.CharacterAdded:Connect(function(char)
+    setupCharacter(char)
+end)
+__loadBurst(6)
 local player = Players.LocalPlayer
 _G.SafeTeleportLock = false
 local savedPosition = nil
@@ -1831,7 +1854,7 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 		end
 	end
 })
-__loadTick()
+__loadBurst(6)
 task.spawn(function()
 
 local LocalPlayer = Players.LocalPlayer
@@ -2193,8 +2216,8 @@ task.delay(1.5, function()
         UpdateAll()
     end
 end)
-__loadTick()
 end)
+__loadBurst(5)
 
 Tabs.TOG:AddButton({
     Title = "Lay",
@@ -2215,8 +2238,6 @@ Tabs.TOG:AddButton({
         end
     end
 })
-__loadTick()
-
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local playerChosen = nil        
@@ -2482,7 +2503,6 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
         end
     end
 })
-__loadTick()
 local FixCam = Tabs.TOG:AddButton({
     Title = "Rest Camera",
     Callback = function()
@@ -2513,5 +2533,5 @@ if map and mainPart then
             end
         end
     })
-__loadTick()
 end
+__loadBurst(5)
