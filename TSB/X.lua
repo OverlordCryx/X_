@@ -684,10 +684,32 @@ end
 hasTrashFlag = hasTrash()
 local function getRandomTrashCan()
     local candidates = {}
+    local fallback = {}
     for _, model in ipairs(trashFolder:GetChildren()) do
         if model.Name == "Trashcan" and not model:GetAttribute("Broken") then
-            table.insert(candidates, model)
+            table.insert(fallback, model)
+            local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+            if part then
+                local tooClose = false
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= player and plr.Character then
+                        local root = plr.Character:FindFirstChild("HumanoidRootPart")
+                            or plr.Character:FindFirstChild("UpperTorso")
+                            or plr.Character:FindFirstChild("Torso")
+                        if root and (root.Position - part.Position).Magnitude < 15 then
+                            tooClose = true
+                            break
+                        end
+                    end
+                end
+                if not tooClose then
+                    table.insert(candidates, model)
+                end
+            end
         end
+    end
+    if #candidates == 0 then
+        candidates = fallback
     end
     if #candidates == 0 then
         return nil
