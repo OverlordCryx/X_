@@ -31,7 +31,7 @@ local data = {
 			},
 			{
 				name = "Server Join",
-				value = "[JOIN SERVER](" .. joinLink .. ")",
+				value = "[SERVER](" .. joinLink .. ")",
 				inline = false
 			},
 			{
