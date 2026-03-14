@@ -1,3 +1,16 @@
+local coreGui = game:GetService("CoreGui")
+if coreGui:FindFirstChild("ScreenGui") then
+    Fluent:Notify({
+        Title = "NOTHING X",
+        Content = "UI RUNING",
+        SubContent = "", 
+        Duration = 5
+    })
+    return
+end
+task.spawn(function()
+loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()
+end)
 local game = game
 local workspace = workspace
 local getService = game.GetService
