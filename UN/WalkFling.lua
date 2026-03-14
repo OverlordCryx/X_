@@ -1,3 +1,13 @@
+local coreGui = game:GetService("CoreGui")
+if coreGui:FindFirstChild("ScreenGui") then
+    Fluent:Notify({
+        Title = "NOTHING X",
+        Content = "UI RUNING",
+        SubContent = "", 
+        Duration = 5
+    })
+    return
+end
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
