@@ -1,3 +1,13 @@
+local coreGui = game:GetService("CoreGui")
+if coreGui:FindFirstChild("ScreenGui") then
+    Fluent:Notify({
+        Title = "NOTHING X",
+        Content = "UI RUNING",
+        SubContent = "", 
+        Duration = 5
+    })
+    return
+end
 local function SafeLoad(url)
     local success, result = pcall(function()
         return loadstring(game:HttpGet(url))()
