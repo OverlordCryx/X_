@@ -1,37 +1,46 @@
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
+
 local player = Players.LocalPlayer
 local gui = player:WaitForChild("PlayerGui")
 local gameGui = gui:WaitForChild("GameGui")
+
 local lobby = Workspace:WaitForChild("Lobby")
 local miscFolder = Workspace:WaitForChild("Misc")
+
 local function clearFolder(folder)
     for _, obj in pairs(folder:GetChildren()) do
         obj:Destroy()
     end
 end
+
 local contentFolder = lobby:WaitForChild("Content")
 clearFolder(contentFolder)
+
 local buildFolder = lobby:WaitForChild("Build")
+
 local foldersToDelete = {
     "Plants probably temp",
     "Model",
     "PacksStage",
     "Banner_02"
 }
+
 for _, folderName in pairs(foldersToDelete) do
     local folder = buildFolder:FindFirstChild(folderName)
     if folder then
         folder:Destroy()
     end
 end
+
 local objectsToRemove = {
     "Accessory",
     "Ball Theme",
     "ItemStand",
     "Taunt"
 }
+
 for _, objName in pairs(objectsToRemove) do
     for _, obj in pairs(miscFolder:GetChildren()) do
         if obj.Name == objName then
@@ -39,6 +48,7 @@ for _, objName in pairs(objectsToRemove) do
         end
     end
 end
+
 local museumFolder = lobby:FindFirstChild("Museum")
 if museumFolder then
     local topText = museumFolder:FindFirstChild("TopText")
@@ -46,17 +56,20 @@ if museumFolder then
         topText:Destroy()
     end
 end
+
 local guiToRemove = {
     gameGui.LobbyHUD.BottomNavigationBar,
     gameGui.Store,
     gameGui.LobbyHUD.Topbar.Leaderstats.Coins,
     gameGui.Party
 }
+
 for _, guiElement in pairs(guiToRemove) do
     if guiElement then
         guiElement:Destroy()
     end
 end
+
 local workspaceToClear = {
     Workspace:FindFirstChild("Stadium") and Workspace.Stadium.Banners,
     Workspace:FindFirstChild("Environment"),
@@ -66,12 +79,15 @@ local workspaceToClear = {
     workspace.Stadium.Teams.Away.Audience,
     workspace.Stadium.Sponsors
 }
+
 for _, obj in pairs(workspaceToClear) do
     if obj then
         obj:Destroy()
     end
 end
+
 local energyBars = gameGui:WaitForChild("MatchHUD"):WaitForChild("EnergyBars")
+
 local function deleteStamina()
     for _, bar in pairs(energyBars:GetChildren()) do
         if bar.Name:sub(1,7) == "Stamina" then
@@ -79,14 +95,17 @@ local function deleteStamina()
         end
     end
 end
+
 energyBars.ChildAdded:Connect(function(child)
     if child.Name:sub(1,7) == "Stamina" then
         child:Destroy()
     end
 end)
+
 for _, bar in pairs(energyBars:GetChildren()) do
     if bar.Name == "Power" then
         bar.Size = UDim2.new(0.25, 0, 0.02, 0)
+
         local gradient = bar:WaitForChild("ProgressBar"):WaitForChild("UIGradient")
         gradient.Color = ColorSequence.new{
             ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),
@@ -94,8 +113,10 @@ for _, bar in pairs(energyBars:GetChildren()) do
         }
     end
 end
+
 local function removeDuplicates(name)
     local found = false
+
     for _, v in ipairs(gameGui:GetChildren()) do
         if v.Name == name then
             if not found then
@@ -106,6 +127,7 @@ local function removeDuplicates(name)
         end
     end
 end
+
 local function removeGUIs()
     for _,g in pairs({
         gui:FindFirstChild("StarterPackInterface"),
@@ -114,9 +136,12 @@ local function removeGUIs()
         gameGui:FindFirstChild("DailyRewards"),
         gameGui:FindFirstChild("GoalPopup")
     }) do
-        if g then g:Destroy() end
+        if g then
+            g:Destroy()
+        end
     end
 end
+
 local function removeBlur()
     for _, effect in ipairs(Lighting:GetChildren()) do
         if effect:IsA("BlurEffect") then
@@ -124,6 +149,7 @@ local function removeBlur()
         end
     end
 end
+
 local function removeArrows()
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj.Name == "Arrow" then
@@ -131,50 +157,69 @@ local function removeArrows()
         end
     end
 end
+
 local function removeMiscArrows()
     local miscFolder = Workspace:FindFirstChild("Misc")
+
     if miscFolder then
         for _, obj in ipairs(miscFolder:GetChildren()) do
-            if obj.Name == "Arrow" then
+            if obj.Name:sub(1,7) == "[Arrow]" then
                 obj:Destroy()
             end
         end
     end
 end
+
 local function removeFolderIfExists(folderName)
     local folder = Workspace:FindFirstChild(folderName)
+
     if folder then
         folder:Destroy()
     end
 end
+
 local function removeIfExists(object)
     if object and object.Parent then
         object:Destroy()
     end
 end
+
 while true do
+
     deleteStamina()
+
     removeDuplicates("Scoreboard")
     removeDuplicates("PointsPopup")
     removeDuplicates("Summary")
     removeDuplicates("Penalties")
-     removeFolderIfExists("Customization")
+
+    removeFolderIfExists("Customization")
     removeFolderIfExists("Packs")
-        local trophyParticles = Workspace:FindFirstChild("Lobby") 
-        and Workspace.Lobby:FindFirstChild("Museum") 
-        and Workspace.Lobby.Museum:FindFirstChild("Trophy") 
+
+    local trophyParticles =
+        Workspace:FindFirstChild("Lobby")
+        and Workspace.Lobby:FindFirstChild("Museum")
+        and Workspace.Lobby.Museum:FindFirstChild("Trophy")
         and Workspace.Lobby.Museum.Trophy:FindFirstChild("TrophyParticles")
+
     removeIfExists(trophyParticles)
-    local grass = Workspace:FindFirstChild("Stadium") 
+
+    local grass =
+        Workspace:FindFirstChild("Stadium")
         and Workspace.Stadium:FindFirstChild("Grass")
+
     removeIfExists(grass)
+
     removeGUIs()
     removeBlur()
     removeArrows()
     removeMiscArrows()
+
     local scoreboard = gameGui:FindFirstChild("Scoreboard")
+
     if scoreboard then
         scoreboard.Size = UDim2.new(0.17, 0, 0.1, 0)
     end
+
     task.wait(4.5)
 end
