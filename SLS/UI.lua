@@ -825,7 +825,7 @@ local function setupTeleportButtons()
     local options = {}
     if currentPlace == servers["4v4"] then
         options = {
-            {name="Join 7v7 Server", id=servers["7v7"]},
+            {name="Join 4v4 SK Server", id=servers["7v7"]},
             {name="Join 7v7 Pro Server", id=servers["7v7 Pro"]}
         }
     elseif currentPlace == servers["7v7"] then
@@ -835,7 +835,7 @@ local function setupTeleportButtons()
         }
     elseif currentPlace == servers["7v7 Pro"] then
         options = {
-            {name="Join 7v7 Server", id=servers["7v7"]},
+            {name="Join 4v4 SK Server", id=servers["7v7"]},
             {name="Join 4v4 Server", id=servers["4v4"]}
         }
     else
