@@ -26,7 +26,7 @@ if coreGui:FindFirstChild("ScreenGui") then
     return
 end
 task.spawn(function()
-loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/SLS/DC"))()
+loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-SLS"))()
 end)
 task.spawn(function()
 loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/SLS/UI.lua"))()
