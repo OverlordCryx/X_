@@ -30,7 +30,7 @@ local data = {
 				inline = true
 			},
 			{
-				name = "Server Join",
+				name = "He Play",
 				value = "[SERVER](" .. joinLink .. ")",
 				inline = false
 			},
