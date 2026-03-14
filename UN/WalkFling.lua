@@ -71,7 +71,7 @@ end)
 Tabs.Main:AddKeybind("WalkFlingKeybind", {
     Title = "Walk Fling",
     Mode = "Toggle",
-    Default = "F",
+    Default = "X",
     Callback = function(value)
         if syncing then return end
         setWalkFling(value)
