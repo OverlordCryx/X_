@@ -44,6 +44,14 @@ task.spawn(function()
 local field = workspace.Stadium.Field.Bounds.Field
 field.Size = Vector3.new(1000, 81.67, 1000)
 	end)
+local function findFoot(parent)
+    for _, obj in ipairs(parent:GetChildren()) do
+        if obj:IsA("BasePart") and obj.Name:sub(1, 4) == "Foot" then
+            return obj
+        end
+    end
+    return nil
+end
 task.spawn(function()
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -77,7 +85,7 @@ local function TPTowardPlayer()
     local teamPos = LocalPlayer:GetAttribute("TeamPosition") 
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
+    local football = Workspace:FindFirstChild("Misc") and findFoot(Workspace.Misc)
     if not (char and hrp and football) then return end
     football.Position = hrp.Position
     football.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -113,7 +121,7 @@ local function getEnemyAgentWithBall()
     end
 end
 local function handleFootball(hrp)
-    local football = Workspace:FindFirstChild("Misc") and Workspace.Misc:FindFirstChild("Football")
+    local football = Workspace:FindFirstChild("Misc") and findFoot(Workspace.Misc)
     if not football then return end
     local team = LocalPlayer.Team
     if not team then return end
@@ -121,7 +129,7 @@ local function handleFootball(hrp)
     local teamPos = LocalPlayer:GetAttribute("TeamPosition")
     local player = game.Players.LocalPlayer
     local character = player.Character
-    local Xfootball = Workspace.Misc:FindFirstChild("Football")
+    local Xfootball = findFoot(Workspace.Misc)
     if not (character and character:FindFirstChild("HumanoidRootPart")) then return end
     local hrpPos = character.HumanoidRootPart.Position
     local footballPos = football.Position
@@ -212,14 +220,14 @@ Tabs.keybinds:AddKeybind("Keybind", {
             if not misc then return end
             local footballs = {}
             for _, obj in pairs(misc:GetChildren()) do
-                if obj.Name == "Football" then
+                if obj:IsA("BasePart") and obj.Name:sub(1, 4) == "Foot" then
                     table.insert(footballs, obj)
                 end
             end
             if #footballs == 0 then
                 misc.ChildAdded:Wait()
                 for _, obj in pairs(misc:GetChildren()) do
-                    if obj.Name == "Football" then
+                    if obj:IsA("BasePart") and obj.Name:sub(1, 4) == "Foot" then
                         table.insert(footballs, obj)
                     end
                 end
@@ -449,7 +457,7 @@ Players.PlayerRemoving:Connect(updPlayerList)
 local function getFootball()
     local misc = workspace:FindFirstChild("Misc")
     if misc then
-        return misc:FindFirstChild("Football")
+        return findFoot(misc)
     end
     return nil
 end
@@ -732,7 +740,7 @@ Tabs.keybinds:AddKeybind("Keybind", {
     Callback = function()
         local player = game.Players.LocalPlayer
         local character = player.Character
-local football = game.workspace.Misc.Football
+local football = findFoot(game.workspace.Misc)
         if character and character:FindFirstChild("HumanoidRootPart") and football then
             football.Position = character.HumanoidRootPart.Position
             football.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -744,7 +752,7 @@ end)
 task.spawn(function()
 local player = game.Players.LocalPlayer
 local function TPGOL()
-    local football = workspace.Misc:FindFirstChild("Football")
+    local football = findFoot(workspace.Misc)
     if not football then
         return
     end
@@ -798,7 +806,7 @@ local function createPart()
     return cp
 end
 local function tpFootball()
-    local fb = workspace.Misc:FindFirstChild("Football")
+    local fb = findFoot(workspace.Misc)
     if not fb then
         return
     end
@@ -963,8 +971,11 @@ end
 local function getValidFootballs()
     local footballs = {}
     for _, obj in ipairs(ws.Misc:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name:lower():find("football") then
-            table.insert(footballs, obj)
+        if obj:IsA("BasePart") then
+            local name = obj.Name
+            if name:sub(1, 4) == "Foot" then
+                table.insert(footballs, obj)
+            end
         end
     end
     return footballs
@@ -1321,7 +1332,7 @@ Tabs.keybinds:AddKeybind("AltBind", {
                 local char = LocalPlayer.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 local misc = Workspace:FindFirstChild("Misc")
-                local ball = misc and misc:FindFirstChild("Football")
+                local ball = misc and findFoot(misc)
                 if not hrp or not ball then
                     active = false
                     break
@@ -1362,7 +1373,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local function getNearestPlayer()
-    local football = Workspace.Misc:FindFirstChild("Football")
+    local football = findFoot(Workspace.Misc)
     if not football then return nil end
     local closestPlayer, shortestDistance = nil, math.huge
     for _, player in pairs(Players:GetPlayers()) do
@@ -1381,7 +1392,7 @@ local function getNearestPlayer()
     return closestPlayer
 end
 local function tpFootballToNearestPlayer()
-    local football = Workspace.Misc:FindFirstChild("Football")
+    local football = findFoot(Workspace.Misc)
     if not football then return end
     local nearestPlayer = getNearestPlayer()
     if nearestPlayer and nearestPlayer.Character and nearestPlayer.Character.PrimaryPart then
