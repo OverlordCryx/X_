@@ -251,7 +251,6 @@ local LocalPlayer = Players.LocalPlayer
 Tabs.all:AddSection("Emote")
 local SelectedTaunts = {}
 local Active = false
-local OldTauntsBackup = nil
 local function GetAllTaunts()
     local Taunts = {}
     local Folder = ReplicatedStorage.Assets.Items.Taunts
@@ -259,18 +258,6 @@ local function GetAllTaunts()
         table.insert(Taunts, v.Name)
     end
     return Taunts
-end
-local function GetCurrentEquipped()
-    local raw = LocalPlayer:GetAttribute("EquippedTaunts")
-    if raw and raw ~= "" then
-        local ok, data = pcall(function()
-            return HttpService:JSONDecode(raw)
-        end)
-        if ok and typeof(data) == "table" then
-            return data
-        end
-    end
-    return {}
 end
 local function convertSelection(input)
     local result = {}
@@ -303,13 +290,10 @@ Tabs.all:AddToggle("EnableEmotes", {
     Callback = function(state)
         Active = state
         if state then
-            OldTauntsBackup = GetCurrentEquipped()
             task.wait(0.05)
             ApplyEmotes()
         else
-            if OldTauntsBackup then
-                LocalPlayer:SetAttribute("EquippedTaunts", HttpService:JSONEncode(OldTauntsBackup))
-            end
+            LocalPlayer:SetAttribute("EquippedTaunts", HttpService:JSONEncode({}))
         end
     end
 })
@@ -324,8 +308,6 @@ LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
     if Active then
         ApplyEmotes()
-    elseif OldTauntsBackup then
-        LocalPlayer:SetAttribute("EquippedTaunts", HttpService:JSONEncode(OldTauntsBackup))
     end
 end)
 end)
