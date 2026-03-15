@@ -74,7 +74,8 @@ local Tabs = {
     XXX = Window:AddTab({ Title = "", Icon = "menu" })
 }
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
+
 end)
 local proceed = false
 Window:Dialog({
