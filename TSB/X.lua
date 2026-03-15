@@ -677,16 +677,23 @@ local vim = VirtualInputManager
 local character
 local hrp
 local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
+local TrashKeybind = nil
 local trashKeybindRunning = false
 local debounce = false
 local hasTrashFlag = false
 local processedTrash = setmetatable({}, { __mode = "k" })
+local hasTrashListeners = {}
 local trashState = {
     statusParagraph = nil
 }
 local trashPlayerState = {
     statusParagraph = nil
 }
+local function notifyHasTrash()
+    for _, fn in ipairs(hasTrashListeners) do
+        pcall(fn, hasTrashFlag)
+    end
+end
 local function setTrashPlayerKeybindState(state)
     if TrashPlayerKeybind and TrashPlayerKeybind.SetValue then
         pcall(function()
@@ -738,7 +745,6 @@ local function attachTrashPlayerWatch(plr)
         attachTrashPlayerWatch(plr)
     end)
     trashPlayer.charRemovingConn = plr.CharacterRemoving:Connect(function()
-        -- keep running; wait for respawn
     end)
 end
 local trashAttrConn
@@ -755,6 +761,7 @@ player.CharacterAdded:Connect(function(char)
     task.wait(1)
     setupCharacter(char)
     hasTrashFlag = hasTrash()
+    notifyHasTrash()
     if trashAttrConn then
         trashAttrConn:Disconnect()
         trashAttrConn = nil
@@ -769,6 +776,7 @@ hasTrash = function()
     return value and value ~= ""
 end
 hasTrashFlag = hasTrash()
+notifyHasTrash()
 local function getRandomTrashCan()
     local candidates = {}
     local fallback = {}
@@ -892,14 +900,22 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
     if not hasTrashFlag then return end
     if not hrp or not hrp.Parent then return end
     if not targetPlayer or not targetPlayer.Character then return end
-    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    local targetRoot =
+        targetPlayer.Character:FindFirstChild("HumanoidRootPart")
         or targetPlayer.Character:FindFirstChild("UpperTorso")
         or targetPlayer.Character:FindFirstChild("Torso")
+
     if not targetRoot then return end
 
-    local backOffset = -(targetRoot.CFrame.LookVector) * -0.7
-    local targetPos = targetRoot.Position + backOffset + Vector3.new(0, -7.1, 0)
+    local offset = behindDist or 0.7
+    local jitter = -0.26
+
+    local backOffset = -(targetRoot.CFrame.LookVector) * -(offset)
+    local targetPos = targetRoot.Position + backOffset + Vector3.new(0, -2.2 + jitter, 0)
+
     hrp.CFrame = CFrame.new(targetPos, targetRoot.Position)
+
     click()
 end
 local function startTrashPlayerLoop()
@@ -916,10 +932,15 @@ local function startTrashPlayerLoop()
                     task.wait(0.2)
                     continue
                 end
+                local targetHum = playerChosen.Character and playerChosen.Character:FindFirstChildOfClass("Humanoid")
+                if not targetHum or targetHum.Health <= 0 then
+                    task.wait(0.25)
+                    continue
+                end
                 attachTrashPlayerWatch(playerChosen)
                 if hasTrashFlag then
                     if playerChosen then
-                        deliverTrashToPlayer(playerChosen, trashPlayer.distance)
+                        deliverTrashToPlayer(playerChosen, trashPlayer.distance or 0.7)
                     end
                 else
                     useTrashCan(function() return trashPlayer.running end)
@@ -935,43 +956,51 @@ startHasTrashObserver = function()
     if trashAttrConn then return end
     if not character then return end
     hasTrashFlag = hasTrash()
+    notifyHasTrash()
     trashAttrConn = character:GetAttributeChangedSignal("HasTrashcan"):Connect(function()
         hasTrashFlag = hasTrash()
+        notifyHasTrash()
     end)
 end
-Tabs.XXX:AddKeybind("TrashKeybind", {
-    Title = "Get Trash Can",
-    Mode = "Toggle",
-    Default = "LeftControl",
-    Callback = function(state)
-        if trashPlayer.running then
-            if trashState.statusParagraph then
-                trashState.statusParagraph:SetTitle("Trash : OFF")
-            end
-            return
-        end
-        trashKeybindRunning = state
-        if trashState.statusParagraph then
-            trashState.statusParagraph:SetTitle(state and "Trash : ON" or "Trash : OFF")
-        end
-        if state then
-            if _G.NOTHINGX_TrashPlayer then
-                _G.NOTHINGX_TrashPlayer.SetRunning(false)
-            end
-            startHasTrashObserver()
-            task.spawn(function()
-                while trashKeybindRunning do
-                    if not isSafeTeleportLocked() then
-                        useTrashCan(function() return trashKeybindRunning end)
-                    end
-                    task.wait()
+local function createTrashKeybind()
+    if TrashKeybind then return end
+    TrashKeybind = Tabs.XXX:AddKeybind("TrashKeybind", {
+        Title = "Get Trash Can",
+        Mode = "Toggle",
+        Default = "LeftControl",
+        Callback = function(state)
+            if trashPlayer.running then
+                if trashState.statusParagraph then
+                    trashState.statusParagraph:SetTitle("Trash : OFF")
                 end
-            end)
-        else
-            if trashAttrConn then trashAttrConn:Disconnect() trashAttrConn = nil end
+                return
+            end
+            trashKeybindRunning = state
+            if trashState.statusParagraph then
+                trashState.statusParagraph:SetTitle(state and "Trash : ON" or "Trash : OFF")
+            end
+            if state then
+                if _G.NOTHINGX_TrashPlayer then
+                    _G.NOTHINGX_TrashPlayer.SetRunning(false)
+                end
+                startHasTrashObserver()
+                task.spawn(function()
+                    while trashKeybindRunning do
+                        if not isSafeTeleportLocked() then
+                            useTrashCan(function() return trashKeybindRunning end)
+                        end
+                        task.wait()
+                    end
+                end)
+            else
+                if trashAttrConn then trashAttrConn:Disconnect() trashAttrConn = nil end
+            end
         end
-    end
-})
+    })
+end
+if not hasTrashFlag then
+    createTrashKeybind()
+end
 if not trashState.statusParagraph then
     trashState.statusParagraph = Tabs.XXX:AddParagraph({
         Title = "Trash : OFF",
@@ -1006,6 +1035,13 @@ _G.NOTHINGX_TrashPlayer = {
     end,
     AttachTarget = function(plr)
         attachTrashPlayerWatch(plr)
+    end,
+    OnHasTrash = function(fn)
+        table.insert(hasTrashListeners, fn)
+        pcall(fn, hasTrashFlag)
+    end,
+    HasTrash = function()
+        return hasTrashFlag
     end,
     IsRunning = function()
         return trashPlayer.running
@@ -2587,6 +2623,9 @@ local function refreshDropdown()
     if not restored then
         playerChosen = nil
         Dropdown:SetValue("None")
+        if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
+            _G.NOTHINGX_TrashPlayer.SetRunning(false)
+        end
     end
 end
 Players.PlayerAdded:Connect(refreshDropdown)
@@ -2643,22 +2682,59 @@ AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
     end
 })
 
-TrashPlayerKeybind = Tabs.PLYR:AddKeybind("TrashPlayerKeybind", {
-    Title = "Trash Player",
-    Mode = "Toggle",
-    Default = "V",
-    Callback = function(state)
-        if _G.NOTHINGX_TrashPlayer then
-            local nextState = state
-            if nextState and not playerChosen then
-                nextState = false
+local function createTrashPlayerKeybind()
+    if TrashPlayerKeybind then return end
+    TrashPlayerKeybind = Tabs.PLYR:AddKeybind("TrashPlayerKeybind", {
+        Title = "Trash Player",
+        Mode = "Toggle",
+        Default = "V",
+        Callback = function(state)
+            if _G.NOTHINGX_TrashPlayer then
+                local nextState = state
+                if nextState and not playerChosen then
+                    nextState = false
+                end
+                _G.NOTHINGX_TrashPlayer.SetRunning(nextState)
             end
-            _G.NOTHINGX_TrashPlayer.SetRunning(nextState)
         end
+    })
+    if _G.NOTHINGX_TrashPlayer then
+        _G.NOTHINGX_TrashPlayer.EnsureStatus()
     end
-})
-if _G.NOTHINGX_TrashPlayer then
-    _G.NOTHINGX_TrashPlayer.EnsureStatus()
+end
+
+local function removeTrashPlayerKeybind()
+    if not TrashPlayerKeybind then return end
+    if _G.NOTHINGX_TrashPlayer then
+        _G.NOTHINGX_TrashPlayer.SetRunning(false)
+    end
+    pcall(function()
+        if TrashPlayerKeybind.SetValue then
+            TrashPlayerKeybind:SetValue(false)
+        end
+    end)
+    pcall(function()
+        if TrashPlayerKeybind.Destroy then
+            TrashPlayerKeybind:Destroy()
+        end
+    end)
+    TrashPlayerKeybind = nil
+end
+
+local function shouldCreateTrashPlayerKeybindOnce()
+    local map = workspace:FindFirstChild("Map")
+    local mainPart = map and map:FindFirstChild("MainPart")
+    if not mainPart then return false end
+    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.HasTrash then
+        return not _G.NOTHINGX_TrashPlayer.HasTrash()
+    end
+    return true
+end
+
+if shouldCreateTrashPlayerKeybindOnce() then
+    createTrashPlayerKeybind()
+else
+    removeTrashPlayerKeybind()
 end
 
 ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
