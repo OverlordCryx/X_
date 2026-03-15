@@ -11,7 +11,7 @@ local matchType = "Unknown"
 if placeId == 12177325772 then
     matchType = "4v4"
 elseif placeId == 127060568647054 then
-    matchType = "7v7"
+    matchType = "4v4 RL"
 elseif placeId == 126195208568849 then
     matchType = "Pro 7v7"
 end
