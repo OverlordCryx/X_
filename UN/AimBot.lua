@@ -110,8 +110,8 @@ TPAutoKillToggle:OnChanged(function()
 end)
 local PlayerDropdown = Tabs.Main:AddDropdown("PlayerSelection", {
     Title = "Target Filter",
-    Values = {"All Players", "All Objects"},
-    Default = "All Players"
+    Values = {"All (Auto)", "All Players", "All Objects"},
+    Default = "All (Auto)"
 })
 Tabs.Main:AddParagraph({
     Title = "",
@@ -121,6 +121,7 @@ Tabs.Main:AddToggle("InfiniteDistance", {Title = "Infinite Range (Ignore FOV)", 
 Tabs.Main:AddDropdown("PriorityMode", {Title = "Target Priority", Values = {"Closest to Mouse", "Closest to Player", "Lowest Health"}, Default = "Closest to Mouse"})
 Tabs.Main:AddDropdown("TargetPartDropdown", {Title = "Target Part", Values = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"}, Default = "Head"})
 Tabs.Main:AddDropdown("TeamModeDropdown", {Title = "Team Targeting", Values = {"Enemy Only", "Any Player", "Any Objects"}, Default = "Enemy Only"})
+Tabs.Main:AddToggle("AllowPlayersAndObjects", {Title = "Target Both Players + Objects", Default = false})
 Tabs.Main:AddSlider("SmoothingSlider", {Title = "Aim Smoothing", Default = 0.5, Min = 0, Max = 1, Rounding = 2})
 Tabs.Main:AddSlider("FOVSlider", {Title = "Field of View", Default = 150, Min = 10, Max = 1500, Rounding = 0})
 Tabs.Main:AddToggle("ShowFOVToggle", {Title = "Show FOV Circle", Default = false})
@@ -159,6 +160,9 @@ local lastMemoryCheck = 0
 local currentTarget = nil
 local targetStartTime = 0
 local skipTarget = nil
+local skipTargetUntil = 0
+local tpFailTarget = nil
+local tpFailStart = 0
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 1; FOVCircle.Color = Color3.fromRGB(255, 255, 255); FOVCircle.Visible = false
 local _RayParams = RaycastParams.new()
@@ -245,7 +249,13 @@ local function GetClosestTarget()
     local maxFOV = infinite and 999999 or Options.FOVSlider.Value
     local specificPlayer = Options.PlayerSelection.Value
     local mode = Options.TeamModeDropdown.Value
-    if mode == "Any Objects" or specificPlayer == "All Objects" then
+    local allowBoth = Options.AllowPlayersAndObjects.Value
+    local wantObjects = (specificPlayer == "All Objects") or (specificPlayer == "All (Auto)" and mode == "Any Objects") or allowBoth
+    local wantPlayers = (specificPlayer == "All Players") or (specificPlayer == "All (Auto)" and mode ~= "Any Objects") or allowBoth or (specificPlayer ~= "All (Auto)" and specificPlayer ~= "All Players" and specificPlayer ~= "All Objects")
+    if skipTarget and tick() > skipTargetUntil then
+        skipTarget = nil
+    end
+    if wantObjects then
         local models = GetHumanoidModels()
         for i = 1, #models do
             local model = models[i]
@@ -273,12 +283,13 @@ local function GetClosestTarget()
                 end
             end
         end
-    else
+    end
+    if wantPlayers then
         local players = Players:GetPlayers()
         for i = 1, #players do
             local p = players[i]
             if p.UserId == skipTarget then continue end
-            if specificPlayer == "All Players" or (specificPlayer == p.Name) then
+            if specificPlayer == "All (Auto)" or specificPlayer == "All Players" or specificPlayer == p.Name or allowBoth then
                 if ShouldTarget(p) then
                     local char = p.Character
                     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -336,7 +347,9 @@ local function UpdateESP()
     local updated = {}
     local mode = Options.TeamModeDropdown.Value
     local specificPlayer = Options.PlayerSelection.Value
-    local useObjects = (mode == "Any Objects") or (specificPlayer == "All Objects")
+    local allowBoth = Options.AllowPlayersAndObjects.Value
+    local useObjects = (specificPlayer == "All Objects") or (specificPlayer == "All (Auto)" and mode == "Any Objects") or allowBoth
+    local usePlayers = (specificPlayer == "All Players") or (specificPlayer == "All (Auto)" and mode ~= "Any Objects") or allowBoth
     if useObjects then
         local models = GetHumanoidModels()
         for i = 1, #models do
@@ -366,7 +379,8 @@ local function UpdateESP()
                 end
             end
         end
-    else
+    end
+    if usePlayers then
         local players = Players:GetPlayers()
         for i = 1, #players do
             local p = players[i]
@@ -433,7 +447,18 @@ RunService.Heartbeat:Connect(function()
     local isHoldAim = IsHoldAimActive()
     if isAuto or isTPAuto or isHoldAim then
         local target = nil
-        if not isHoldAim and currentTarget and currentTarget.Parent then
+        if isTPAuto then
+            if currentTarget and currentTarget.Parent then
+                target = currentTarget
+            else
+                target = GetClosestTarget()
+                if target then
+                    currentTarget = target
+                    targetStartTime = tick()
+                    skipTarget = nil
+                end
+            end
+        elseif not isHoldAim and currentTarget and currentTarget.Parent then
             local p = Players:GetPlayerFromCharacter(currentTarget.Parent)
             local hum = currentTarget.Parent:FindFirstChildOfClass("Humanoid")
             if p and hum and hum.Health > 0 and ShouldTarget(p) then
@@ -441,6 +466,7 @@ RunService.Heartbeat:Connect(function()
                     target = currentTarget
                 else
                     skipTarget = p.UserId
+                    skipTargetUntil = tick() + 0.5
                     currentTarget = nil
                 end
             else
@@ -453,6 +479,22 @@ RunService.Heartbeat:Connect(function()
                 currentTarget = target
                 targetStartTime = tick()
                 skipTarget = nil
+            end
+        end
+        if target and isTPAuto then
+            local p = Players:GetPlayerFromCharacter(target.Parent)
+            if p then
+                if tpFailTarget ~= p.UserId then
+                    tpFailTarget = p.UserId
+                    tpFailStart = tick()
+                elseif (tick() - tpFailStart) > 3.4 then
+                    skipTarget = p.UserId
+                    skipTargetUntil = tick() + 0.5
+                    tpFailTarget = nil
+                    tpFailStart = 0
+                    currentTarget = nil
+                    return
+                end
             end
         end
         if target then
@@ -476,7 +518,7 @@ RunService.Heartbeat:Connect(function()
             end
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), smoothing)
             if typeof(mouse1click) == "function" then
-                local forceVis = (Options.TeamModeDropdown.Value == "Any Objects") or (Options.PlayerSelection.Value == "All Objects")
+                local forceVis = (Options.TeamModeDropdown.Value == "Any Objects") or (Options.PlayerSelection.Value == "All Objects") or Options.AllowPlayersAndObjects.Value
                 local tModel = GetTargetModel(target)
                 local visibleNow = IsVisibleToCamera(target, tModel)
                 if (isAuto or isTPAuto or (isHoldAim and Options.AimbotAutoShot.Value)) and (isTPAuto or (not Options.WallCheck.Value and not forceVis) or visibleNow) then
@@ -490,7 +532,7 @@ RunService.Heartbeat:Connect(function()
 end)
 task.spawn(function()
     while task.wait(5) do
-        local names = {"All Players", "All Objects"}
+        local names = {"All (Auto)", "All Players", "All Objects"}
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer then table.insert(names, p.Name) end
         end
