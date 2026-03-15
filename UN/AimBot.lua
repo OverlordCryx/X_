@@ -214,10 +214,16 @@ local function UpdateKeyCache()
 end
 Options.AimKeybind:OnChanged(UpdateKeyCache)
 UpdateKeyCache()
-local function IsAimingManual()
-    if not Options.ManualAimbot.Value then return false end
+local function IsAimKeyDown()
     if not CurrentAimKeyEnum then return false end
-    return CurrentAimKeyType == "Mouse" and UserInputService:IsMouseButtonPressed(CurrentAimKeyEnum) or UserInputService:IsKeyDown(CurrentAimKeyEnum)
+    if CurrentAimKeyType == "Mouse" then
+        return UserInputService:IsMouseButtonPressed(CurrentAimKeyEnum)
+    end
+    return UserInputService:IsKeyDown(CurrentAimKeyEnum)
+end
+local function IsHoldAimActive()
+    if not IsAimKeyDown() then return false end
+    return Options.ManualAimbot.Value or Options.AimbotAutoShot.Value
 end
 local function ShouldTarget(p)
     if not p or p == LocalPlayer or not p.Character then return false end
@@ -420,14 +426,14 @@ RunService.Heartbeat:Connect(function()
     end
     FOVCircle.Position = UserInputService:GetMouseLocation()
     FOVCircle.Radius = Options.FOVSlider.Value
-    FOVCircle.Visible = (not Options.InfiniteDistance.Value) and (Options.ManualAimbot.Value or Options.AutoAimShot.Value) and Options.ShowFOVToggle.Value
+    FOVCircle.Visible = (not Options.InfiniteDistance.Value) and (Options.AutoAimShot.Value or IsHoldAimActive()) and Options.ShowFOVToggle.Value
     UpdateESP()
     local isAuto = Options.AutoAimShot.Value
     local isTPAuto = Options.TPAutoKill.Value
-    local isManual = IsAimingManual()
-    if isAuto or isTPAuto or isManual then
+    local isHoldAim = IsHoldAimActive()
+    if isAuto or isTPAuto or isHoldAim then
         local target = nil
-        if not isManual and currentTarget and currentTarget.Parent then
+        if not isHoldAim and currentTarget and currentTarget.Parent then
             local p = Players:GetPlayerFromCharacter(currentTarget.Parent)
             local hum = currentTarget.Parent:FindFirstChildOfClass("Humanoid")
             if p and hum and hum.Health > 0 and ShouldTarget(p) then
@@ -443,7 +449,7 @@ RunService.Heartbeat:Connect(function()
         end
         if not target then
             target = GetClosestTarget()
-            if target and not isManual then
+            if target and not isHoldAim then
                 currentTarget = target
                 targetStartTime = tick()
                 skipTarget = nil
@@ -473,7 +479,7 @@ RunService.Heartbeat:Connect(function()
                 local forceVis = (Options.TeamModeDropdown.Value == "Any Objects") or (Options.PlayerSelection.Value == "All Objects")
                 local tModel = GetTargetModel(target)
                 local visibleNow = IsVisibleToCamera(target, tModel)
-                if (isAuto or isTPAuto or (isManual and Options.AimbotAutoShot.Value)) and (isTPAuto or (not Options.WallCheck.Value and not forceVis) or visibleNow) then
+                if (isAuto or isTPAuto or (isHoldAim and Options.AimbotAutoShot.Value)) and (isTPAuto or (not Options.WallCheck.Value and not forceVis) or visibleNow) then
                     mouse1click()
                 end
             end
