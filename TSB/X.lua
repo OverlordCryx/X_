@@ -750,6 +750,7 @@ end
 local trashAttrConn
 local startHasTrashObserver
 local hasTrash
+local lastDeadTeleport = 0
 local function setupCharacter(char)
     character = char
     hrp = character:WaitForChild("HumanoidRootPart")
@@ -918,6 +919,13 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
 
     click()
 end
+local function teleportToMainPart()
+    if not hrp or not hrp.Parent then return end
+    if not mainPart then return end
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    hrp.CFrame = mainPart.CFrame + Vector3.new(0, -3, 0)
+end
 local function startTrashPlayerLoop()
     if trashPlayer.thread then return end
     trashPlayer.thread = task.spawn(function()
@@ -929,12 +937,17 @@ local function startTrashPlayerLoop()
                     break
                 end
                 if playerChosen and not playerChosen.Character then
-                    task.wait(0.2)
+                    task.wait()
                     continue
                 end
                 local targetHum = playerChosen.Character and playerChosen.Character:FindFirstChildOfClass("Humanoid")
                 if not targetHum or targetHum.Health <= 0 then
-                    task.wait(0.25)
+                    local now = tick()
+                    if now - lastDeadTeleport > 1 then
+                        lastDeadTeleport = now
+                        teleportToMainPart()
+                    end
+                    task.wait()
                     continue
                 end
                 attachTrashPlayerWatch(playerChosen)
