@@ -23,26 +23,6 @@ local VirtualInputManager = getService(game, "VirtualInputManager")
 local function isSafeTeleportLocked()
     return _G.SafeTeleportLock == true
 end
-
-warn("NOTHING X")
-print("[NOTHING_X] Loading 0%")
-local __loaderStep = 0
-local __loaderTotal = 100
-local function __loadTick()
-    __loaderStep = __loaderStep + 1
-    if __loaderStep > __loaderTotal then
-        __loaderStep = __loaderTotal
-    end
-    print(string.format("[NOTHING_X] Loading %d%%", __loaderStep))
-end
-local function __loadBurst(n)
-    for _ = 1, n do
-        if __loaderStep >= __loaderTotal then
-            break
-        end
-        __loadTick()
-    end
-end
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -70,7 +50,6 @@ if not workspace:FindFirstChild(partName) then
     part.Parent = workspace
 end
 end)
-__loadBurst(6)
 task.spawn(function()
 task.wait(0.5)
 local map = workspace:FindFirstChild("Map")
@@ -133,7 +112,6 @@ player.CharacterAdded:Connect(function(char)
 	hrp = char:WaitForChild("HumanoidRootPart")
 end)
 end)
-__loadBurst(6)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
@@ -168,7 +146,6 @@ Window:Dialog({
 })
 while not proceed do task.wait(0.1) end
 if cancelled then return end
-__loadBurst(6)
 task.spawn(function()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -327,7 +304,7 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 end)
-__loadBurst(6)
+task.spawn(function()
 
 local speaker = game.Players.LocalPlayer
 local speed = 25
@@ -405,7 +382,6 @@ task.spawn(function()
 		task.wait(0.21)
 	end
 end)
-__loadBurst(6)
 local player = Players.LocalPlayer
 local holdingWKey = false
 local holdingSKey = false
@@ -519,7 +495,6 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-__loadBurst(6)
 local plr = Players.LocalPlayer
 local cam = workspace.CurrentCamera
 local RS = RunService
@@ -664,7 +639,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
-__loadBurst(6)
+end)
 local playerChosen = nil
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
@@ -942,10 +917,12 @@ local function startTrashPlayerLoop()
                 end
                 local targetHum = playerChosen.Character and playerChosen.Character:FindFirstChildOfClass("Humanoid")
                 if not targetHum or targetHum.Health <= 0 then
-                    local now = tick()
-                    if now - lastDeadTeleport > 1 then
-                        lastDeadTeleport = now
-                        teleportToMainPart()
+                    if not camLockTrashActive then
+                        local now = tick()
+                        if now - lastDeadTeleport > 1 then
+                            lastDeadTeleport = now
+                            teleportToMainPart()
+                        end
                     end
                     task.wait()
                     continue
@@ -1061,7 +1038,6 @@ _G.NOTHINGX_TrashPlayer = {
     end
 }
 end)
-__loadBurst(6)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
@@ -1463,7 +1439,6 @@ Tabs.TOG:AddToggle("ClickFlingToggle", {
     end
 })
 
-__loadBurst(6)
 
 local function flingAll()
     task.spawn(function()
@@ -1546,7 +1521,6 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
         end
     end
 })
-__loadBurst(6)
 local speaker = Players.LocalPlayer
 local antifling
 
@@ -1593,7 +1567,6 @@ AntiFlingToggle:OnChanged(function(state)
         end
     end
 end)
-__loadBurst(6)
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
@@ -1850,7 +1823,6 @@ if not attackState.statusParagraph then
         Content = ""
     })
 end
-__loadBurst(6)
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -1914,7 +1886,6 @@ StayToggle = Tabs.TOG:AddToggle("StayToggle", {
         end
     end
 })
-__loadBurst(6)
 local player = Players.LocalPlayer
 local character
 local communicate
@@ -1988,7 +1959,6 @@ end
 player.CharacterAdded:Connect(function(char)
     setupCharacter(char)
 end)
-__loadBurst(6)
 local player = Players.LocalPlayer
 _G.SafeTeleportLock = false
 local savedPosition = nil
@@ -2074,7 +2044,136 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 		end
 	end
 })
-__loadBurst(6)
+local camLockTrashEnabled = false
+local camLockTrashHolding = false
+local camLockTrashSession = false
+local camLockTrashActive = false
+local camLockTrashConn = nil
+local camLockTrashInputBegan = nil
+local camLockTrashInputEnded = nil
+local camLockTrashPrevPlayer = nil
+local camLockTrashPrevRunning = false
+
+local function getCamlockPlayer()
+	local t = CamlockTarget
+	if not t or not t.Parent then return nil end
+	local model = t:FindFirstAncestorOfClass("Model")
+	if not model then return nil end
+	return Players:GetPlayerFromCharacter(model)
+end
+
+local function stopCamLockTrashActive()
+	if not camLockTrashActive then return end
+	camLockTrashActive = false
+	if _G.NOTHINGX_TrashPlayer then
+		_G.NOTHINGX_TrashPlayer.SetRunning(false)
+	end
+end
+
+local function restoreCamLockTrashSession()
+	if not camLockTrashSession then return end
+	stopCamLockTrashActive()
+	if camLockTrashPrevPlayer ~= nil then
+		playerChosen = camLockTrashPrevPlayer
+	end
+	if camLockTrashPrevRunning and _G.NOTHINGX_TrashPlayer and playerChosen then
+		_G.NOTHINGX_TrashPlayer.AttachTarget(playerChosen)
+		_G.NOTHINGX_TrashPlayer.SetRunning(true)
+	end
+	camLockTrashPrevPlayer = nil
+	camLockTrashPrevRunning = false
+	camLockTrashSession = false
+end
+
+local function stopCamLockTrashAll()
+	camLockTrashHolding = false
+	restoreCamLockTrashSession()
+	if camLockTrashConn then
+		camLockTrashConn:Disconnect()
+		camLockTrashConn = nil
+	end
+end
+
+local function startCamLockTrashLoop()
+	if camLockTrashConn then return end
+	camLockTrashConn = RunService.Heartbeat:Connect(function()
+		if not camLockTrashEnabled or not camLockTrashHolding then return end
+		if isSafeTeleportLocked() then return end
+		if not CamlockEnabled then
+			stopCamLockTrashActive()
+			return
+		end
+		if not _G.NOTHINGX_TrashPlayer then return end
+
+		local targetPlr = getCamlockPlayer()
+		if not targetPlr then
+			stopCamLockTrashActive()
+			return
+		end
+
+		if playerChosen ~= targetPlr then
+			playerChosen = targetPlr
+		end
+		_G.NOTHINGX_TrashPlayer.AttachTarget(targetPlr)
+		if not _G.NOTHINGX_TrashPlayer.IsRunning() then
+			_G.NOTHINGX_TrashPlayer.SetRunning(true)
+		end
+		camLockTrashActive = true
+	end)
+end
+
+local function bindCamLockTrashInput()
+	if camLockTrashInputBegan then return end
+	camLockTrashInputBegan = UserInputService.InputBegan:Connect(function(input, gp)
+		if gp then return end
+		if not camLockTrashEnabled then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			camLockTrashHolding = true
+			if not camLockTrashSession then
+				camLockTrashSession = true
+				camLockTrashPrevPlayer = playerChosen
+				camLockTrashPrevRunning = _G.NOTHINGX_TrashPlayer
+					and _G.NOTHINGX_TrashPlayer.IsRunning
+					and _G.NOTHINGX_TrashPlayer.IsRunning()
+					or false
+				if camLockTrashPrevRunning and _G.NOTHINGX_TrashPlayer then
+					_G.NOTHINGX_TrashPlayer.SetRunning(false)
+				end
+			end
+			startCamLockTrashLoop()
+		end
+	end)
+	camLockTrashInputEnded = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			stopCamLockTrashAll()
+		end
+	end)
+end
+
+local function unbindCamLockTrashInput()
+	if camLockTrashInputBegan then
+		camLockTrashInputBegan:Disconnect()
+		camLockTrashInputBegan = nil
+	end
+	if camLockTrashInputEnded then
+		camLockTrashInputEnded:Disconnect()
+		camLockTrashInputEnded = nil
+	end
+end
+
+Tabs.TOG:AddToggle("camlocktrash", {
+	Title = "Cam-Lock Trash Cant",
+	Default = false,
+	Callback = function(state)
+		camLockTrashEnabled = state
+		if state then
+			bindCamLockTrashInput()
+		else
+			unbindCamLockTrashInput()
+			stopCamLockTrashAll()
+		end
+	end
+})
 task.spawn(function()
 
 local LocalPlayer = Players.LocalPlayer
@@ -2437,7 +2536,6 @@ task.delay(1.5, function()
     end
 end)
 end)
-__loadBurst(5)
 
 Tabs.TOG:AddButton({
     Title = "Lay",
@@ -2822,4 +2920,3 @@ if map and mainPart then
         end
     })
 end
-__loadBurst(5)
