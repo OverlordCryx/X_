@@ -153,6 +153,21 @@ Window:SelectTab()
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
+local proceed = false
+Window:Dialog({
+    Title = "NOTHING X Load",
+    Content = "Load the full script now?",
+    Buttons = {
+        {
+            Title = "NOTHING X Load ..",
+            Callback = function()
+                proceed = true
+            end
+        }
+    }
+})
+while not proceed do task.wait(0.1) end
+if cancelled then return end
 __loadBurst(6)
 task.spawn(function()
 local Players = game:GetService("Players")
