@@ -2162,7 +2162,7 @@ local function unbindCamLockTrashInput()
 end
 
 Tabs.TOG:AddToggle("camlocktrash", {
-	Title = "Cam-Lock Trash Cant",
+	Title = "Cam-Lock Trash Cant (Hold Right)",
 	Default = false,
 	Callback = function(state)
 		camLockTrashEnabled = state
