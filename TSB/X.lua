@@ -112,6 +112,7 @@ player.CharacterAdded:Connect(function(char)
 	hrp = char:WaitForChild("HumanoidRootPart")
 end)
 end)
+local SaveManager = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/raw/refs/heads/master/Addons/SaveManager.lua"))()
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
@@ -2919,4 +2920,30 @@ if map and mainPart then
             end
         end
     })
+end
+Tabs.TOG:AddButton({
+    Title = "Save All Settings",
+    Description = "Manually save your current config",
+    Callback = function()
+        if SaveManager then
+            SaveManager:Save("XVX")
+            Fluent:Notify({
+                Title = "NOTHING_X",
+                Content = "Settings saved successfully!",
+                Duration = 3
+            })
+        end
+    end
+})
+if SaveManager then
+    pcall(function()
+        SaveManager:SetLibrary(Fluent)
+        SaveManager:SetFolder("NOTHING_X/settings")
+        SaveManager:Load("XVX")
+		    Fluent:Notify({
+            Title = "NOTHING_X",
+            Content = "Settings loaded successfully!",
+            Duration = 3
+        })
+    end)
 end
