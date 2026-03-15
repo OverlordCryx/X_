@@ -9,7 +9,7 @@ if coreGui:FindFirstChild("ScreenGui") then
     return
 end
 task.spawn(function()
-loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-UN"))()
+loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-UN-AIMBOT"))()
 end)
 local function SafeLoad(url)
     local success, result = pcall(function()
