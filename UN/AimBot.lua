@@ -38,8 +38,30 @@ local Tabs = {
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
 end)
+local proceed = false
+Window:Dialog({
+    Title = "NOTHING X Load",
+    Content = "Load the full script now?",
+    Buttons = {
+        {
+            Title = "NOTHING X Load ..",
+            Callback = function()
+                proceed = true
+            end
+        }
+    }
+})
+while not proceed do task.wait(0.1) end
+if cancelled then return end
+
 local Options = Fluent.Options
 local ConfigLoading = false
+local function LoadAllSettings()
+    if SaveManager then
+        SaveManager:Load("autosave")
+        Fluent:Notify({Title = "NOTHING_X", Content = "Settings loaded successfully!", Duration = 3})
+    end
+end
 Tabs.Settings:AddButton({
     Title = "Save All Settings",
     Description = "Manually save your current config",
@@ -48,6 +70,13 @@ Tabs.Settings:AddButton({
             SaveManager:Save("autosave")
             Fluent:Notify({Title = "NOTHING_X", Content = "Settings saved successfully!", Duration = 3})
         end
+    end
+})
+Tabs.Settings:AddButton({
+    Title = "Load All Settings",
+    Description = "Load your saved config",
+    Callback = function()
+        LoadAllSettings()
     end
 })
 local function DisableAllAimbots(except)
@@ -81,7 +110,7 @@ TPAutoKillToggle:OnChanged(function()
 end)
 local PlayerDropdown = Tabs.Main:AddDropdown("PlayerSelection", {
     Title = "Target Filter",
-    Values = {"All Players"},
+    Values = {"All Players", "All Objects"},
     Default = "All Players"
 })
 Tabs.Main:AddParagraph({
@@ -91,7 +120,7 @@ Tabs.Main:AddParagraph({
 Tabs.Main:AddToggle("InfiniteDistance", {Title = "Infinite Range (Ignore FOV)", Default = false})
 Tabs.Main:AddDropdown("PriorityMode", {Title = "Target Priority", Values = {"Closest to Mouse", "Closest to Player", "Lowest Health"}, Default = "Closest to Mouse"})
 Tabs.Main:AddDropdown("TargetPartDropdown", {Title = "Target Part", Values = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"}, Default = "Head"})
-Tabs.Main:AddDropdown("TeamModeDropdown", {Title = "Team Targeting", Values = {"Enemy Only", "Team Only", "Any Player"}, Default = "Enemy Only"})
+Tabs.Main:AddDropdown("TeamModeDropdown", {Title = "Team Targeting", Values = {"Enemy Only", "Any Player", "Any Objects"}, Default = "Enemy Only"})
 Tabs.Main:AddSlider("SmoothingSlider", {Title = "Aim Smoothing", Default = 0.5, Min = 0, Max = 1, Rounding = 2})
 Tabs.Main:AddSlider("FOVSlider", {Title = "Field of View", Default = 150, Min = 10, Max = 1500, Rounding = 0})
 Tabs.Main:AddToggle("ShowFOVToggle", {Title = "Show FOV Circle", Default = false})
@@ -136,6 +165,45 @@ local _RayParams = RaycastParams.new()
 _RayParams.FilterType = Enum.RaycastFilterType.Exclude
 local CurrentAimKeyEnum = nil
 local CurrentAimKeyType = "Mouse"
+local lastHumanoidScan = 0
+local cachedHumanoidModels = {}
+local function RefreshHumanoidModels()
+    cachedHumanoidModels = {}
+    for _, inst in ipairs(Workspace:GetDescendants()) do
+        if inst:IsA("Humanoid") then
+            local model = inst.Parent
+            if model and model:IsA("Model") and model ~= LocalPlayer.Character then
+                table.insert(cachedHumanoidModels, model)
+            end
+        end
+    end
+    lastHumanoidScan = tick()
+end
+local function GetHumanoidModels()
+    if tick() - lastHumanoidScan > 2 then
+        RefreshHumanoidModels()
+    end
+    return cachedHumanoidModels
+end
+local function GetModelTargetPart(model, targetPartName)
+    local chosenPart = targetPartName == "Randomized" and (math.random(1, 3) == 1 and "Head" or "UpperTorso") or targetPartName
+    return model:FindFirstChild(chosenPart)
+        or model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Head")
+        or model:FindFirstChildWhichIsA("BasePart")
+end
+local function GetTargetModel(part)
+    if not part then return nil end
+    return part:FindFirstAncestorOfClass("Model")
+end
+local function IsVisibleToCamera(part, model)
+    if not part then return false end
+    _RayParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera, Workspace:FindFirstChild("Ignore"), Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("MapIgnore")}
+    local res = Workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position), _RayParams)
+    if not res then return true end
+    if model and res.Instance:IsDescendantOf(model) then return true end
+    return res.Instance == part
+end
 local function UpdateKeyCache()
     local key = Options.AimKeybind.Value
     if not key then return end
@@ -159,8 +227,6 @@ local function ShouldTarget(p)
     local myTeam = LocalPlayer.Team
     if mode == "Enemy Only" then
         return pTeam ~= myTeam or (not pTeam and not myTeam)
-    elseif mode == "Team Only" then
-        return pTeam == myTeam and (pTeam ~= nil)
     end
     return true
 end
@@ -172,33 +238,61 @@ local function GetClosestTarget()
     local infinite = Options.InfiniteDistance.Value or Options.TPAutoKill.Value
     local maxFOV = infinite and 999999 or Options.FOVSlider.Value
     local specificPlayer = Options.PlayerSelection.Value
-    local players = Players:GetPlayers()
-    for i = 1, #players do
-        local p = players[i]
-        if p.UserId == skipTarget then continue end
-        if specificPlayer == "All Players" or (specificPlayer == p.Name) then
-            if ShouldTarget(p) then
-                local char = p.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
-                    local chosenPart = targetPartName == "Randomized" and (math.random(1, 3) == 1 and "Head" or "UpperTorso") or targetPartName
-                    local part = char:FindFirstChild(chosenPart) or char:FindFirstChild("Head")
-                    if part then
-                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                        local mouseDistance = (mouseLoc - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                        if onScreen or infinite then
-                            if mouseDistance < maxFOV then
-                                _RayParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera, Workspace:FindFirstChild("Ignore"), Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("MapIgnore")}
-                                local res = Workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position), _RayParams)
-                                local isVisible = not res or res.Instance:IsDescendantOf(char) or res.Instance == part
-                                if Options.TPAutoKill.Value or (not Options.WallCheck.Value or isVisible) then
-                                    local currentScore = 0
-                                    if priority == "Closest to Mouse" then currentScore = mouseDistance
-                                    elseif priority == "Closest to Player" then currentScore = (part.Position - Camera.CFrame.Position).Magnitude
-                                    elseif priority == "Lowest Health" then currentScore = hum.Health end
-                                    if currentScore < minScore then
-                                        target = part
-                                        minScore = currentScore
+    local mode = Options.TeamModeDropdown.Value
+    if mode == "Any Objects" or specificPlayer == "All Objects" then
+        local models = GetHumanoidModels()
+        for i = 1, #models do
+            local model = models[i]
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                local part = GetModelTargetPart(model, targetPartName)
+                if part then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    local mouseDistance = (mouseLoc - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if onScreen or infinite then
+                        if mouseDistance < maxFOV then
+                            local isVisible = IsVisibleToCamera(part, model)
+                            if Options.TPAutoKill.Value or isVisible then
+                                local currentScore = 0
+                                if priority == "Closest to Mouse" then currentScore = mouseDistance
+                                elseif priority == "Closest to Player" then currentScore = (part.Position - Camera.CFrame.Position).Magnitude
+                                elseif priority == "Lowest Health" then currentScore = hum.Health end
+                                if currentScore < minScore then
+                                    target = part
+                                    minScore = currentScore
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    else
+        local players = Players:GetPlayers()
+        for i = 1, #players do
+            local p = players[i]
+            if p.UserId == skipTarget then continue end
+            if specificPlayer == "All Players" or (specificPlayer == p.Name) then
+                if ShouldTarget(p) then
+                    local char = p.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local part = GetModelTargetPart(char, targetPartName)
+                        if part then
+                            local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                            local mouseDistance = (mouseLoc - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                            if onScreen or infinite then
+                                if mouseDistance < maxFOV then
+                            local isVisible = IsVisibleToCamera(part, char)
+                            if Options.TPAutoKill.Value or (not Options.WallCheck.Value or isVisible) then
+                                local currentScore = 0
+                                if priority == "Closest to Mouse" then currentScore = mouseDistance
+                                elseif priority == "Closest to Player" then currentScore = (part.Position - Camera.CFrame.Position).Magnitude
+                                elseif priority == "Lowest Health" then currentScore = hum.Health end
+                                        if currentScore < minScore then
+                                            target = part
+                                            minScore = currentScore
+                                        end
                                     end
                                 end
                             end
@@ -211,41 +305,101 @@ local function GetClosestTarget()
     return target
 end
 local ESPContainer = {}
-local function CreateESP(p)
-    if p == LocalPlayer or ESPContainer[p] then return end
-    ESPContainer[p] = {
+local function EnsureESP(model)
+    if not model or ESPContainer[model] then return end
+    ESPContainer[model] = {
         Box = Drawing.new("Square"), Name = Drawing.new("Text"),
         HealthBar = Drawing.new("Square"), HealthFill = Drawing.new("Square")
     }
-    local d = ESPContainer[p]; d.Box.Thickness = 1; d.Name.Size = 13; d.Name.Center = true; d.Name.Outline = true
-    d.HealthBar.Filled = true; d.HealthBar.Color = Color3.fromRGB(0,0,0); d.HealthFill.Filled = true
+    local d = ESPContainer[model]
+    d.Box.Thickness = 1
+    d.Name.Size = 13
+    d.Name.Center = true
+    d.Name.Outline = true
+    d.HealthBar.Filled = true
+    d.HealthBar.Color = Color3.fromRGB(0,0,0)
+    d.HealthFill.Filled = true
+end
+local function GetModelRoot(model)
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Head")
+        or model:FindFirstChildWhichIsA("BasePart")
 end
 local function UpdateESP()
     local enabled = Options.ESPToggle.Value; local espColor = Options.ESPColor.Value; local maxDist = Options.ESPDistance.Value
-    for p, d in pairs(ESPContainer) do
-        local char = p.Character; local root = char and char:FindFirstChild("HumanoidRootPart")
-        if enabled and root and ShouldTarget(p) then
-            local dist = (root.Position - Camera.CFrame.Position).Magnitude
-            if dist < maxDist then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-                if onScreen then
-                    local size = Vector2.new(2000 / screenPos.Z, 3000 / screenPos.Z)
-                    local pos = Vector2.new(screenPos.X - size.X / 2, screenPos.Y - size.Y / 2)
-                    if Options.ESPBoxes.Value then d.Box.Size = size; d.Box.Position = pos; d.Box.Color = espColor; d.Box.Visible = true else d.Box.Visible = false end
-                    if Options.ESPNames.Value then d.Name.Position = Vector2.new(screenPos.X, pos.Y-15); d.Name.Text = p.Name; d.Name.Color = espColor; d.Name.Visible = true else d.Name.Visible = false end
-                    if Options.ESPHealthBar.Value then
-                        local hum = char:FindFirstChildOfClass("Humanoid")
-                        if hum then
-                            local hRatio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                            d.HealthBar.Size = Vector2.new(4, size.Y); d.HealthBar.Position = Vector2.new(pos.X - 6, pos.Y); d.HealthBar.Visible = true
-                            d.HealthFill.Size = Vector2.new(2, size.Y * hRatio); d.HealthFill.Position = Vector2.new(pos.X-5, pos.Y+(size.Y*(1-hRatio))); d.HealthFill.Color = Color3.fromHSV(hRatio*0.3, 1, 1); d.HealthFill.Visible = true
-                        end
-                    else d.HealthBar.Visible = false; d.HealthFill.Visible = false end
-                    continue
+    local updated = {}
+    local mode = Options.TeamModeDropdown.Value
+    local specificPlayer = Options.PlayerSelection.Value
+    local useObjects = (mode == "Any Objects") or (specificPlayer == "All Objects")
+    if useObjects then
+        local models = GetHumanoidModels()
+        for i = 1, #models do
+            local model = models[i]
+            local root = GetModelRoot(model)
+            if enabled and root then
+                EnsureESP(model)
+                local dist = (root.Position - Camera.CFrame.Position).Magnitude
+                if dist < maxDist then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                    if onScreen then
+                        local size = Vector2.new(2000 / screenPos.Z, 3000 / screenPos.Z)
+                        local pos = Vector2.new(screenPos.X - size.X / 2, screenPos.Y - size.Y / 2)
+                        local d = ESPContainer[model]
+                        if Options.ESPBoxes.Value then d.Box.Size = size; d.Box.Position = pos; d.Box.Color = espColor; d.Box.Visible = true else d.Box.Visible = false end
+                        if Options.ESPNames.Value then d.Name.Position = Vector2.new(screenPos.X, pos.Y-15); d.Name.Text = model.Name; d.Name.Color = espColor; d.Name.Visible = true else d.Name.Visible = false end
+                        if Options.ESPHealthBar.Value then
+                            local hum = model:FindFirstChildOfClass("Humanoid")
+                            if hum then
+                                local hRatio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                                d.HealthBar.Size = Vector2.new(4, size.Y); d.HealthBar.Position = Vector2.new(pos.X - 6, pos.Y); d.HealthBar.Visible = true
+                                d.HealthFill.Size = Vector2.new(2, size.Y * hRatio); d.HealthFill.Position = Vector2.new(pos.X-5, pos.Y+(size.Y*(1-hRatio))); d.HealthFill.Color = Color3.fromHSV(hRatio*0.3, 1, 1); d.HealthFill.Visible = true
+                            end
+                        else d.HealthBar.Visible = false; d.HealthFill.Visible = false end
+                        updated[model] = true
+                    end
                 end
             end
         end
-        d.Box.Visible = false; d.Name.Visible = false; d.HealthBar.Visible = false; d.HealthFill.Visible = false
+    else
+        local players = Players:GetPlayers()
+        for i = 1, #players do
+            local p = players[i]
+            if p ~= LocalPlayer and ShouldTarget(p) then
+                local char = p.Character
+                local root = char and GetModelRoot(char)
+                if enabled and root then
+                    EnsureESP(char)
+                    local dist = (root.Position - Camera.CFrame.Position).Magnitude
+                    if dist < maxDist then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                        if onScreen then
+                            local size = Vector2.new(2000 / screenPos.Z, 3000 / screenPos.Z)
+                            local pos = Vector2.new(screenPos.X - size.X / 2, screenPos.Y - size.Y / 2)
+                            local d = ESPContainer[char]
+                            if Options.ESPBoxes.Value then d.Box.Size = size; d.Box.Position = pos; d.Box.Color = espColor; d.Box.Visible = true else d.Box.Visible = false end
+                            if Options.ESPNames.Value then d.Name.Position = Vector2.new(screenPos.X, pos.Y-15); d.Name.Text = p.Name; d.Name.Color = espColor; d.Name.Visible = true else d.Name.Visible = false end
+                            if Options.ESPHealthBar.Value then
+                                local hum = char:FindFirstChildOfClass("Humanoid")
+                                if hum then
+                                    local hRatio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                                    d.HealthBar.Size = Vector2.new(4, size.Y); d.HealthBar.Position = Vector2.new(pos.X - 6, pos.Y); d.HealthBar.Visible = true
+                                    d.HealthFill.Size = Vector2.new(2, size.Y * hRatio); d.HealthFill.Position = Vector2.new(pos.X-5, pos.Y+(size.Y*(1-hRatio))); d.HealthFill.Color = Color3.fromHSV(hRatio*0.3, 1, 1); d.HealthFill.Visible = true
+                                end
+                            else d.HealthBar.Visible = false; d.HealthFill.Visible = false end
+                            updated[char] = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    for model, d in pairs(ESPContainer) do
+        if not updated[model] then
+            d.Box.Visible = false
+            d.Name.Visible = false
+            d.HealthBar.Visible = false
+            d.HealthFill.Visible = false
+        end
     end
 end
 RunService.Heartbeat:Connect(function()
@@ -316,7 +470,10 @@ RunService.Heartbeat:Connect(function()
             end
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), smoothing)
             if typeof(mouse1click) == "function" then
-                if isAuto or isTPAuto or (isManual and Options.AimbotAutoShot.Value) then
+                local forceVis = (Options.TeamModeDropdown.Value == "Any Objects") or (Options.PlayerSelection.Value == "All Objects")
+                local tModel = GetTargetModel(target)
+                local visibleNow = IsVisibleToCamera(target, tModel)
+                if (isAuto or isTPAuto or (isManual and Options.AimbotAutoShot.Value)) and (isTPAuto or (not Options.WallCheck.Value and not forceVis) or visibleNow) then
                     mouse1click()
                 end
             end
@@ -327,18 +484,30 @@ RunService.Heartbeat:Connect(function()
 end)
 task.spawn(function()
     while task.wait(5) do
-        local names = {"All Players"}
+        local names = {"All Players", "All Objects"}
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer then table.insert(names, p.Name) end
         end
         pcall(function() PlayerDropdown:SetValues(names) end)
     end
 end)
-Players.PlayerAdded:Connect(CreateESP)
-for _, p in ipairs(Players:GetPlayers()) do CreateESP(p) end
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function(char)
+        if char ~= LocalPlayer.Character then
+            EnsureESP(char)
+        end
+    end)
+end)
+for _, p in ipairs(Players:GetPlayers()) do
+    if p.Character and p.Character ~= LocalPlayer.Character then
+        EnsureESP(p.Character)
+    end
+end
 Window:SelectTab(1)
 if SaveManager then
     pcall(function()
-        SaveManager:SetLibrary(Fluent); SaveManager:SetFolder("NOTHING_X/settings")
+        SaveManager:SetLibrary(Fluent)
+        SaveManager:SetFolder("NOTHING_X/settings")
+        SaveManager:Load("autosave")
     end)
 end
