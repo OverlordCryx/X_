@@ -9,7 +9,7 @@ if coreGui:FindFirstChild("ScreenGui") then
     return
 end
 task.spawn(function()
-loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-UN"))()
+loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-UN-WL"))()
 end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Players = game:GetService("Players")
