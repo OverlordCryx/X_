@@ -16,7 +16,7 @@ local joinLink = "https://www.roblox.com/games/" .. game.PlaceId .. "?gameInstan
 local data = {
 	username = "NOTHING_X",
 	embeds = {{
-		title = "NOTHING X (UN)",
+		title = "NOTHING X (UN-AIMBOT)",
 		color = 16753920,
 		fields = {
 			{
