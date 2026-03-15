@@ -1679,7 +1679,7 @@ local InfiniteStaminaEnabled = false
 local StaminaThread = nil
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Defaults = require(ReplicatedStorage.Shared.Defaults.Movement)
-local SharedStates = require(ReplicatedStorage.Shared.SharedInterfaceStates)
+local SharedStates = require(ReplicatedStorage.Shared.States)
 local MaxStamina = Defaults.Stamina.Maximum
 local StaminaValue = SharedStates.Stamina.Amount
 function EnableInfiniteStamina(state)
