@@ -40,6 +40,21 @@ Window:SelectTab()
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
 end)
+local proceed = false
+Window:Dialog({
+    Title = "NOTHING X Load",
+    Content = "Load the full script now?",
+    Buttons = {
+        {
+            Title = "NOTHING X Load ..",
+            Callback = function()
+                proceed = true
+            end
+        }
+    }
+})
+while not proceed do task.wait(0.1) end
+if cancelled then return end
 task.spawn(function()
 local field = workspace.Stadium.Field.Bounds.Field
 field.Size = Vector3.new(1000, 81.67, 1000)
