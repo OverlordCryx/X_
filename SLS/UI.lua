@@ -79,12 +79,13 @@ local function fastTp(ball, target)
     ball.CFrame = target
     
     task.spawn(function()
-        for i = 1, 5 do
-            if ball and target then
-                ball.CFrame = target
+        local hb = game:GetService("RunService").Heartbeat
+        for i = 1, 12 do
+            if ball then
                 ball.AssemblyLinearVelocity = Vector3.zero
+                ball.CFrame = target
             end
-            task.wait()
+            hb:Wait()
         end
     end)
 end
@@ -123,9 +124,11 @@ local function TPTowardPlayer()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local football = Workspace:FindFirstChild("Misc") and findFoot(Workspace.Misc)
     if not (char and hrp and football) then return end
+    
+    -- VERY OP: Ball to Player + Player Snap to Ball
     fastTp(football, hrp.CFrame)
     if teamPos ~= "GK" then
-        hrp.CFrame = CFrame.new(football.Position)
+        hrp.CFrame = football.CFrame
     end
 end
 local function MID()
@@ -1368,11 +1371,9 @@ Tabs.keybinds:AddKeybind("AltBind", {
                     tapE()
                 end
                 if owner ~= LocalPlayer.Name then
-                    ball.CFrame = hrp.CFrame
-                    ball.AssemblyLinearVelocity = Vector3.new()
-                    ball.AssemblyAngularVelocity = Vector3.new()
+                    fastTp(ball, hrp.CFrame)
                 end
-                task.wait(0.1)
+                task.wait()
             end
         end)
     end
@@ -1405,10 +1406,7 @@ local function tpFootballToNearestPlayer()
     if not football then return end
     local nearestPlayer = getNearestPlayer()
     if nearestPlayer and nearestPlayer.Character and nearestPlayer.Character.PrimaryPart then
-        local targetPosition = nearestPlayer.Character.PrimaryPart.Position + Vector3.new(0, 0, 0)
-        football.AssemblyLinearVelocity = Vector3.zero
-        football.AssemblyAngularVelocity = Vector3.zero
-        football.CFrame = CFrame.new(targetPosition)
+        fastTp(football, nearestPlayer.Character.PrimaryPart.CFrame)
     end
 end
 if Tabs and Tabs.keybinds then
