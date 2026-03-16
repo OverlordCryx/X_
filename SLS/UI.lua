@@ -13,7 +13,9 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/
 end)
 task.spawn(function()
 wait(6)
+local RS=game:GetService("ReplicatedStorage");pcall(function()RS.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.ActionService.RP.Cooldowns:Destroy()end);pcall(function()RS.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.SkillsService.RP.Cooldowns:Destroy()end)
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/Data"))()
+
 end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
