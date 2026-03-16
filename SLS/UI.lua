@@ -1744,7 +1744,7 @@ end)
 _G.InfiniteEvade   = true
 _G.InfiniteStamina = true
 	end)
-Tabs.TOG:AddButton({
+Tabs.save:AddButton({
     Title = "Save All Settings",
     Description = "Manually save your current config",
     Callback = function()
