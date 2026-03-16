@@ -62,12 +62,31 @@ local field = workspace.Stadium.Field.Bounds.Field
 field.Size = Vector3.new(1000, 81.67, 1000)
 	end)
 local function findFoot(parent)
+    if not parent then return nil end
     for _, obj in ipairs(parent:GetChildren()) do
         if obj:IsA("BasePart") and obj.Name:sub(1, 4) == "Foot" then
             return obj
         end
     end
     return nil
+end
+
+local function fastTp(ball, target)
+    if not ball or not target then return end
+    ball.AssemblyLinearVelocity = Vector3.zero
+    ball.AssemblyAngularVelocity = Vector3.zero
+    ball:PivotTo(target)
+    ball.CFrame = target
+    
+    task.spawn(function()
+        for i = 1, 5 do
+            if ball and target then
+                ball.CFrame = target
+                ball.AssemblyLinearVelocity = Vector3.zero
+            end
+            task.wait()
+        end
+    end)
 end
 task.spawn(function()
 local Players = game:GetService("Players")
@@ -104,9 +123,7 @@ local function TPTowardPlayer()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local football = Workspace:FindFirstChild("Misc") and findFoot(Workspace.Misc)
     if not (char and hrp and football) then return end
-    football.Position = hrp.Position
-    football.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    football.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    fastTp(football, hrp.CFrame)
     if teamPos ~= "GK" then
         hrp.CFrame = CFrame.new(football.Position)
     end
@@ -154,9 +171,7 @@ local function handleFootball(hrp)
         if teamPos ~= "GK" then
             hrp.CFrame = CFrame.new(footballPos + Vector3.new(0, 0, 0))
         end
-        Xfootball.Position = hrpPos
-        Xfootball.AssemblyLinearVelocity = Vector3.zero
-        Xfootball.AssemblyAngularVelocity = Vector3.zero
+        fastTp(Xfootball, hrp.CFrame)
     else
         if teamPos ~= "GK" then
             MID()
@@ -169,9 +184,8 @@ local function handleFootball(hrp)
         local target = (typeof(owner) == "string" and owner ~= LocalPlayer.Name and getEnemyPlayerWithBall(owner))
                        or getEnemyAgentWithBall()
         if target then
-			 local targetPlayer = Players:FindFirstChild(owner)
             local targetTeamPos = targetPlayer and targetPlayer:GetAttribute("TeamPosition")
-            Xfootball.Position = hrpPos	
+            fastTp(Xfootball, hrp.CFrame)
             if targetTeamPos ~= "GK" then
                 hrp.CFrame = target.CFrame
             end            
@@ -466,22 +480,13 @@ local function tpFbToPlayers()
         local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
         if fb and hrp then
             if ts then
-                if fb:GetAttribute("NetworkOwner") == lp.Name then
-                    fb.AssemblyLinearVelocity = Vector3.new(0,0,0)
-                    fb.AssemblyAngularVelocity = Vector3.new(0,0,0)
-                    fb.CFrame = hrp.CFrame
-                end
+                fastTp(fb, hrp.CFrame)
             elseif sp and sp.Character and sp.Character:FindFirstChild("HumanoidRootPart") then
-                local spHrp = sp.Character.HumanoidRootPart
-                if fb:GetAttribute("NetworkOwner") == lp.Name then
-                    fb.AssemblyLinearVelocity = Vector3.new(0,0,0)
-                    fb.AssemblyAngularVelocity = Vector3.new(0,0,0)
-                    fb.CFrame = spHrp.CFrame
-                end
+                fastTp(fb, sp.Character.HumanoidRootPart.CFrame)
             end
             ts = not ts
         end
-        task.wait(0.04)
+        task.wait()
     end
 end
 local function autoClicker()
@@ -521,20 +526,18 @@ local function tpFbToPlayersPass()
                     vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                 end
             end
-            if fb:GetAttribute("NetworkOwner") == lp.Name or (sp and networkOwner == sp.Name) then
-                fb.AssemblyLinearVelocity = Vector3.new(0,0,0)
-                fb.AssemblyAngularVelocity = Vector3.new(0,0,0)
-                if sp and sp.Character then
-                    fb.CFrame = sp.Character.HumanoidRootPart.CFrame
+            if fb:GetAttribute("NetworkOwner") == lp.Name or (sp and networkOwner == sp.Name) or true then -- Bypass ownership
+                if sp and sp.Character and sp.Character:FindFirstChild("HumanoidRootPart") then
+                    fastTp(fb, sp.Character.HumanoidRootPart.CFrame)
                 else
-                    fb.CFrame = hrp.CFrame
+                    fastTp(fb, hrp.CFrame)
                 end
                 vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
                 task.wait()
                 vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
             end
         end
-        task.wait(0.04)
+        task.wait()
     end
 end
 Tabs.all:AddKeybind("KeybindPass", {
@@ -744,11 +747,13 @@ Tabs.keybinds:AddKeybind("Keybind", {
     Callback = function()
         local player = game.Players.LocalPlayer
         local character = player.Character
-local football = findFoot(game.workspace.Misc)
+        local football = findFoot(game.workspace.Misc)
         if character and character:FindFirstChild("HumanoidRootPart") and football then
-            football.Position = character.HumanoidRootPart.Position
-            football.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            football.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            task.spawn(function()
+                for i = 1, 10 do
+                    fastTp(football, character.HumanoidRootPart.CFrame + (character.HumanoidRootPart.CFrame.LookVector * 1.8))
+                end
+            end)
         end
     end
 })
