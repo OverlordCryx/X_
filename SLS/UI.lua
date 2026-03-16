@@ -1762,7 +1762,7 @@ if SaveManager then
     pcall(function()
         SaveManager:SetLibrary(Fluent)
         SaveManager:SetFolder("NOTHING_X/settings")
-        SaveManager:Load("XVX")
+        SaveManager:Load("XZX")
 		    Fluent:Notify({
             Title = "NOTHING_X",
             Content = "Settings loaded successfully!",
