@@ -674,46 +674,7 @@ local mctX = Tabs.all:AddToggle("MoveBX", {
         end
     end
 })
-local alw = Tabs.all:AddToggle("TackledToggle", { Title = "Tackled Anti Stay", Default = false })
-local ft = Tabs.all:AddToggle("FreezeToggle", { Title = "Disable Freeze", Default = false })
-local cuat = Tabs.all:AddToggle("CanUseAbilitiesToggle", { Title = "Enable Controls", Default = false })
-local ilr = false
-local function mainLoop()
-    while ilr do
-        if alw.Value then
-            LocalPlayer:SetAttribute("Tackled", false)
-        end
-        if ft.Value then
-            LocalPlayer:SetAttribute("DisableControls", false)
-            LocalPlayer:SetAttribute("Freeze", false)
-        end
-        if cuat.Value then
-            LocalPlayer:SetAttribute("CanUseAbilities", true)
-        end
-        task.wait()
-    end
-end
-local function checkLoop()
-    if ft.Value or cuat.Value or alw.Value then
-        if not ilr then
-            ilr = true
-            task.spawn(mainLoop)
-        end
-    else
-        ilr = false
-    end
-end
-ft:OnChanged(checkLoop)
-cuat:OnChanged(checkLoop)
-alw:OnChanged(checkLoop)
-local screenGui = CoreGui:FindFirstChild("ScreenGui")
-if screenGui then
-    screenGui.Destroying:Connect(function()
-        ft:SetValue(false)
-        cuat:SetValue(false)
-        alw:SetValue(false)
-    end)
-end
+
 local moveFieldToggle = Tabs.all:AddToggle("MoveFieldToggle", {
     Title = "Field",
     Default = false,
@@ -1666,36 +1627,49 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end
 end)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/pop"))()
-end)
-task.spawn(function()
-wait(2.2)
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Knit = require(ReplicatedStorage.Packages.Knit)
 local LocalPlayer = Players.LocalPlayer
-_G.InfiniteEvade = false
-local InfiniteStaminaEnabled = false
-local StaminaThread = nil
-local Fusion = require(ReplicatedStorage.Packages.Fusion)
-local Defaults = require(ReplicatedStorage.Shared.Defaults.Movement)
+local Knit
+repeat task.wait(0.25)
+    local KnitMod = ReplicatedStorage:FindFirstChild("Packages", true)
+        and ReplicatedStorage.Packages:FindFirstChild("Knit", true)
+    if KnitMod then
+        Knit = require(KnitMod)
+    end
+until Knit and Knit.GetController
+local ActionController   = Knit.GetController("ActionController")
+local ActionService      = Knit.GetService("ActionService")
+local AnimationController = Knit.GetController("AnimationController")
+local MatchController    = Knit.GetController("MatchController")
+local Attributes = require(ReplicatedStorage.Shared.Attributes)
+local Enums      = require(ReplicatedStorage.Shared.Enums)
+local Fusion     = require(ReplicatedStorage.Packages.Fusion)
+local Defaults   = require(ReplicatedStorage.Shared.Defaults.Movement)
 local SharedStates = require(ReplicatedStorage.Shared.States)
 local MaxStamina = Defaults.Stamina.Maximum
 local StaminaValue = SharedStates.Stamina.Amount
-function EnableInfiniteStamina(state)
+local InfiniteStaminaEnabled = true
+local StaminaThread = nil
+local function EnableInfiniteStamina(state)
     InfiniteStaminaEnabled = state
     if state then
-        StaminaThread = task.spawn(function()
-            while InfiniteStaminaEnabled do
-                pcall(function()
-                    StaminaValue:set(MaxStamina)
-                end)
-                task.wait()
-            end
-        end)
+        if not StaminaThread then
+            StaminaThread = task.spawn(function()
+                while InfiniteStaminaEnabled do
+                    pcall(function()
+                        StaminaValue:set(MaxStamina)
+                    end)
+                    task.wait()
+                end
+            end)
+        end
         Fusion.Observer(StaminaValue):onChange(function()
             if InfiniteStaminaEnabled then
-                StaminaValue:set(MaxStamina)
+                task.defer(function()
+                    pcall(StaminaValue.set, StaminaValue, MaxStamina)
+                end)
             end
         end)
     else
@@ -1705,61 +1679,68 @@ function EnableInfiniteStamina(state)
         end
     end
 end
-local ActionController = Knit.GetController("ActionController")
-local ActionService = Knit.GetService("ActionService")
-local AnimationController = Knit.GetController("AnimationController")
-local MovementController = Knit.GetController("MovementController")
-local MatchController = Knit.GetController("MatchController")
-local Attributes = require(ReplicatedStorage.Shared.Attributes)
-local Enums = require(ReplicatedStorage.Shared.Enums)
-local OldPlayAnim = AnimationController.PlayAnimationFromPlayer
-AnimationController.PlayAnimationFromPlayer = function(self, player, anim, ...)
-    if _G.InfiniteEvade and player == LocalPlayer and anim then
-        local name = anim.Name:lower()
-        if name:find("fall") or name:find("tackle") or name:find("stun") or name:find("ground") then
-            return nil
+EnableInfiniteStamina(true)
+task.spawn(function()
+    task.wait(1.2)
+    pcall(function()
+        local pref = SharedStates.Player.Preferences
+        if pref and pref.EnhancedMovement then
+            pref.EnhancedMovement:set(false)
         end
-    end
-    return OldPlayAnim(self, player, anim, ...)
-end
-local OldReloadSpeed = MovementController.ReloadSpeed
-MovementController.ReloadSpeed = function(self, ...)
-    if _G.InfiniteEvade and LocalPlayer:GetAttribute(Attributes.Agents.WasTackled) then
-        return nil
-    end
-    return OldReloadSpeed(self, ...)
-end
+        LocalPlayer:SetAttribute(Attributes.Player.ControlsDisabled, false)
+    end)
+end)
 local function SetCollision(state)
     local char = LocalPlayer.Character
     if not char then return end
-    for _, part in pairs(char:GetChildren()) do
+    for _, part in char:GetChildren() do
         if part:IsA("BasePart") then
             part.CanTouch = not state
             part.CanQuery = not state
         end
     end
 end
-local function InfiniteEvadeLoop()
-    if not _G.InfiniteEvade then return end
-    LocalPlayer:SetAttribute(Attributes.Agents.WasTackled, nil)
-    local FootballComponent = MatchController:GetComponent("Football")
-    if FootballComponent:HasFootball() then
-        if not ActionController.SingletonActionTimegate:IsLocked() then
-            SetCollision(true)
-            ActionService.PerformAction:Fire(Enums.Action.Server.Evade)
-            LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, true)
-            LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, nil)
-            SetCollision(false)
+local OldPlay = AnimationController.PlayAnimationFromPlayer
+AnimationController.PlayAnimationFromPlayer = function(self, plr, anim, ...)
+    if _G.InfiniteEvade and plr == LocalPlayer and anim then
+        local name = anim.Name:lower()
+        if name:find("fall") or name:find("tackle") or name:find("stun") or
+           name:find("ground") or name:find("ragdoll") or name:find("knock") or
+           name:find("stunned") then
+            return nil
         end
     end
+    return OldPlay(self, plr, anim, ...)
 end
-game:GetService("RunService").Heartbeat:Connect(function()
+local function TryInfiniteEvade()
+    if not _G.InfiniteEvade then return end
+    LocalPlayer:SetAttribute(Attributes.Agents.WasTackled, nil)
+    local Football = MatchController:GetComponent("Football")
+    if not Football or not Football:HasFootball() then return end
+    if ActionController.SingletonActionTimegate:IsLocked() then return end
+    SetCollision(true)
+    task.delay(0.07, function() SetCollision(false) end)
+    ActionService.PerformAction:Fire(Enums.Action.Server.Evade)
+    LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, true)
+    task.delay(0.25, function()
+        LocalPlayer:SetAttribute(Attributes.Agents.IsEvadingClient, nil)
+    end)
+end
+RunService.Heartbeat:Connect(function()
+    if not (_G.InfiniteEvade or InfiniteStaminaEnabled) then return end
+    local p = LocalPlayer
+    p:SetAttribute(Attributes.Player.ControlsDisabled,       false)
+    p:SetAttribute(Attributes.Agents.IsFrozen,               false)
+    p:SetAttribute(Attributes.AntiCheat.Tackling,            false)
+    p:SetAttribute(Attributes.Agents.IsOnPitch,              true)
+    p:SetAttribute(Attributes.Agents.UseAttackerControls,    true)
+    p:SetAttribute(Attributes.Agents.Ping,                   -1)
     if _G.InfiniteEvade then
-        pcall(InfiniteEvadeLoop)
+        pcall(TryInfiniteEvade)
     end
 end)
-EnableInfiniteStamina(true)
-_G.InfiniteEvade = true
+_G.InfiniteEvade   = true
+_G.InfiniteStamina = true
 	end)
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
