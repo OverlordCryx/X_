@@ -23,6 +23,65 @@ local VirtualInputManager = getService(game, "VirtualInputManager")
 local function isSafeTeleportLocked()
     return _G.SafeTeleportLock == true
 end
+local JoinLeaveHandlers = { add = {}, remove = {} }
+local JoinLeaveQueue = {}
+local JoinLeaveHead = 1
+local JoinLeaveIndex = {}
+local JoinLeaveWorkerRunning = false
+local function getJoinLeaveDelay()
+    local pending = (#JoinLeaveQueue - JoinLeaveHead + 1)
+    if pending < 0 then pending = 0 end
+    if pending >= 15 then
+        return 0.35
+    elseif pending >= 8 then
+        return 0.25
+    elseif pending >= 4 then
+        return 0.2
+    else
+        return 0.12
+    end
+end
+local function registerJoinLeave(kind, fn)
+    table.insert(JoinLeaveHandlers[kind], fn)
+end
+local function enqueueJoinLeave(kind, plr)
+    local idx = JoinLeaveIndex[plr]
+    if idx then
+        JoinLeaveQueue[idx].kind = kind
+    else
+        JoinLeaveQueue[#JoinLeaveQueue + 1] = { kind = kind, plr = plr }
+        JoinLeaveIndex[plr] = #JoinLeaveQueue
+    end
+    if JoinLeaveWorkerRunning then return end
+    JoinLeaveWorkerRunning = true
+    task.spawn(function()
+        while JoinLeaveHead <= #JoinLeaveQueue do
+            local item = JoinLeaveQueue[JoinLeaveHead]
+            JoinLeaveQueue[JoinLeaveHead] = nil
+            JoinLeaveIndex[item.plr] = nil
+            JoinLeaveHead = JoinLeaveHead + 1
+            local skipHandlers = false
+            if item.kind == "add" and (not item.plr or not item.plr.Parent) then
+                skipHandlers = true
+            end
+            if not skipHandlers then
+                for _, fn in ipairs(JoinLeaveHandlers[item.kind]) do
+                    pcall(fn, item.plr)
+                end
+            end
+            task.wait(getJoinLeaveDelay())
+        end
+        JoinLeaveQueue = {}
+        JoinLeaveHead = 1
+        JoinLeaveWorkerRunning = false
+    end)
+end
+Players.PlayerAdded:Connect(function(plr)
+    enqueueJoinLeave("add", plr)
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    enqueueJoinLeave("remove", plr)
+end)
 task.spawn(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -294,8 +353,7 @@ end
 for _, plr in ipairs(Players:GetPlayers()) do
     setupPlayer(plr)
 end
-Players.PlayerAdded:Connect(setupPlayer)
-Players.PlayerRemoving:Connect(function(plr)
+local function cleanupPlayer(plr)
     cancelTimer(plr)
     state[plr] = nil
     allowDestroy[plr] = nil
@@ -303,7 +361,9 @@ Players.PlayerRemoving:Connect(function(plr)
         protectConnections[plr]:Disconnect()
         protectConnections[plr] = nil
     end
-end)
+end
+registerJoinLeave("add", setupPlayer)
+registerJoinLeave("remove", cleanupPlayer)
 end)
 task.spawn(function()
 
@@ -2497,7 +2557,7 @@ if ToggleDetectUlt then
         end
     end)
 end
-Players.PlayerAdded:Connect(function(plr)
+local function onBillboardPlayerAdded(plr)
     plr.CharacterAdded:Connect(function()
         task.wait(0.7)
         UpdateBillboard(plr)
@@ -2515,14 +2575,64 @@ Players.PlayerAdded:Connect(function(plr)
     if ToggleDetectUlt then
         setupDetectPlayer(plr)
     end
-end)
-Players.PlayerRemoving:Connect(function(plr)
+end
+local function onBillboardPlayerRemoving(plr)
     finishUltEsp(plr)
     clearDetectConns(plr)
     UltEspState.lastUlt[plr] = nil
     UltEspState.active[plr] = nil
     UltEspState.allowDestroy[plr] = nil
     UltEspState.protectConnections[plr] = nil
+end
+local bbPendingAdd = {}
+local bbPendingRemove = {}
+local bbProcessing = false
+local function getBillboardDelay()
+    local pending = 0
+    for _ in pairs(bbPendingAdd) do pending = pending + 1 end
+    for _ in pairs(bbPendingRemove) do pending = pending + 1 end
+    if pending >= 15 then
+        return 0.5
+    elseif pending >= 8 then
+        return 0.35
+    elseif pending >= 4 then
+        return 0.25
+    else
+        return 0.15
+    end
+end
+local function processBillboardPending()
+    bbProcessing = false
+    local count = 0
+    for plr in pairs(bbPendingAdd) do
+        bbPendingAdd[plr] = nil
+        onBillboardPlayerAdded(plr)
+        count = count + 1
+        if count >= 1 then break end
+    end
+    for plr in pairs(bbPendingRemove) do
+        bbPendingRemove[plr] = nil
+        onBillboardPlayerRemoving(plr)
+        count = count + 1
+        if count >= 1 then break end
+    end
+    if next(bbPendingAdd) or next(bbPendingRemove) then
+        bbProcessing = true
+        task.delay(getBillboardDelay(), processBillboardPending)
+    end
+end
+local function scheduleBillboardPending()
+    if bbProcessing then return end
+    bbProcessing = true
+    task.delay(getBillboardDelay(), processBillboardPending)
+end
+registerJoinLeave("add", function(plr)
+    bbPendingAdd[plr] = true
+    scheduleBillboardPending()
+end)
+registerJoinLeave("remove", function(plr)
+    bbPendingRemove[plr] = true
+    scheduleBillboardPending()
 end)
 if ToggleDetectUlt then
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -2740,8 +2850,10 @@ local function refreshDropdown()
         end
     end
 end
-Players.PlayerAdded:Connect(refreshDropdown)
-Players.PlayerRemoving:Connect(function(plr)
+local function onDropdownPlayerAdded()
+    refreshDropdown()
+end
+local function onDropdownPlayerRemoving(plr)
     if viewing and currentTarget == plr then
         ViewToggle:SetValue(false)
     end
@@ -2752,6 +2864,38 @@ Players.PlayerRemoving:Connect(function(plr)
         _G.NOTHINGX_TrashPlayer.SetRunning(false)
     end
     refreshDropdown()
+end
+local dropdownRefreshPending = false
+local function scheduleDropdownRefresh()
+    if dropdownRefreshPending then return end
+    dropdownRefreshPending = true
+    local pending = (#JoinLeaveQueue - JoinLeaveHead + 1)
+    if pending < 0 then pending = 0 end
+    local delay = 0.7
+    if pending >= 12 then
+        delay = 1.2
+    elseif pending >= 6 then
+        delay = 0.9
+    end
+    task.delay(delay, function()
+        dropdownRefreshPending = false
+        refreshDropdown()
+    end)
+end
+registerJoinLeave("add", function()
+    scheduleDropdownRefresh()
+end)
+registerJoinLeave("remove", function(plr)
+    if viewing and currentTarget == plr then
+        ViewToggle:SetValue(false)
+    end
+    if flingOneOn and playerChosen == plr then
+        FlingOneToggle:SetValue(false)
+    end
+    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() and playerChosen == plr then
+        _G.NOTHINGX_TrashPlayer.SetRunning(false)
+    end
+    scheduleDropdownRefresh()
 end)
 Tabs.PLYR:AddButton({
     Title = "TP Player",
