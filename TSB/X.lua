@@ -1355,7 +1355,7 @@ Tabs.TOG:AddInput("FlingAllPowerInput", {
     end
 })
 local rangeValues = {}
-for i = 5, 100, 5 do
+for i = 5, 450, 5 do
     table.insert(rangeValues, tostring(i))
 end
 local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
