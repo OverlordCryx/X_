@@ -8,9 +8,10 @@ if coreGui:FindFirstChild("ScreenGui") then
     })
     return
 end
-task.spawn(function()
+task.defer(function()
 loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()
 end)
+
 local game = game
 local workspace = workspace
 local getService = game.GetService
@@ -24,65 +25,29 @@ local function isSafeTeleportLocked()
     return _G.SafeTeleportLock == true
 end
 local JoinLeaveHandlers = { add = {}, remove = {} }
-local JoinLeaveQueue = {}
-local JoinLeaveHead = 1
-local JoinLeaveIndex = {}
-local JoinLeaveWorkerRunning = false
-local function getJoinLeaveDelay()
-    local pending = (#JoinLeaveQueue - JoinLeaveHead + 1)
-    if pending < 0 then pending = 0 end
-    if pending >= 15 then
-        return 0.35
-    elseif pending >= 8 then
-        return 0.25
-    elseif pending >= 4 then
-        return 0.2
-    else
-        return 0.12
-    end
-end
 local function registerJoinLeave(kind, fn)
     table.insert(JoinLeaveHandlers[kind], fn)
 end
-local function enqueueJoinLeave(kind, plr)
-    local idx = JoinLeaveIndex[plr]
-    if idx then
-        JoinLeaveQueue[idx].kind = kind
-    else
-        JoinLeaveQueue[#JoinLeaveQueue + 1] = { kind = kind, plr = plr }
-        JoinLeaveIndex[plr] = #JoinLeaveQueue
-    end
-    if JoinLeaveWorkerRunning then return end
-    JoinLeaveWorkerRunning = true
-    task.spawn(function()
-        while JoinLeaveHead <= #JoinLeaveQueue do
-            local item = JoinLeaveQueue[JoinLeaveHead]
-            JoinLeaveQueue[JoinLeaveHead] = nil
-            JoinLeaveIndex[item.plr] = nil
-            JoinLeaveHead = JoinLeaveHead + 1
-            local skipHandlers = false
-            if item.kind == "add" and (not item.plr or not item.plr.Parent) then
-                skipHandlers = true
-            end
-            if not skipHandlers then
-                for _, fn in ipairs(JoinLeaveHandlers[item.kind]) do
-                    pcall(fn, item.plr)
-                end
-            end
-            task.wait(getJoinLeaveDelay())
+local function handleJoinLeave(kind, plr)
+    task.defer(function()
+        local skipHandlers = false
+        if kind == "add" and (not plr or not plr.Parent) then
+            skipHandlers = true
         end
-        JoinLeaveQueue = {}
-        JoinLeaveHead = 1
-        JoinLeaveWorkerRunning = false
+        if not skipHandlers then
+            for _, fn in ipairs(JoinLeaveHandlers[kind]) do
+                pcall(fn, plr)
+            end
+        end
     end)
 end
 Players.PlayerAdded:Connect(function(plr)
-    enqueueJoinLeave("add", plr)
+    handleJoinLeave("add", plr)
 end)
 Players.PlayerRemoving:Connect(function(plr)
-    enqueueJoinLeave("remove", plr)
+    handleJoinLeave("remove", plr)
 end)
-task.spawn(function()
+task.defer(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -109,8 +74,8 @@ if not workspace:FindFirstChild(partName) then
     part.Parent = workspace
 end
 end)
-task.spawn(function()
-task.wait(0.5)
+task.defer(function()
+task.wait(0.4)
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -188,7 +153,7 @@ local Tabs = {
 	PLYR = Window:AddTab({Title = "", Icon = "menu"})
 }
 Window:SelectTab()
-task.spawn(function()
+task.defer(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
 end)
 local proceed = false
@@ -206,7 +171,10 @@ Window:Dialog({
 })
 while not proceed do task.wait(0.1) end
 if cancelled then return end
-task.spawn(function()
+task.defer(function()
+local p=game.Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
+task.wait(0.5)
+task.defer(function()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
@@ -365,7 +333,8 @@ end
 registerJoinLeave("add", setupPlayer)
 registerJoinLeave("remove", cleanupPlayer)
 end)
-task.spawn(function()
+task.wait(0.5)
+task.defer(function()
 
 local speaker = game.Players.LocalPlayer
 local speed = 25
@@ -433,16 +402,18 @@ end
 player.CharacterAdded:Connect(function(char)
 	usunPusteAccessory(char)
 end)
-task.spawn(function()
-	while true do
+local nextAccessoryClean = 0
+RunService.Heartbeat:Connect(function()
+    if tick() >= nextAccessoryClean then
+        nextAccessoryClean = tick() + 0.21
 		if not isSafeTeleportLocked() then
 			if player.Character then
 				usunPusteAccessory(player.Character)
 			end
 		end
-		task.wait(0.21)
-	end
+    end
 end)
+task.wait(0.5)
 local player = Players.LocalPlayer
 local holdingWKey = false
 local holdingSKey = false
@@ -556,6 +527,7 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
+task.wait(0.5)
 local plr = Players.LocalPlayer
 local cam = workspace.CurrentCamera
 local RS = RunService
@@ -701,8 +673,9 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
     end
 })
 end)
+task.wait(0.5)
 local playerChosen = nil
-task.spawn(function()
+task.defer(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -964,7 +937,7 @@ local function teleportToMainPart()
 end
 local function startTrashPlayerLoop()
     if trashPlayer.thread then return end
-    trashPlayer.thread = task.spawn(function()
+    trashPlayer.thread = task.defer(function()
         while trashPlayer.running do
             if not isSafeTeleportLocked() then
                 startHasTrashObserver()
@@ -1035,7 +1008,7 @@ local function createTrashKeybind()
                     _G.NOTHINGX_TrashPlayer.SetRunning(false)
                 end
                 startHasTrashObserver()
-                task.spawn(function()
+                task.defer(function()
                     while trashKeybindRunning do
                         if not isSafeTeleportLocked() then
                             useTrashCan(function() return trashKeybindRunning end)
@@ -1099,6 +1072,7 @@ _G.NOTHINGX_TrashPlayer = {
     end
 }
 end)
+task.wait(0.5)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
@@ -1245,6 +1219,7 @@ if not camlockState.statusParagraph then
         Content = ""
     })
 end
+task.wait(0.5)
 local LocalPlayer = Players.LocalPlayer
 local speaker = LocalPlayer
 local power = 1000
@@ -1308,7 +1283,7 @@ Tabs.TOG:AddKeybind("WalkFlingKey", {
             )
         end
         if walkflinging then
-            task.spawn(WalkFlingLoop)
+            task.defer(WalkFlingLoop)
         end
     end
 })
@@ -1369,30 +1344,35 @@ local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
 })
 
 local function auraFling()
-    task.spawn(function()
+    task.defer(function()
         while auraFlingOn do
             local myChar = LocalPlayer.Character
             local myRoot = getRootUniversal(myChar)
             if myRoot then
                 local originalCFrame = myRoot.CFrame
+                local p = flingAllPower
+                local myPos = myRoot.Position
+                local hitAny = false
                 for _,player in pairs(Players:GetPlayers()) do
                     if player ~= LocalPlayer and player.Character then
                         local targetRoot = getRootUniversal(player.Character)
                         if targetRoot then
-                            local dist = (targetRoot.Position - myRoot.Position).Magnitude
+                            local dist = (targetRoot.Position - myPos).Magnitude
                             if dist <= auraRange then
-                                local p = flingAllPower
+                                hitAny = true
                                 myRoot.CFrame = targetRoot.CFrame
                                 myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
                                 myRoot.AssemblyLinearVelocity =
                                 myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
-                                task.wait()
-                                myRoot.AssemblyAngularVelocity = Vector3.zero
-                                myRoot.AssemblyLinearVelocity = Vector3.zero
-                                myRoot.CFrame = originalCFrame
                             end
                         end
                     end
+                end
+                if hitAny then
+                    task.wait()
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.CFrame = originalCFrame
                 end
             end
             task.wait()
@@ -1428,7 +1408,7 @@ end
 local function clickFlingTarget(targetPlayer)
     if clickFlingBusy then return end
     clickFlingBusy = true
-    task.spawn(function()
+    task.defer(function()
         local myChar = LocalPlayer.Character
         local targetChar = targetPlayer and targetPlayer.Character
         local myRoot = getRootUniversal(myChar)
@@ -1501,67 +1481,61 @@ Tabs.TOG:AddToggle("ClickFlingToggle", {
 })
 
 
+local flingAllConn = nil
 local function flingAll()
-    task.spawn(function()
-        local t = 0
-        while flingOn do
-            local myChar = LocalPlayer.Character
-
-            if not myChar then
-                RunService.Heartbeat:Wait()
-            else
-                local myRoot = getRootUniversal(myChar)
-
-                if not myRoot then
-                    RunService.Heartbeat:Wait()
-                else
-                    local p = flingAllPower
-                    local players = Players:GetPlayers()
-
-                    for i = 1, #players do
-                        if not flingOn then break end
-
-                        local plr = players[i]
-                        if plr ~= LocalPlayer and plr.Character then
-                            local targetRoot = getRootUniversal(plr.Character)
-
-                            if targetRoot then
-                                local dt = RunService.Heartbeat:Wait()
-
-                                t = t + dt * orbitSpeed
-
-                                local orbitDistanceXZ = orbitStepXZ
-                                local orbitDistanceY = orbitStepY
-
-                                orbitStepXZ = orbitStepXZ + orbitIncrement
-                                orbitStepY = orbitStepY + orbitIncrement
-
-                                if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
-                                if orbitStepY > orbitMax then orbitStepY = 0 end
-
-                                local offset = Vector3.new(
-                                    math.cos(t) * orbitDistanceXZ,
-                                    orbitDistanceY,
-                                    math.sin(t) * orbitDistanceXZ
-                                )
-
-                                myRoot.CFrame = targetRoot.CFrame + offset
-                                myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
-                                myRoot.AssemblyLinearVelocity =
-                                    targetRoot.CFrame.LookVector * p +
-                                    Vector3.new(0, p * 0.5, 0)
-                            end
-                        end
-                    end
-                end
+    if flingAllConn then flingAllConn:Disconnect() end
+    local t = 0
+    flingAllConn = RunService.Heartbeat:Connect(function(dt)
+        if not flingOn then
+            if flingAllConn then
+                flingAllConn:Disconnect()
+                flingAllConn = nil
             end
+            local myChar = LocalPlayer.Character
+            local myRoot = myChar and getRootUniversal(myChar)
+            if myRoot then
+                myRoot.AssemblyAngularVelocity = zero
+                myRoot.AssemblyLinearVelocity = zero
+            end
+            return
         end
 
         local myChar = LocalPlayer.Character
         local myRoot = myChar and getRootUniversal(myChar)
-        if myRoot then
-            myRoot.AssemblyAngularVelocity = zero
-            myRoot.AssemblyLinearVelocity = zero
+        if not myRoot then return end
+
+        t = t + dt * orbitSpeed
+        local p = flingAllPower
+        local players = Players:GetPlayers()
+
+        for i = 1, #players do
+            local plr = players[i]
+            if plr ~= LocalPlayer and plr.Character then
+                local targetRoot = getRootUniversal(plr.Character)
+
+                if targetRoot then
+                    local orbitDistanceXZ = orbitStepXZ
+                    local orbitDistanceY = orbitStepY
+
+                    orbitStepXZ = orbitStepXZ + orbitIncrement
+                    orbitStepY = orbitStepY + orbitIncrement
+
+                    if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
+                    if orbitStepY > orbitMax then orbitStepY = 0 end
+
+                    local offset = Vector3.new(
+                        math.cos(t) * orbitDistanceXZ,
+                        orbitDistanceY,
+                        math.sin(t) * orbitDistanceXZ
+                    )
+
+                    myRoot.CFrame = targetRoot.CFrame + offset
+                    myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
+                    myRoot.AssemblyLinearVelocity =
+                        targetRoot.CFrame.LookVector * p +
+                        Vector3.new(0, p * 0.5, 0)
+                end
+            end
         end
     end)
 end
@@ -1572,18 +1546,14 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
         flingOn = state
         if state then
             flingAll()
-        else
-            local myChar = LocalPlayer.Character
-            local myRoot = myChar and getRootUniversal(myChar)
-            if myRoot then
-                myRoot.AssemblyAngularVelocity = zero
-                myRoot.AssemblyLinearVelocity = zero
-            end
         end
     end
 })
 local speaker = Players.LocalPlayer
 local antifling
+local antiFlingTimer = 0
+local antiFlingInterval = 0.15
+local antiFlingProcessed = setmetatable({}, { __mode = "k" })
 
 local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
     Title = "Anti Fling",
@@ -1596,27 +1566,38 @@ AntiFlingToggle:OnChanged(function(state)
             antifling:Disconnect()
             antifling = nil
         end
+        antiFlingTimer = 0
 
-        antifling = RunService.Stepped:Connect(function()
+        antifling = RunService.Stepped:Connect(function(_, dt)
             if isSafeTeleportLocked() then
                 return
             end
+            antiFlingTimer = antiFlingTimer + dt
+            if antiFlingTimer < antiFlingInterval then return end
+            antiFlingTimer = 0
+
             local myCharacter = speaker.Character
             if not myCharacter or not myCharacter:FindFirstChild("HumanoidRootPart") then return end
 
             local myHRP = myCharacter.HumanoidRootPart
+            local myPos = myHRP.Position
 
             for _, player in ipairs(Players:GetPlayers()) do
                 if player ~= speaker and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     local targetHRP = player.Character.HumanoidRootPart
-                    local distance = (targetHRP.Position - myHRP.Position).Magnitude
+                    local distance = (targetHRP.Position - myPos).Magnitude
 
                     if distance <= 50 then
-                        for _, v in ipairs(player.Character:GetDescendants()) do
-                            if v:IsA("BasePart") then
-                                v.CanCollide = false
+                        if not antiFlingProcessed[player.Character] then
+                            antiFlingProcessed[player.Character] = true
+                            for _, v in ipairs(player.Character:GetDescendants()) do
+                                if v:IsA("BasePart") then
+                                    v.CanCollide = false
+                                end
                             end
                         end
+                    else
+                        antiFlingProcessed[player.Character] = nil
                     end
                 end
             end
@@ -1626,8 +1607,10 @@ AntiFlingToggle:OnChanged(function(state)
             antifling:Disconnect()
             antifling = nil
         end
+        antiFlingProcessed = setmetatable({}, { __mode = "k" })
     end
 end)
+task.wait(0.5)
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
@@ -1673,8 +1656,11 @@ local trashLoopThread
 local function startTrashLoop()
     if trashLoopRunning then return end
     trashLoopRunning = true
-    trashLoopThread = task.spawn(function()
-        while trashLoopRunning do
+    trashLoopThread = RunService.Heartbeat:Connect(function()
+        if not trashLoopRunning then
+            if trashLoopThread then trashLoopThread:Disconnect() trashLoopThread = nil end
+            return
+        end
         if not isSafeTeleportLocked() then
         if LiveFolder then
             local model = LiveFolder:FindFirstChild(LocalPlayer.Name)
@@ -1706,9 +1692,6 @@ local function startTrashLoop()
             end
         end
         end
-
-        task.wait()
-        end
     end)
 end
 local function stopTrashLoop()
@@ -1721,11 +1704,19 @@ local function isAlive(model)
     local hum = model and model:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
 end
+local lastScanTime = 0
 local function startScanLoop()
     if scanLoopRunning then return end
     scanLoopRunning = true
-    scanLoopThread = task.spawn(function()
-        while scanLoopRunning do
+    scanLoopThread = RunService.Heartbeat:Connect(function()
+        if not scanLoopRunning then
+            if scanLoopThread then scanLoopThread:Disconnect() scanLoopThread = nil end
+            return
+        end
+        local now = tick()
+        if now - lastScanTime < MODEL_SCAN_RATE then return end
+        lastScanTime = now
+
         if not isSafeTeleportLocked() then
             table.clear(TargetCache)
             if Root then
@@ -1763,8 +1754,6 @@ local function startScanLoop()
                     end
                 end
             end
-        end
-        task.wait(MODEL_SCAN_RATE)
         end
     end)
 end
@@ -1809,26 +1798,31 @@ local function getAttackTarget()
 end
 local holdingMouse = false
 local attackLoopRunning = false
+local lastAttackTime = 0
+local attackLoopThread = nil
 local function startAttackLoop()
     if attackLoopRunning then return end
     attackLoopRunning = true
-    task.spawn(function()
-        while attackLoopRunning do
-            if isSafeTeleportLocked() then
-                task.wait(ATTACK_RATE)
-            else
-                if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
-                    local target = getAttackTarget()
-                    if target then
-                        if Humanoid then
-                            Humanoid.AutoRotate = false
-                        end
-                        local behindPos =
-                            target.Position - (target.CFrame.LookVector * BACK_OFFSET)
-                        Root.CFrame = CFrame.lookAt(behindPos, target.Position)
+    attackLoopThread = RunService.Heartbeat:Connect(function()
+        if not attackLoopRunning then
+            if attackLoopThread then attackLoopThread:Disconnect() attackLoopThread = nil end
+            return
+        end
+        local now = tick()
+        if now - lastAttackTime < ATTACK_RATE then return end
+        lastAttackTime = now
+
+        if not isSafeTeleportLocked() then
+            if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
+                local target = getAttackTarget()
+                if target then
+                    if Humanoid then
+                        Humanoid.AutoRotate = false
                     end
+                    local behindPos =
+                        target.Position - (target.CFrame.LookVector * BACK_OFFSET)
+                    Root.CFrame = CFrame.lookAt(behindPos, target.Position)
                 end
-                task.wait(ATTACK_RATE)
             end
         end
     end)
@@ -1884,6 +1878,7 @@ if not attackState.statusParagraph then
         Content = ""
     })
 end
+task.wait(0.5)
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -1971,29 +1966,25 @@ local function createDashToggle()
             end
             DashBlockRunning = state
             if state then
-                if DashThread then return end
-                DashThread = task.spawn(function()
-                    while DashBlockRunning do
-                        if not isSafeTeleportLocked() then
-                            if not communicate then
-                                break
-                            end
-                            for _, dashKey in ipairs(directions) do
-                                communicate:FireServer({
-                                    Dash = dashKey,
-                                    Key  = Enum.KeyCode.Q,
-                                    Goal = "KeyPress"
-                                })
-                                communicate:FireServer({
-                                    Dash = dashKey,
-                                    Key  = Enum.KeyCode.Q,
-                                    Goal = "KeyPress"
-                                })
-                            end
-                        end
-                        task.wait()
+                if DashThread then DashThread:Disconnect() end
+                DashThread = RunService.Heartbeat:Connect(function()
+                    if not DashBlockRunning then
+                        if DashThread then DashThread:Disconnect() DashThread = nil end
+                        return
                     end
-                    DashThread = nil
+                    if not isSafeTeleportLocked() then
+                        if not communicate then
+                            DashBlockRunning = false
+                            return
+                        end
+                        for _, dashKey in ipairs(directions) do
+                            communicate:FireServer({
+                                Dash = dashKey,
+                                Key  = Enum.KeyCode.Q,
+                                Goal = "KeyPress"
+                            })
+                        end
+                    end
                 end)
             end
         end
@@ -2020,6 +2011,7 @@ end
 player.CharacterAdded:Connect(function(char)
     setupCharacter(char)
 end)
+task.wait(0.5)
 local player = Players.LocalPlayer
 _G.SafeTeleportLock = false
 local savedPosition = nil
@@ -2105,6 +2097,7 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 		end
 	end
 })
+task.wait(0.5)
 local camLockTrashEnabled = false
 local camLockTrashHolding = false
 local camLockTrashSession = false
@@ -2235,7 +2228,8 @@ Tabs.TOG:AddToggle("camlocktrash", {
 		end
 	end
 })
-task.spawn(function()
+task.wait(0.5)
+task.defer(function()
 
 local LocalPlayer = Players.LocalPlayer
 local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
@@ -2603,28 +2597,19 @@ local function getBillboardDelay()
 end
 local function processBillboardPending()
     bbProcessing = false
-    local count = 0
     for plr in pairs(bbPendingAdd) do
         bbPendingAdd[plr] = nil
-        onBillboardPlayerAdded(plr)
-        count = count + 1
-        if count >= 1 then break end
+        pcall(onBillboardPlayerAdded, plr)
     end
     for plr in pairs(bbPendingRemove) do
         bbPendingRemove[plr] = nil
-        onBillboardPlayerRemoving(plr)
-        count = count + 1
-        if count >= 1 then break end
-    end
-    if next(bbPendingAdd) or next(bbPendingRemove) then
-        bbProcessing = true
-        task.delay(getBillboardDelay(), processBillboardPending)
+        pcall(onBillboardPlayerRemoving, plr)
     end
 end
 local function scheduleBillboardPending()
     if bbProcessing then return end
     bbProcessing = true
-    task.delay(getBillboardDelay(), processBillboardPending)
+    task.delay(0.1, processBillboardPending)
 end
 registerJoinLeave("add", function(plr)
     bbPendingAdd[plr] = true
@@ -2647,26 +2632,7 @@ task.delay(1.5, function()
     end
 end)
 end)
-
-Tabs.TOG:AddButton({
-    Title = "Lay",
-    Callback = function()
-        local player = Players.LocalPlayer  
-        local character = player.Character
-        if not character then return end
-        local humanoid = character:FindFirstChildWhichIsA("Humanoid")
-        if not humanoid then return end
-        humanoid.Sit = true
-        task.wait(0.1)
-        local root = humanoid.RootPart
-        if root then
-            root.CFrame = root.CFrame * CFrame.Angles(math.pi * 0.5, 0, 0)  
-        end
-        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-            track:Stop()
-        end
-    end
-})
+task.wait(0.5)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local viewing = false
@@ -3034,6 +3000,26 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
         end
     end
 })
+task.wait(0.7)
+Tabs.TOG:AddButton({
+    Title = "Lay",
+    Callback = function()
+        local player = Players.LocalPlayer  
+        local character = player.Character
+        if not character then return end
+        local humanoid = character:FindFirstChildWhichIsA("Humanoid")
+        if not humanoid then return end
+        humanoid.Sit = true
+        task.wait(0.1)
+        local root = humanoid.RootPart
+        if root then
+            root.CFrame = root.CFrame * CFrame.Angles(math.pi * 0.5, 0, 0)  
+        end
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            track:Stop()
+        end
+    end
+})
 local FixCam = Tabs.TOG:AddButton({
     Title = "Rest Camera",
     Callback = function()
@@ -3091,5 +3077,3 @@ if SaveManager then
         })
     end)
 end
-task.spawn(function()
-local p=game.Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
