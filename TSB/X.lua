@@ -3045,3 +3045,50 @@ if SaveManager then
         })
     end)
 end
+task.defer(function()
+local player = game.Players.LocalPlayer
+local lastSafePosition = nil
+local VOID_Y = -300
+local BUFFER = 100 
+local function isGrounded(hrp)
+    local rayOrigin = hrp.Position
+    local rayDirection = Vector3.new(0, -6, 0)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {hrp.Parent}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+    return result ~= nil
+end
+local function resetVelocity(hrp)
+    hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+    hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+    hrp.Velocity = Vector3.new(0,0,0) 
+end
+local function tripleFixTP(hrp, pos)
+    for i = 1, 3 do
+        resetVelocity(hrp)
+        hrp.CFrame = CFrame.new(pos.X, pos.Y + 5, pos.Z)
+        task.wait() 
+    end
+end
+local function protect(character)
+    local hrp = character:WaitForChild("HumanoidRootPart")
+    while character and character.Parent do
+        task.wait()
+        if hrp.Position.Y > (VOID_Y + BUFFER) and isGrounded(hrp) then
+            lastSafePosition = hrp.Position
+        end
+        if hrp.Position.Y < (VOID_Y + BUFFER) then
+            if lastSafePosition then
+                tripleFixTP(hrp, lastSafePosition)
+            end
+        end
+    end
+end
+if player.Character then
+    task.spawn(protect, player.Character)
+end
+player.CharacterAdded:Connect(function(char)
+    task.spawn(protect, char)
+end)
+end)
