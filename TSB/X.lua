@@ -1545,67 +1545,39 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
         end
     end
 })
-local speaker = Players.LocalPlayer
-local antifling
-local antiFlingTimer = 0
-local antiFlingInterval = 0.15
-local antiFlingProcessed = setmetatable({}, { __mode = "k" })
 
+
+local antifling
 local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
     Title = "Anti Fling",
-    Default = false
-})
-
-AntiFlingToggle:OnChanged(function(state)
-    if state then
-        if antifling then
-            antifling:Disconnect()
-            antifling = nil
-        end
-        antiFlingTimer = 0
-
-        antifling = RunService.Stepped:Connect(function(_, dt)
-            if isSafeTeleportLocked() then
-                return
+    Default = false,
+    Callback = function(state)
+        if state then
+            if antifling then
+                antifling:Disconnect()
+                antifling = nil
             end
-            antiFlingTimer = antiFlingTimer + dt
-            if antiFlingTimer < antiFlingInterval then return end
-            antiFlingTimer = 0
-
-            local myCharacter = speaker.Character
-            if not myCharacter or not myCharacter:FindFirstChild("HumanoidRootPart") then return end
-
-            local myHRP = myCharacter.HumanoidRootPart
-            local myPos = myHRP.Position
-
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= speaker and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local targetHRP = player.Character.HumanoidRootPart
-                    local distance = (targetHRP.Position - myPos).Magnitude
-
-                    if distance <= 50 then
-                        if not antiFlingProcessed[player.Character] then
-                            antiFlingProcessed[player.Character] = true
-                            for _, v in ipairs(player.Character:GetDescendants()) do
-                                if v:IsA("BasePart") then
-                                    v.CanCollide = false
-                                end
+            antifling = RunService.Stepped:Connect(function()
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= speaker and player.Character then
+                        for _, v in pairs(player.Character:GetDescendants()) do
+                            if v:IsA("BasePart") then
+                                v.CanCollide = false
                             end
                         end
-                    else
-                        antiFlingProcessed[player.Character] = nil
                     end
                 end
+            end)
+        else
+            if antifling then
+                antifling:Disconnect()
+                antifling = nil
             end
-        end)
-    else
-        if antifling then
-            antifling:Disconnect()
-            antifling = nil
         end
-        antiFlingProcessed = setmetatable({}, { __mode = "k" })
     end
-end)
+})
+
+
 task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
