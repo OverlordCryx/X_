@@ -75,7 +75,7 @@ if not workspace:FindFirstChild(partName) then
 end
 end)
 task.defer(function()
-task.wait(0.4)
+task.wait(0.2)
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -173,7 +173,6 @@ while not proceed do task.wait(0.1) end
 if cancelled then return end
 task.defer(function()
 local p=game.Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
-task.wait(0.5)
 task.defer(function()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -333,7 +332,6 @@ end
 registerJoinLeave("add", setupPlayer)
 registerJoinLeave("remove", cleanupPlayer)
 end)
-task.wait(0.5)
 task.defer(function()
 
 local speaker = game.Players.LocalPlayer
@@ -413,7 +411,6 @@ RunService.Heartbeat:Connect(function()
 		end
     end
 end)
-task.wait(0.5)
 local player = Players.LocalPlayer
 local holdingWKey = false
 local holdingSKey = false
@@ -527,7 +524,6 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
     elseif key == Enum.KeyCode.D then holdingDKey = false
     end
 end)
-task.wait(0.5)
 local plr = Players.LocalPlayer
 local cam = workspace.CurrentCamera
 local RS = RunService
@@ -673,7 +669,7 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
     end
 })
 end)
-task.wait(0.5)
+task.wait(0.1)
 local playerChosen = nil
 task.defer(function()
 local map = workspace:FindFirstChild("Map")
@@ -1072,7 +1068,7 @@ _G.NOTHINGX_TrashPlayer = {
     end
 }
 end)
-task.wait(0.5)
+task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
@@ -1219,7 +1215,7 @@ if not camlockState.statusParagraph then
         Content = ""
     })
 end
-task.wait(0.5)
+task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local speaker = LocalPlayer
 local power = 1000
@@ -1610,7 +1606,7 @@ AntiFlingToggle:OnChanged(function(state)
         antiFlingProcessed = setmetatable({}, { __mode = "k" })
     end
 end)
-task.wait(0.5)
+task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
@@ -1878,7 +1874,7 @@ if not attackState.statusParagraph then
         Content = ""
     })
 end
-task.wait(0.5)
+task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -2011,7 +2007,7 @@ end
 player.CharacterAdded:Connect(function(char)
     setupCharacter(char)
 end)
-task.wait(0.5)
+task.wait(0.1)
 local player = Players.LocalPlayer
 _G.SafeTeleportLock = false
 local savedPosition = nil
@@ -2097,7 +2093,7 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 		end
 	end
 })
-task.wait(0.5)
+task.wait(0.1)
 local camLockTrashEnabled = false
 local camLockTrashHolding = false
 local camLockTrashSession = false
@@ -2228,7 +2224,7 @@ Tabs.TOG:AddToggle("camlocktrash", {
 		end
 	end
 })
-task.wait(0.5)
+task.wait(0.1)
 task.defer(function()
 
 local LocalPlayer = Players.LocalPlayer
@@ -2632,7 +2628,7 @@ task.delay(1.5, function()
     end
 end)
 end)
-task.wait(0.5)
+task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local viewing = false
@@ -3000,7 +2996,7 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
         end
     end
 })
-task.wait(0.7)
+task.wait(0.2)
 Tabs.TOG:AddButton({
     Title = "Lay",
     Callback = function()
