@@ -1586,7 +1586,7 @@ local attackState = {
 }
 local ATTACK_RATE = 1/120
 local MODEL_SCAN_RATE = 0.3
-local MAX_TARGET_DISTANCE = 160
+local MAX_TARGET_DISTANCE = 2000
 local TRASH_DISTANCE = 12
 local BACK_OFFSET = 0.97
 local MapFolder
