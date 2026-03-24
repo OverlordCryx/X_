@@ -127,7 +127,7 @@ RunService.Heartbeat:Connect(function(dt)
 	if isOutside() then
 		hrp.AssemblyLinearVelocity = Vector3.zero
 		hrp.AssemblyAngularVelocity = Vector3.zero
-		hrp.CFrame = spawnPart.CFrame + Vector3.new(0,5,0)
+		character:PivotTo(spawnPart.CFrame + Vector3.new(0,5,0))
 	end
 end)
 
@@ -864,34 +864,25 @@ local function useTrashCan(isRunning)
         if isSafeTeleportLocked() then
             task.wait()
         else
-            task.wait()
-        if hasTrashFlag then break end 
-        if not currentTrash or currentTrash:GetAttribute("Broken") then
-            currentTrash = getRandomTrashCan()
-            if not currentTrash then
-                tries = tries + 1
-            else
+            if hasTrashFlag then break end 
+            if not currentTrash or currentTrash:GetAttribute("Broken") then
+                currentTrash = getRandomTrashCan()
+            end
+            
+            if currentTrash then
                 ensureNoCollide(currentTrash)
                 local targetCFrame = currentTrash.PrimaryPart and currentTrash.PrimaryPart.CFrame
                     or currentTrash:FindFirstChildWhichIsA("BasePart", true).CFrame
                 if targetCFrame then
-                    hrp.CFrame = targetCFrame * CFrame.new(0, -0.1, 0)
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                    character:PivotTo(targetCFrame * CFrame.new(0, -0.4, 0))
                     bodyGyro.CFrame = CFrame.new(hrp.Position, targetCFrame.Position)
                     click()
                 end
-                tries = tries + 1
-            end
-        else
-            ensureNoCollide(currentTrash)
-            local targetCFrame = currentTrash.PrimaryPart and currentTrash.PrimaryPart.CFrame
-                or currentTrash:FindFirstChildWhichIsA("BasePart", true).CFrame
-            if targetCFrame then
-                hrp.CFrame = targetCFrame * CFrame.new(0, -0.1, 0)
-                bodyGyro.CFrame = CFrame.new(hrp.Position, targetCFrame.Position)
-                click()
             end
             tries = tries + 1
-        end
+            RunService.Heartbeat:Wait()
         end
     end
     if hrp and hrp.Parent then
@@ -914,14 +905,18 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
 
     if not targetRoot then return end
 
+    local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
+    local ping = player:GetNetworkPing() or 0
+    local prediction = targetVel * (ping * 1.1)
+    
     local offset = behindDist or 0.7
     local jitter = -0.26
-
     local backOffset = -(targetRoot.CFrame.LookVector) * -(offset)
-    local targetPos = targetRoot.Position + backOffset + Vector3.new(0, -2.2 + jitter, 0)
-
-    hrp.CFrame = CFrame.new(targetPos, targetRoot.Position)
-
+    local targetPos = (targetRoot.Position + prediction) + backOffset + Vector3.new(0, -2.2 + jitter, 0)
+    
+    hrp.AssemblyLinearVelocity = targetVel
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    character:PivotTo(CFrame.new(targetPos, targetRoot.Position + prediction))
     click()
 end
 local function teleportToMainPart()
@@ -929,7 +924,7 @@ local function teleportToMainPart()
     if not mainPart then return end
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
-    hrp.CFrame = mainPart.CFrame + Vector3.new(0, -3, 0)
+    character:PivotTo(mainPart.CFrame + Vector3.new(0, -3, 0))
 end
 local function startTrashPlayerLoop()
     if trashPlayer.thread then return end
@@ -1356,7 +1351,12 @@ local function auraFling()
                             local dist = (targetRoot.Position - myPos).Magnitude
                             if dist <= auraRange then
                                 hitAny = true
-                                myRoot.CFrame = targetRoot.CFrame
+                                myRoot.AssemblyLinearVelocity = Vector3.zero
+                                myRoot.AssemblyAngularVelocity = Vector3.zero
+                                myChar:PivotTo(targetRoot.CFrame)
+                                
+                                task.wait() 
+                                
                                 myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
                                 myRoot.AssemblyLinearVelocity =
                                 myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
@@ -1368,7 +1368,7 @@ local function auraFling()
                     task.wait()
                     myRoot.AssemblyAngularVelocity = Vector3.zero
                     myRoot.AssemblyLinearVelocity = Vector3.zero
-                    myRoot.CFrame = originalCFrame
+                    myChar:PivotTo(originalCFrame)
                 end
             end
             task.wait()
@@ -1787,9 +1787,15 @@ local function startAttackLoop()
                     if Humanoid then
                         Humanoid.AutoRotate = false
                     end
-                    local behindPos =
-                        target.Position - (target.CFrame.LookVector * BACK_OFFSET)
-                    Root.CFrame = CFrame.lookAt(behindPos, target.Position)
+                    local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+                    local ping = LocalPlayer:GetNetworkPing() or 0
+                    local prediction = targetVel * (ping * 1.05)
+                    
+                    local behindPos = (target.Position + prediction) - (target.CFrame.LookVector * BACK_OFFSET)
+                    
+                    Root.AssemblyLinearVelocity = targetVel
+                    Root.AssemblyAngularVelocity = Vector3.zero
+                    Character:PivotTo(CFrame.lookAt(behindPos, target.Position + prediction))
                 end
             end
         end
@@ -2712,7 +2718,9 @@ local function startFlingOne()
             math.sin(t) * orbitStepXZ
         )
 
-        myRoot.CFrame = targetRoot.CFrame + offset
+        myRoot.AssemblyLinearVelocity = Vector3.zero
+        myRoot.AssemblyAngularVelocity = Vector3.zero
+        myChar:PivotTo(targetRoot.CFrame + offset)
 
         local p = FLING_INF_POWER
         myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
@@ -2734,7 +2742,13 @@ local function startAutoTp()
         local myRoot = getRootUniversal(myChar)
         local targetRoot = getRootUniversal(targetChar)
         if not (myRoot and targetRoot) then return end
-        myRoot.CFrame = targetRoot.CFrame
+        local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
+        local ping = LocalPlayer:GetNetworkPing() or 0
+        local prediction = targetVel * ping
+        
+        myRoot.AssemblyLinearVelocity = targetVel
+        myRoot.AssemblyAngularVelocity = Vector3.zero
+        myChar:PivotTo(targetRoot.CFrame + prediction)
     end)
 end
 local Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
@@ -2841,7 +2855,9 @@ Tabs.PLYR:AddButton({
         local hrp = getRootUniversal(char)
         local myHrp = getRootUniversal(myChar)
         if hrp and myHrp then
-            myHrp.CFrame = hrp.CFrame
+            myHrp.AssemblyLinearVelocity = Vector3.zero
+            myHrp.AssemblyAngularVelocity = Vector3.zero
+            myChar:PivotTo(hrp.CFrame)
         end
     end
 })
