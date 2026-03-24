@@ -2842,7 +2842,7 @@ end
 local function triggerFullRefresh()
     lastFullRefreshTime = tick()
     refreshDropdown()
-    task.delay(15.1, function()
+    task.delay(11.1, function()
         refreshDropdown() 
     end)
 end
