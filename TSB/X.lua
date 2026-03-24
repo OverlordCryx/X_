@@ -2654,6 +2654,10 @@ local function buildDropdownValues()
                 dropdownMap[display] = plr
             end
         end
+    elseif playerChosen and playerChosen.Parent == Players then
+        local display = playerChosen.DisplayName .. " (@" .. playerChosen.Name .. ")"
+        table.insert(values, display)
+        dropdownMap[display] = playerChosen
     end
     return values
 end
