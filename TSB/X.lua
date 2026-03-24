@@ -2652,7 +2652,7 @@ local lastFullRefreshTime = 0
 local function buildDropdownValues()
     dropdownMap = {}
     local values = { "None" }
-    local showFull = (tick() - lastFullRefreshTime < 15)
+    local showFull = (tick() - lastFullRefreshTime < 11)
     
     if showFull then
         for _, plr in ipairs(Players:GetPlayers()) do
@@ -2876,10 +2876,28 @@ registerJoinLeave("remove", function(plr)
     scheduleDropdownRefresh()
 end)
 
-Tabs.PLYR:AddButton({
+local lastManualRefresh = 0
+local RefreshToggle
+RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
     Title = "Refresh Player List",
-    Callback = function()
-        triggerFullRefresh()
+    Default = false,
+    Callback = function(state)
+        if state then
+            local now = tick()
+            if now - lastManualRefresh < 11 then
+                task.spawn(function()
+                    RefreshToggle:SetValue(false)
+                end)
+                return
+            end
+            
+            lastManualRefresh = now
+            triggerFullRefresh()
+            
+            task.delay(11, function()
+                RefreshToggle:SetValue(false)
+            end)
+        end
     end
 })
 Tabs.PLYR:AddButton({
