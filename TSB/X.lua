@@ -30,10 +30,7 @@ local function registerJoinLeave(kind, fn)
 end
 local function handleJoinLeave(kind, plr)
     task.defer(function()
-        local skipHandlers = false
-        if kind == "add" and (not plr or not plr.Parent) then
-            skipHandlers = true
-        end
+        local skipHandlers = (kind == "add" and (not plr or not plr.Parent))
         if not skipHandlers then
             for _, fn in ipairs(JoinLeaveHandlers[kind]) do
                 pcall(fn, plr)
@@ -41,11 +38,32 @@ local function handleJoinLeave(kind, plr)
         end
     end)
 end
-Players.PlayerAdded:Connect(function(plr)
-    handleJoinLeave("add", plr)
-end)
-Players.PlayerRemoving:Connect(function(plr)
-    handleJoinLeave("remove", plr)
+
+local SeenPlayers = {}
+task.defer(function()
+    while true do
+        local players = Players:GetPlayers()
+        local currentSet = {}
+        for _, p in ipairs(players) do currentSet[p] = true end
+        
+        -- Detect Joins
+        for _, p in ipairs(players) do
+            if not SeenPlayers[p] then
+                SeenPlayers[p] = true
+                handleJoinLeave("add", p)
+            end
+        end
+        
+        -- Detect Leaves
+        for p, _ in pairs(SeenPlayers) do
+            if not currentSet[p] then
+                SeenPlayers[p] = nil
+                handleJoinLeave("remove", p)
+            end
+        end
+        
+        task.wait(0.3)
+    end
 end)
 task.defer(function()
 local map = workspace:FindFirstChild("Map")
@@ -170,7 +188,7 @@ Window:Dialog({
     }
 })
 while not proceed do task.wait(0.1) end
-if cancelled then return end
+if not proceed then return end
 task.defer(function()
 local p=game.Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
 task.defer(function()
@@ -317,9 +335,7 @@ local function setupPlayer(plr)
     end
     plr.CharacterAdded:Connect(onCharacter)
 end
-for _, plr in ipairs(Players:GetPlayers()) do
-    setupPlayer(plr)
-end
+-- Removed redundant loop as polling system handles initial setup.
 local function cleanupPlayer(plr)
     cancelTimer(plr)
     state[plr] = nil
@@ -1088,18 +1104,20 @@ local function GetRoot(model)
 end
 local function RefreshTargets()
     table.clear(CachedTargets)
+    -- NPCs from Live
     targetPool = workspace:FindFirstChild("Live") or targetPool
     if targetPool and targetPool.Parent then
         for _, model in ipairs(targetPool:GetChildren()) do
-            if model ~= LocalPlayer.Character and IsAlive(model) then
+            if model ~= LocalPlayer.Character and IsAlive(model) and not Players:GetPlayerFromCharacter(model) then
                 local root = GetRoot(model)
                 if root then
                     CachedTargets[#CachedTargets + 1] = root
                 end
             end
         end
-        return
     end
+    
+    -- Players from Service
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and IsAlive(plr.Character) then
             local root = GetRoot(plr.Character)
@@ -1690,9 +1708,10 @@ local function startScanLoop()
             if Root then
                 local rootPos = Root.Position
                 local localChar = Character
+                -- NPCs from Live
                 if LiveFolder then
                     for _, model in ipairs(LiveFolder:GetChildren()) do
-                        if model ~= localChar and isAlive(model) then
+                        if model ~= localChar and isAlive(model) and not Players:GetPlayerFromCharacter(model) then
                             local part =
                                 model:FindFirstChild("HumanoidRootPart")
                                 or model.PrimaryPart
@@ -1706,17 +1725,18 @@ local function startScanLoop()
                         end
                     end
                 end
-                if #TargetCache == 0 then
-                    for _, plr in ipairs(Players:GetPlayers()) do
-                        if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
-                            local part =
-                                plr.Character:FindFirstChild("HumanoidRootPart")
-                                or plr.Character.PrimaryPart
-                            if part then
-                                local dist = (rootPos - part.Position).Magnitude
-                                if dist < MAX_TARGET_DISTANCE then
-                                    table.insert(TargetCache, {part = part, dist = dist})
-                                end
+                
+                -- Players from Service
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
+                        local char = plr.Character
+                        local part =
+                            char:FindFirstChild("HumanoidRootPart")
+                            or char.PrimaryPart
+                        if part then
+                            local dist = (rootPos - part.Position).Magnitude
+                            if dist < MAX_TARGET_DISTANCE then
+                                table.insert(TargetCache, {part = part, dist = dist})
                             end
                         end
                     end
@@ -2593,11 +2613,7 @@ registerJoinLeave("remove", function(plr)
     bbPendingRemove[plr] = true
     scheduleBillboardPending()
 end)
-if ToggleDetectUlt then
-    for _, plr in ipairs(Players:GetPlayers()) do
-        setupDetectPlayer(plr)
-    end
-end
+    -- Removed redundant loop as polling system handles initial setup.
 task.delay(1.5, function()
     local showUlt = ToggleUlt and ToggleUlt.Value
     local showClass = ToggleClass and ToggleClass.Value
@@ -2632,15 +2648,24 @@ local function getRootUniversal(char)
         char:FindFirstChild("UpperTorso")
     )
 end
+local lastFullRefreshTime = 0
 local function buildDropdownValues()
     dropdownMap = {}
     local values = { "None" }
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
-            table.insert(values, display)
-            dropdownMap[display] = plr
+    local showFull = (tick() - lastFullRefreshTime < 15)
+    
+    if showFull then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
+                table.insert(values, display)
+                dropdownMap[display] = plr
+            end
         end
+    elseif playerChosen and playerChosen.Parent == Players then
+        local display = playerChosen.DisplayName .. " (@" .. playerChosen.Name .. ")"
+        table.insert(values, display)
+        dropdownMap[display] = playerChosen
     end
     return values
 end
@@ -2781,6 +2806,7 @@ end
 local function refreshDropdown()
     local oldTarget = playerChosen
     local values = buildDropdownValues()
+    
     Dropdown:SetValues(values)
     local restored = false
     for display, plr in pairs(dropdownMap) do
@@ -2813,21 +2839,22 @@ local function onDropdownPlayerRemoving(plr)
     end
     refreshDropdown()
 end
-local dropdownRefreshPending = false
+local function triggerFullRefresh()
+    lastFullRefreshTime = tick()
+    refreshDropdown()
+    task.delay(15.1, function()
+        refreshDropdown() 
+    end)
+end
+
+local nextRefresh = 0
 local function scheduleDropdownRefresh()
-    if dropdownRefreshPending then return end
-    dropdownRefreshPending = true
-    local pending = (#JoinLeaveQueue - JoinLeaveHead + 1)
-    if pending < 0 then pending = 0 end
-    local delay = 0.7
-    if pending >= 12 then
-        delay = 1.2
-    elseif pending >= 6 then
-        delay = 0.9
-    end
-    task.delay(delay, function()
-        dropdownRefreshPending = false
-        refreshDropdown()
+    local thisRefresh = tick() + 0.15
+    nextRefresh = thisRefresh
+    task.delay(0.15, function()
+        if nextRefresh == thisRefresh then
+            triggerFullRefresh()
+        end
     end)
 end
 registerJoinLeave("add", function()
@@ -2840,11 +2867,21 @@ registerJoinLeave("remove", function(plr)
     if flingOneOn and playerChosen == plr then
         FlingOneToggle:SetValue(false)
     end
+    if autoTpOn and playerChosen == plr then
+        AutoTpToggle:SetValue(false)
+    end
     if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() and playerChosen == plr then
         _G.NOTHINGX_TrashPlayer.SetRunning(false)
     end
     scheduleDropdownRefresh()
 end)
+
+Tabs.PLYR:AddButton({
+    Title = "Refresh Player List",
+    Callback = function()
+        triggerFullRefresh()
+    end
+})
 Tabs.PLYR:AddButton({
     Title = "TP Player",
     Callback = function()
