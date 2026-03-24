@@ -516,7 +516,7 @@ Tabs.XXX:AddSlider("SpeedSlider", {
     Title = "Speed +/-",
     Default = Speed,
     Min = 0.1,
-    Max = 100,
+    Max = 45,
     Rounding = 1.1,
     Callback = function(value)
         Speed = value
@@ -550,7 +550,7 @@ local root = char:WaitForChild("HumanoidRootPart")
 local flying = false
 local bv, bg = nil, nil
 local speed = 280
-local maxSpeed = 2000
+local maxSpeed = 1000
 local velocity = Vector3.new()
 local currentVel = Vector3.new()
 local accel = 16
