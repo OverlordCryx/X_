@@ -2895,8 +2895,13 @@ RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
             triggerFullRefresh()
             
             task.delay(11, function()
-                RefreshToggle:SetValue(false)
+                if RefreshToggle.Value then
+                    RefreshToggle:SetValue(false)
+                end
             end)
+        else
+            lastFullRefreshTime = 0
+            refreshDropdown()
         end
     end
 })
