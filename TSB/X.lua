@@ -685,7 +685,6 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
     end
 })
 end)
-task.wait(0.1)
 local playerChosen = nil
 task.defer(function()
 local map = workspace:FindFirstChild("Map")
@@ -1079,7 +1078,6 @@ _G.NOTHINGX_TrashPlayer = {
     end
 }
 end)
-task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
@@ -1228,7 +1226,6 @@ if not camlockState.statusParagraph then
         Content = ""
     })
 end
-task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local speaker = LocalPlayer
 local power = 1000
@@ -1596,7 +1593,6 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
 })
 
 
-task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
@@ -1872,7 +1868,6 @@ if not attackState.statusParagraph then
         Content = ""
     })
 end
-task.wait(0.1)
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -2005,7 +2000,6 @@ end
 player.CharacterAdded:Connect(function(char)
     setupCharacter(char)
 end)
-task.wait(0.1)
 local player = Players.LocalPlayer
 _G.SafeTeleportLock = false
 local savedPosition = nil
@@ -2091,7 +2085,6 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 		end
 	end
 })
-task.wait(0.1)
 local camLockTrashEnabled = false
 local camLockTrashHolding = false
 local camLockTrashSession = false
@@ -2222,7 +2215,6 @@ Tabs.TOG:AddToggle("camlocktrash", {
 		end
 	end
 })
-task.wait(0.1)
 task.defer(function()
 
 local LocalPlayer = Players.LocalPlayer
@@ -2613,7 +2605,6 @@ registerJoinLeave("remove", function(plr)
     bbPendingRemove[plr] = true
     scheduleBillboardPending()
 end)
-    -- Removed redundant loop as polling system handles initial setup.
 task.delay(1.5, function()
     local showUlt = ToggleUlt and ToggleUlt.Value
     local showClass = ToggleClass and ToggleClass.Value
@@ -2622,7 +2613,7 @@ task.delay(1.5, function()
     end
 end)
 end)
-task.wait(0.1)
+
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local viewing = false
@@ -2653,6 +2644,7 @@ local function buildDropdownValues()
     dropdownMap = {}
     local values = { "None" }
     local showFull = (tick() - lastFullRefreshTime < 11)
+    if RefreshToggle and RefreshToggle.Value then showFull = true end
     
     if showFull then
         for _, plr in ipairs(Players:GetPlayers()) do
@@ -2662,10 +2654,6 @@ local function buildDropdownValues()
                 dropdownMap[display] = plr
             end
         end
-    elseif playerChosen and playerChosen.Parent == Players then
-        local display = playerChosen.DisplayName .. " (@" .. playerChosen.Name .. ")"
-        table.insert(values, display)
-        dropdownMap[display] = playerChosen
     end
     return values
 end
@@ -2853,7 +2841,7 @@ local function scheduleDropdownRefresh()
     nextRefresh = thisRefresh
     task.delay(0.15, function()
         if nextRefresh == thisRefresh then
-            triggerFullRefresh()
+            refreshDropdown()
         end
     end)
 end
