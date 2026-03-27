@@ -39,6 +39,65 @@ local function handleJoinLeave(kind, plr)
     end)
 end
 
+local VisualFixEnabled = true
+local VisualFix = {
+    originalSubject = nil,
+    target = nil,
+    active = false,
+    conn = nil
+}
+function VisualFix:Start(target)
+    if not VisualFixEnabled then return end
+    self.target = target
+    self.active = true
+    local camera = workspace.CurrentCamera
+    if not self.originalSubject then
+        self.originalSubject = camera.CameraSubject
+    end
+    if self.conn then self.conn:Disconnect() end
+    self.conn = RunService.RenderStepped:Connect(function()
+        if not self.active then return end
+        local camera = workspace.CurrentCamera
+        if self.target == "SafeZone" then
+            -- For Safe Zone, we keep the camera focus but hide the character
+        elseif self.target then
+            local obj = self.target
+            if obj:IsA("Model") then
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hum then camera.CameraSubject = hum end
+            elseif obj:IsA("BasePart") then
+                camera.CameraSubject = obj
+            end
+        end
+        local char = game.Players.LocalPlayer.Character
+        if char then
+            for _, v in ipairs(char:GetDescendants()) do
+                if v:IsA("BasePart") or v:IsA("Decal") then
+                    v.LocalTransparencyModifier = 1
+                end
+            end
+        end
+    end)
+end
+function VisualFix:Stop()
+    self.active = false
+    if self.conn then self.conn:Disconnect() self.conn = nil end
+    local camera = workspace.CurrentCamera
+    if self.originalSubject then
+        camera.CameraSubject = self.originalSubject
+        self.originalSubject = nil
+    end
+    self.target = nil
+    local char = game.Players.LocalPlayer.Character
+    if char then
+        for _, v in ipairs(char:GetDescendants()) do
+            if v:IsA("BasePart") or v:IsA("Decal") then
+                v.LocalTransparencyModifier = 0
+            end
+        end
+    end
+end
+
 local SeenPlayers = {}
 task.defer(function()
     while true do
@@ -889,6 +948,7 @@ local function useTrashCan(isRunning)
                 local targetCFrame = currentTrash.PrimaryPart and currentTrash.PrimaryPart.CFrame
                     or currentTrash:FindFirstChildWhichIsA("BasePart", true).CFrame
                 if targetCFrame then
+                    VisualFix:Start(currentTrash)
                     hrp.AssemblyLinearVelocity = Vector3.zero
                     hrp.AssemblyAngularVelocity = Vector3.zero
                     character:PivotTo(targetCFrame * CFrame.new(0, -0.4, 0))
@@ -900,6 +960,7 @@ local function useTrashCan(isRunning)
             RunService.Heartbeat:Wait()
         end
     end
+    VisualFix:Stop()
     if hrp and hrp.Parent then
         hrp.CFrame = savedCFrame
     end
@@ -921,17 +982,25 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
     if not targetRoot then return end
 
     local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
+    if targetVel.Magnitude > 1000 then -- Fling detection
+        targetVel = Vector3.zero
+    end
+    
     local ping = player:GetNetworkPing() or 0
     local prediction = targetVel * (ping * 1.1)
+    if prediction.Magnitude > 8 then -- Cap prediction distance
+        prediction = prediction.Unit * 8
+    end
     
     local offset = behindDist or 0.7
     local jitter = -0.26
     local backOffset = -(targetRoot.CFrame.LookVector) * -(offset)
     local targetPos = (targetRoot.Position + prediction) + backOffset + Vector3.new(0, -2.2 + jitter, 0)
     
-    hrp.AssemblyLinearVelocity = targetVel
+    VisualFix:Start(targetRoot)
+    hrp.AssemblyLinearVelocity = (targetVel.Magnitude > 250) and (targetVel.Unit * 100) or targetVel
     hrp.AssemblyAngularVelocity = Vector3.zero
-    character:PivotTo(CFrame.new(targetPos, targetRoot.Position + prediction))
+    character:PivotTo(CFrame.lookAt(targetPos, targetRoot.Position + prediction))
     click()
 end
 local function teleportToMainPart()
@@ -978,6 +1047,7 @@ local function startTrashPlayerLoop()
             end
             task.wait()
         end
+        VisualFix:Stop()
         clearTrashPlayerWatch()
         trashPlayer.thread = nil
     end)
@@ -1189,9 +1259,17 @@ local function camlockStep(dt)
         if not CamlockTarget then return end
     end
     BasePrediction = GetPrediction()
-    local velocity = CamlockTarget.AssemblyLinearVelocity or Vector3.zero
-    local predicted = CamlockTarget.Position + velocity * BasePrediction
-    Camera.CFrame = CFrame.new(Camera.CFrame.Position, predicted)
+    local targetVel = CamlockTarget.AssemblyLinearVelocity or Vector3.zero
+    if targetVel.Magnitude > 1000 then
+        targetVel = Vector3.zero
+    end
+    
+    local predictionOffset = targetVel * BasePrediction
+    if predictionOffset.Magnitude > 5 then
+        predictionOffset = predictionOffset.Unit * 5
+    end
+    local predicted = CamlockTarget.Position + predictionOffset
+    Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, predicted)
 end
 Tabs.XXX:AddKeybind("camKeybind", {
     Title = "Cam Lock",
@@ -1322,6 +1400,15 @@ Tabs.TOG:AddDropdown("Dropdown_F_N", {
     end
 })
 
+Tabs.TOG:AddToggle("VisualFixToggle", {
+    Title = "Visual TP Fix (Smooth View)",
+    Default = true,
+    Callback = function(state)
+        VisualFixEnabled = state
+        if not state then VisualFix:Stop() end
+    end
+})
+
 Tabs.TOG:AddInput("FlingAllPowerInput", {
     Title = "Fling / Aura Power",
     Default = tostring(flingAllPower),
@@ -1366,6 +1453,7 @@ local function auraFling()
                             local dist = (targetRoot.Position - myPos).Magnitude
                             if dist <= auraRange then
                                 hitAny = true
+                                VisualFix:Start(targetRoot)
                                 myRoot.AssemblyLinearVelocity = Vector3.zero
                                 myRoot.AssemblyAngularVelocity = Vector3.zero
                                 myChar:PivotTo(targetRoot.CFrame)
@@ -1384,6 +1472,7 @@ local function auraFling()
                     myRoot.AssemblyAngularVelocity = Vector3.zero
                     myRoot.AssemblyLinearVelocity = Vector3.zero
                     myChar:PivotTo(originalCFrame)
+                    VisualFix:Stop()
                 end
             end
             task.wait()
@@ -1426,6 +1515,7 @@ local function clickFlingTarget(targetPlayer)
         local targetRoot = getRootUniversal(targetChar)
         if myRoot and targetRoot then
             local savedCFrame = myRoot.CFrame
+            VisualFix:Start(targetRoot)
             local p = flingAllPower
             local t = 0
             local startTime = tick()
@@ -1463,6 +1553,7 @@ local function clickFlingTarget(targetPlayer)
             if myRoot.Parent then
                 myRoot.CFrame = savedCFrame
             end
+            VisualFix:Stop()
         end
         clickFlingBusy = false
     end)
@@ -1496,6 +1587,7 @@ local flingAllConn = nil
 local function flingAll()
     if flingAllConn then flingAllConn:Disconnect() end
     local t = 0
+    VisualFix:Start(nil) -- Just visibility for Fling All to avoid jumping cameras
     flingAllConn = RunService.Heartbeat:Connect(function(dt)
         if not flingOn then
             if flingAllConn then
@@ -1508,6 +1600,7 @@ local function flingAll()
                 myRoot.AssemblyAngularVelocity = zero
                 myRoot.AssemblyLinearVelocity = zero
             end
+            VisualFix:Stop()
             return
         end
 
@@ -1790,6 +1883,7 @@ local function startAttackLoop()
     attackLoopThread = RunService.Heartbeat:Connect(function()
         if not attackLoopRunning then
             if attackLoopThread then attackLoopThread:Disconnect() attackLoopThread = nil end
+            VisualFix:Stop()
             return
         end
         local now = tick()
@@ -1800,19 +1894,31 @@ local function startAttackLoop()
             if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
                 local target = getAttackTarget()
                 if target then
+                    VisualFix:Start(target)
                     if Humanoid then
                         Humanoid.AutoRotate = false
                     end
                     local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+                    if targetVel.Magnitude > 1000 then
+                        targetVel = Vector3.zero
+                    end
+                    
                     local ping = LocalPlayer:GetNetworkPing() or 0
                     local prediction = targetVel * (ping * 1.05)
+                    if prediction.Magnitude > 10 then
+                        prediction = prediction.Unit * 10
+                    end
                     
                     local behindPos = (target.Position + prediction) - (target.CFrame.LookVector * BACK_OFFSET)
                     
-                    Root.AssemblyLinearVelocity = targetVel
+                    Root.AssemblyLinearVelocity = (targetVel.Magnitude > 300) and (targetVel.Unit * 150) or targetVel
                     Root.AssemblyAngularVelocity = Vector3.zero
                     Character:PivotTo(CFrame.lookAt(behindPos, target.Position + prediction))
+                else
+                    VisualFix:Stop()
                 end
+            else
+                VisualFix:Stop()
             end
         end
     end)
@@ -2042,6 +2148,7 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 					_G.SafeTeleportLock = true
 					savedPosition = hrp.CFrame
 					inSafe = true
+                    VisualFix:Start("SafeZone")
 					currentIndex = 1
 					positionAccumulator = 0
 					antiMoveConnection = RunService.Heartbeat:Connect(function(dt2)
@@ -2060,6 +2167,7 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 				if inSafe and humanoid.Health > humanoid.MaxHealth * 0.39 then
 					inSafe = false
 					_G.SafeTeleportLock = false
+                    VisualFix:Stop()
 					if antiMoveConnection then
 						antiMoveConnection:Disconnect()
 						antiMoveConnection = nil
@@ -2082,6 +2190,7 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 			end
 			inSafe = false
 			_G.SafeTeleportLock = false
+            VisualFix:Stop()
 		end
 	end
 })
@@ -2759,11 +2868,19 @@ local function startAutoTp()
         local myRoot = getRootUniversal(myChar)
         local targetRoot = getRootUniversal(targetChar)
         if not (myRoot and targetRoot) then return end
+        
         local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
+        if targetVel.Magnitude > 1000 then
+            targetVel = Vector3.zero
+        end
+        
         local ping = LocalPlayer:GetNetworkPing() or 0
         local prediction = targetVel * ping
+        if prediction.Magnitude > 10 then
+            prediction = prediction.Unit * 10
+        end
         
-        myRoot.AssemblyLinearVelocity = targetVel
+        myRoot.AssemblyLinearVelocity = (targetVel.Magnitude > 250) and (targetVel.Unit * 100) or targetVel
         myRoot.AssemblyAngularVelocity = Vector3.zero
         myChar:PivotTo(targetRoot.CFrame + prediction)
     end)
