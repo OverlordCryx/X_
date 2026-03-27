@@ -1400,14 +1400,7 @@ Tabs.TOG:AddDropdown("Dropdown_F_N", {
     end
 })
 
-Tabs.TOG:AddToggle("VisualFixToggle", {
-    Title = "Visual TP Fix (Smooth View)",
-    Default = true,
-    Callback = function(state)
-        VisualFixEnabled = state
-        if not state then VisualFix:Stop() end
-    end
-})
+
 
 Tabs.TOG:AddInput("FlingAllPowerInput", {
     Title = "Fling / Aura Power",
@@ -2323,6 +2316,14 @@ Tabs.TOG:AddToggle("camlocktrash", {
 			stopCamLockTrashAll()
 		end
 	end
+})
+Tabs.TOG:AddToggle("VisualFixToggle", {
+    Title = "Visual TP Fix (Smooth View)",
+    Default = true,
+    Callback = function(state)
+        VisualFixEnabled = state
+        if not state then VisualFix:Stop() end
+    end
 })
 task.defer(function()
 
