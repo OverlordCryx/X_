@@ -11,11 +11,9 @@ end
 task.defer(function()
 loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()
 end)
-
 local game = game
 local workspace = workspace
 local getService = game.GetService
-
 local Players = getService(game, "Players")
 local RunService = getService(game, "RunService")
 local UserInputService = getService(game, "UserInputService")
@@ -38,7 +36,6 @@ local function handleJoinLeave(kind, plr)
         end
     end)
 end
-
 local VisualFixEnabled = true
 local VisualFix = {
     originalSubject = nil,
@@ -59,7 +56,6 @@ function VisualFix:Start(target)
         if not self.active then return end
         local camera = workspace.CurrentCamera
         if self.target == "SafeZone" then
-            -- For Safe Zone, we keep the camera focus but hide the character
         elseif self.target then
             local obj = self.target
             if obj:IsA("Model") then
@@ -97,30 +93,24 @@ function VisualFix:Stop()
         end
     end
 end
-
 local SeenPlayers = {}
 task.defer(function()
     while true do
         local players = Players:GetPlayers()
         local currentSet = {}
         for _, p in ipairs(players) do currentSet[p] = true end
-        
-        -- Detect Joins
         for _, p in ipairs(players) do
             if not SeenPlayers[p] then
                 SeenPlayers[p] = true
                 handleJoinLeave("add", p)
             end
         end
-        
-        -- Detect Leaves
         for p, _ in pairs(SeenPlayers) do
             if not currentSet[p] then
                 SeenPlayers[p] = nil
                 handleJoinLeave("remove", p)
             end
         end
-        
         task.wait(0.3)
     end
 end)
@@ -160,54 +150,41 @@ if not mainPart then
 end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 local nothingX = workspace:FindFirstChild("NOTHING X")
-
 if not mainPart or not nothingX then
 	return
 end
-
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
-
 local spawnPart = mainPart
-
 local function isOutside()
 	local pos = hrp.Position
 	local cf = nothingX.CFrame
 	local localPos = cf:PointToObjectSpace(pos)
 	local s = nothingX.Size / 2
-
 	return localPos.X < -s.X or localPos.X > s.X
 	or localPos.Y < -s.Y or localPos.Y > s.Y
 	or localPos.Z < -s.Z or localPos.Z > s.Z
 end
-
 local checkTime = 0
 local interval = 0
-
 RunService.Heartbeat:Connect(function(dt)
-
 	if _G.SafeTeleportLock then
 		return
 	end
-
 	checkTime += dt
 	if checkTime < interval then return end
 	checkTime = 0
-
 	if not hrp or not hrp.Parent then return end
-
 	if isOutside() then
 		hrp.AssemblyLinearVelocity = Vector3.zero
 		hrp.AssemblyAngularVelocity = Vector3.zero
 		character:PivotTo(spawnPart.CFrame + Vector3.new(0,5,0))
 	end
 end)
-
 player.CharacterAdded:Connect(function(char)
 	character = char
 	hrp = char:WaitForChild("HumanoidRootPart")
@@ -266,6 +243,7 @@ local weakSkills = {
     ["Uppercut"] = true
 }
 local state = {}
+local SkillHighlights = {}
 local protectConnections = {}
 local allowDestroy = {}
 local activeTimers = {}
@@ -277,12 +255,18 @@ local function SendNotification(title, text, duration)
     })
 end
 local function safeDestroyHighlight(plr)
-    local char = plr.Character
-    if not char then return end
     allowDestroy[plr] = true
-    local hl = char:FindFirstChild("SkillHighlight")
+    local hl = SkillHighlights[plr]
     if hl then
-        hl:Destroy()
+        pcall(function() hl:Destroy() end)
+        SkillHighlights[plr] = nil
+    end
+    local char = plr.Character
+    if char then
+        local existing = char:FindFirstChild("SkillHighlight")
+        if existing then
+            pcall(function() existing:Destroy() end)
+        end
     end
     allowDestroy[plr] = false
 end
@@ -294,6 +278,7 @@ local function createImmortalHighlight(plr, isStrong)
     hl.Name = "SkillHighlight"
     hl.Adornee = char
     hl.Parent = char
+    SkillHighlights[plr] = hl
     hl.FillColor = Color3.fromRGB(0,0,0)
     hl.OutlineColor = isStrong and Color3.fromRGB(255,255,255) or Color3.fromRGB(255,165,0)
     hl.FillTransparency = 0.8
@@ -333,50 +318,95 @@ local function updatePlayer(plr)
     if plr == LocalPlayer then return end
     local char = plr.Character
     local backpack = plr:FindFirstChildOfClass("Backpack")
-    if not char or not backpack then return end
+    if not char or not backpack then
+        if state[plr] ~= nil then
+            local oldState = state[plr]
+            state[plr] = nil
+            safeDestroyHighlight(plr)
+            if oldState == "strong" or oldState == "weak" then
+                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+            end
+        end
+        return
+    end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    if humanoid.Health <= 0 then
-        cancelTimer(plr)
-        state[plr] = nil
-        safeDestroyHighlight(plr)
+    if not humanoid or humanoid.Health <= 0 then
+        if state[plr] ~= nil then
+            local oldState = state[plr]
+            state[plr] = nil
+            safeDestroyHighlight(plr)
+            if oldState == "strong" or oldState == "weak" then
+                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+            end
+        end
         return
     end
     local skillType = getSkillType(backpack)
     local lastState = state[plr]
-    if skillType == "strong" and lastState ~= "strong" then
-        cancelTimer(plr)
-        state[plr] = "strong"
-        createImmortalHighlight(plr, true)
-        SendNotification("SERIOUS MODE", plr.Name.." -ACTIVE", 4)
+    if skillType == "strong" then
+        if lastState ~= "strong" then
+            cancelTimer(plr)
+            state[plr] = "strong"
+            createImmortalHighlight(plr, true)
+            SendNotification("SERIOUS MODE", plr.Name.." -ACTIVE", 4)
+        end
         return
     end
-    if skillType == "weak" and lastState == "strong" then
-        state[plr] = "weak"
-        createImmortalHighlight(plr, false)
-        SendNotification("SERIOUS MODE", plr.Name.." -DEATH", 4)
-        local currentId = tick()
-        activeTimers[plr] = currentId
-        task.delay(9.4, function()
-            if activeTimers[plr] ~= currentId then return end
-            if state[plr] == "weak" then
+    if skillType == "weak" then
+        if lastState == "strong" then
+            state[plr] = "weak"
+            createImmortalHighlight(plr, false)
+            SendNotification("SERIOUS MODE", plr.Name.." -DEATH", 4)
+            local currentId = tick()
+            activeTimers[plr] = currentId
+            task.delay(9.4, function()
+                if activeTimers[plr] ~= currentId then return end
+                if state[plr] == "weak" then
+                    state[plr] = nil
+                    safeDestroyHighlight(plr)
+                    SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+                end
+            end)
+        elseif lastState ~= "weak" then
+            if lastState ~= nil then
                 state[plr] = nil
                 safeDestroyHighlight(plr)
-                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
             end
-        end)
+        end
         return
     end
+    if not skillType and lastState ~= nil then
+        local oldState = lastState
+        state[plr] = nil
+        safeDestroyHighlight(plr)
+        if oldState == "strong" or oldState == "weak" then
+            SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+        end
+    end
 end
+task.defer(function()
+    while true do
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                updatePlayer(plr)
+            end
+        end
+        task.wait(1)
+    end
+end)
 local function setupPlayer(plr)
     if plr == LocalPlayer then return end
     local function onCharacter()
         cancelTimer(plr)
         state[plr] = nil
         safeDestroyHighlight(plr)
-        local backpack = plr:WaitForChild("Backpack")
-        local humanoid = plr.Character:WaitForChild("Humanoid")
+        local backpack = plr:WaitForChild("Backpack", 5)
+        local humanoid = plr.Character:WaitForChild("Humanoid", 5)
+        if not humanoid or not backpack then return end
         humanoid.Died:Connect(function()
+            if state[plr] == "strong" or state[plr] == "weak" then
+                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+            end
             cancelTimer(plr)
             state[plr] = nil
             safeDestroyHighlight(plr)
@@ -394,7 +424,6 @@ local function setupPlayer(plr)
     end
     plr.CharacterAdded:Connect(onCharacter)
 end
--- Removed redundant loop as polling system handles initial setup.
 local function cleanupPlayer(plr)
     cancelTimer(plr)
     state[plr] = nil
@@ -408,7 +437,6 @@ registerJoinLeave("add", setupPlayer)
 registerJoinLeave("remove", cleanupPlayer)
 end)
 task.defer(function()
-
 local speaker = game.Players.LocalPlayer
 local speed = 25
 local jpower = 50
@@ -581,7 +609,6 @@ Tabs.XXX:AddSlider("SpeedSlider", {
         Speed = value
     end
 })
-
 state.inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     local key = input.KeyCode
@@ -632,44 +659,34 @@ local flyState = {
 }
 local function toggleFly()
     flying = not flying
-
     if flyState.statusParagraph then
         flyState.statusParagraph:SetTitle(flying and "Fly : ON" or "Fly : OFF")
     end
-
-
-
     if flying then
         hum.PlatformStand = true
         hum.WalkSpeed = 0
-
         bv = Instance.new("BodyPosition")
         bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
         bv.Position = root.Position
         bv.D = 2000
         bv.P = 18000
         bv.Parent = root
-
         bg = Instance.new("BodyGyro")
         bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
         bg.P = 28000
         bg.D = 2200
         bg.Parent = root
-
         if track then track:Play(0.2, 1, 1.2) end
     else
         hum.PlatformStand = false
         hum.WalkSpeed = 16
-
         if bv then bv:Destroy() bv = nil end
         if bg then bg:Destroy() bg = nil end
         if track then track:Stop(0.3) end
-
         velocity = Vector3.new()
         currentVel = Vector3.new()
     end
 end
-
 local function getMovementInput()
     local forward = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0
     local backward = UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0
@@ -719,7 +736,6 @@ RunService.Heartbeat:Connect(function(dt)
         end
     end
 end)
-
 Tabs.XXX:AddKeybind("FlyIY", {
     Title = "Fly",
     Default = "R",
@@ -732,7 +748,6 @@ if not flyState.statusParagraph then
         Content = ""
     })
 end
-
 Tabs.XXX:AddSlider("FlySpeedIY", {
     Title = "Fly +/-",
     Min = 35,
@@ -942,7 +957,6 @@ local function useTrashCan(isRunning)
             if not currentTrash or currentTrash:GetAttribute("Broken") then
                 currentTrash = getRandomTrashCan()
             end
-            
             if currentTrash then
                 ensureNoCollide(currentTrash)
                 local targetCFrame = currentTrash.PrimaryPart and currentTrash.PrimaryPart.CFrame
@@ -973,30 +987,24 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
     if not hasTrashFlag then return end
     if not hrp or not hrp.Parent then return end
     if not targetPlayer or not targetPlayer.Character then return end
-
     local targetRoot =
         targetPlayer.Character:FindFirstChild("HumanoidRootPart")
         or targetPlayer.Character:FindFirstChild("UpperTorso")
         or targetPlayer.Character:FindFirstChild("Torso")
-
     if not targetRoot then return end
-
     local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
-    if targetVel.Magnitude > 1000 then -- Fling detection
+    if targetVel.Magnitude > 1000 then 
         targetVel = Vector3.zero
     end
-    
     local ping = player:GetNetworkPing() or 0
     local prediction = targetVel * (ping * 1.1)
-    if prediction.Magnitude > 8 then -- Cap prediction distance
+    if prediction.Magnitude > 8 then 
         prediction = prediction.Unit * 8
     end
-    
     local offset = behindDist or 0.7
     local jitter = -0.26
     local backOffset = -(targetRoot.CFrame.LookVector) * -(offset)
     local targetPos = (targetRoot.Position + prediction) + backOffset + Vector3.new(0, -2.2 + jitter, 0)
-    
     VisualFix:Start(targetRoot)
     hrp.AssemblyLinearVelocity = (targetVel.Magnitude > 250) and (targetVel.Unit * 100) or targetVel
     hrp.AssemblyAngularVelocity = Vector3.zero
@@ -1172,7 +1180,6 @@ local function GetRoot(model)
 end
 local function RefreshTargets()
     table.clear(CachedTargets)
-    -- NPCs from Live
     targetPool = workspace:FindFirstChild("Live") or targetPool
     if targetPool and targetPool.Parent then
         for _, model in ipairs(targetPool:GetChildren()) do
@@ -1184,8 +1191,6 @@ local function RefreshTargets()
             end
         end
     end
-    
-    -- Players from Service
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and IsAlive(plr.Character) then
             local root = GetRoot(plr.Character)
@@ -1263,7 +1268,6 @@ local function camlockStep(dt)
     if targetVel.Magnitude > 1000 then
         targetVel = Vector3.zero
     end
-    
     local predictionOffset = targetVel * BasePrediction
     if predictionOffset.Magnitude > 5 then
         predictionOffset = predictionOffset.Unit * 5
@@ -1399,9 +1403,6 @@ Tabs.TOG:AddDropdown("Dropdown_F_N", {
         walkFlingMode = value
     end
 })
-
-
-
 Tabs.TOG:AddInput("FlingAllPowerInput", {
     Title = "Fling / Aura Power",
     Default = tostring(flingAllPower),
@@ -1428,7 +1429,6 @@ local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
         auraRange = tonumber(value) or auraRange
     end
 })
-
 local function auraFling()
     task.defer(function()
         while auraFlingOn do
@@ -1450,9 +1450,7 @@ local function auraFling()
                                 myRoot.AssemblyLinearVelocity = Vector3.zero
                                 myRoot.AssemblyAngularVelocity = Vector3.zero
                                 myChar:PivotTo(targetRoot.CFrame)
-                                
                                 task.wait() 
-                                
                                 myRoot.AssemblyAngularVelocity = Vector3.new(p,p,p)
                                 myRoot.AssemblyLinearVelocity =
                                 myRoot.CFrame.LookVector * p + Vector3.new(0,p/2,0)
@@ -1480,10 +1478,8 @@ Tabs.TOG:AddToggle("AuraFlingToggle", {
         if state then auraFling() end
     end
 })
-
 local clickFlingConnection
 local clickFlingBusy = false
-
 local function getPlayerFromClickedPart(part)
     local current = part
     while current do
@@ -1497,7 +1493,6 @@ local function getPlayerFromClickedPart(part)
     end
     return nil
 end
-
 local function clickFlingTarget(targetPlayer)
     if clickFlingBusy then return end
     clickFlingBusy = true
@@ -1517,25 +1512,19 @@ local function clickFlingTarget(targetPlayer)
                 targetChar = targetPlayer and targetPlayer.Character
                 targetRoot = getRootUniversal(targetChar)
                 if not targetRoot or not targetRoot.Parent then break end
-
                 local dt = RunService.Heartbeat:Wait()
                 t = t + dt * orbitSpeed
-
                 local orbitDistanceXZ = orbitStepXZ
                 local orbitDistanceY = orbitStepY
-
                 orbitStepXZ = orbitStepXZ + orbitIncrement
                 orbitStepY = orbitStepY + orbitIncrement
-
                 if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
                 if orbitStepY > orbitMax then orbitStepY = 0 end
-
                 local offset = Vector3.new(
                     math.cos(t) * orbitDistanceXZ,
                     orbitDistanceY,
                     math.sin(t) * orbitDistanceXZ
                 )
-
                 myRoot.CFrame = targetRoot.CFrame + offset
                 myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
                 myRoot.AssemblyLinearVelocity =
@@ -1551,7 +1540,6 @@ local function clickFlingTarget(targetPlayer)
         clickFlingBusy = false
     end)
 end
-
 Tabs.TOG:AddToggle("ClickFlingToggle", {
     Title = "Click Fling",
     Default = false,
@@ -1574,13 +1562,13 @@ Tabs.TOG:AddToggle("ClickFlingToggle", {
         end
     end
 })
-
-
 local flingAllConn = nil
+local flingTargetIndex = 1
 local function flingAll()
     if flingAllConn then flingAllConn:Disconnect() end
+    flingTargetIndex = 1
     local t = 0
-    VisualFix:Start(nil) -- Just visibility for Fling All to avoid jumping cameras
+    VisualFix:Start(nil) 
     flingAllConn = RunService.Heartbeat:Connect(function(dt)
         if not flingOn then
             if flingAllConn then
@@ -1596,44 +1584,38 @@ local function flingAll()
             VisualFix:Stop()
             return
         end
-
         local myChar = LocalPlayer.Character
         local myRoot = myChar and getRootUniversal(myChar)
         if not myRoot then return end
-
-        t = t + dt * orbitSpeed
         local p = flingAllPower
         local players = Players:GetPlayers()
-
+        local targets = {}
         for i = 1, #players do
             local plr = players[i]
             if plr ~= LocalPlayer and plr.Character then
                 local targetRoot = getRootUniversal(plr.Character)
-
-                if targetRoot then
-                    local orbitDistanceXZ = orbitStepXZ
-                    local orbitDistanceY = orbitStepY
-
-                    orbitStepXZ = orbitStepXZ + orbitIncrement
-                    orbitStepY = orbitStepY + orbitIncrement
-
-                    if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
-                    if orbitStepY > orbitMax then orbitStepY = 0 end
-
-                    local offset = Vector3.new(
-                        math.cos(t) * orbitDistanceXZ,
-                        orbitDistanceY,
-                        math.sin(t) * orbitDistanceXZ
-                    )
-
-                    myRoot.CFrame = targetRoot.CFrame + offset
-                    myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
-                    myRoot.AssemblyLinearVelocity =
-                        targetRoot.CFrame.LookVector * p +
-                        Vector3.new(0, p * 0.5, 0)
-                end
+                if targetRoot then table.insert(targets, targetRoot) end
             end
         end
+        if #targets == 0 then return end
+        if flingTargetIndex > #targets then flingTargetIndex = 1 end
+        local targetRoot = targets[flingTargetIndex]
+        t = t + dt * orbitSpeed
+        orbitStepXZ = orbitStepXZ + orbitIncrement
+        orbitStepY = orbitStepY + orbitIncrement
+        if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
+        if orbitStepY > orbitMax then orbitStepY = 0 end
+        local offset = Vector3.new(
+            math.cos(t) * orbitStepXZ,
+            orbitStepY,
+            math.sin(t) * orbitStepXZ
+        )
+        myRoot.CFrame = targetRoot.CFrame + offset
+        myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
+        myRoot.AssemblyLinearVelocity =
+            targetRoot.CFrame.LookVector * p +
+            Vector3.new(0, p * 0.5, 0)
+        flingTargetIndex = flingTargetIndex + 1
     end)
 end
 Tabs.TOG:AddToggle("FlingAllToggle", {
@@ -1646,8 +1628,6 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
         end
     end
 })
-
-
 local antifling
 local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
     Title = "Anti Fling",
@@ -1677,8 +1657,6 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
         end
     end
 })
-
-
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
@@ -1741,12 +1719,9 @@ local function startTrashLoop()
         else
             HasTrash = false
         end
-
         TrashNearby = false
-
         if Root and TrashFolder then
             local rootPos = Root.Position
-
             for _, m in ipairs(TrashFolder:GetChildren()) do
                 if m.Name == "Trashcan" and not m:GetAttribute("Broken") then
                     local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
@@ -1784,13 +1759,11 @@ local function startScanLoop()
         local now = tick()
         if now - lastScanTime < MODEL_SCAN_RATE then return end
         lastScanTime = now
-
         if not isSafeTeleportLocked() then
             table.clear(TargetCache)
             if Root then
                 local rootPos = Root.Position
                 local localChar = Character
-                -- NPCs from Live
                 if LiveFolder then
                     for _, model in ipairs(LiveFolder:GetChildren()) do
                         if model ~= localChar and isAlive(model) and not Players:GetPlayerFromCharacter(model) then
@@ -1807,8 +1780,6 @@ local function startScanLoop()
                         end
                     end
                 end
-                
-                -- Players from Service
                 for _, plr in ipairs(Players:GetPlayers()) do
                     if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
                         local char = plr.Character
@@ -1882,7 +1853,6 @@ local function startAttackLoop()
         local now = tick()
         if now - lastAttackTime < ATTACK_RATE then return end
         lastAttackTime = now
-
         if not isSafeTeleportLocked() then
             if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
                 local target = getAttackTarget()
@@ -1895,15 +1865,12 @@ local function startAttackLoop()
                     if targetVel.Magnitude > 1000 then
                         targetVel = Vector3.zero
                     end
-                    
                     local ping = LocalPlayer:GetNetworkPing() or 0
                     local prediction = targetVel * (ping * 1.05)
                     if prediction.Magnitude > 10 then
                         prediction = prediction.Unit * 10
                     end
-                    
                     local behindPos = (target.Position + prediction) - (target.CFrame.LookVector * BACK_OFFSET)
-                    
                     Root.AssemblyLinearVelocity = (targetVel.Magnitude > 300) and (targetVel.Unit * 150) or targetVel
                     Root.AssemblyAngularVelocity = Vector3.zero
                     Character:PivotTo(CFrame.lookAt(behindPos, target.Position + prediction))
@@ -1952,7 +1919,6 @@ local function setAttackState(enabled)
         stopScanLoop()
     end
 end
-
 Tabs.XXX:AddKeybind("AttackTPKeybind", {
     Title = "Attack TP",
     Mode = "Toggle",
@@ -2196,7 +2162,6 @@ local camLockTrashInputBegan = nil
 local camLockTrashInputEnded = nil
 local camLockTrashPrevPlayer = nil
 local camLockTrashPrevRunning = false
-
 local function getCamlockPlayer()
 	local t = CamlockTarget
 	if not t or not t.Parent then return nil end
@@ -2204,7 +2169,6 @@ local function getCamlockPlayer()
 	if not model then return nil end
 	return Players:GetPlayerFromCharacter(model)
 end
-
 local function stopCamLockTrashActive()
 	if not camLockTrashActive then return end
 	camLockTrashActive = false
@@ -2212,7 +2176,6 @@ local function stopCamLockTrashActive()
 		_G.NOTHINGX_TrashPlayer.SetRunning(false)
 	end
 end
-
 local function restoreCamLockTrashSession()
 	if not camLockTrashSession then return end
 	stopCamLockTrashActive()
@@ -2227,7 +2190,6 @@ local function restoreCamLockTrashSession()
 	camLockTrashPrevRunning = false
 	camLockTrashSession = false
 end
-
 local function stopCamLockTrashAll()
 	camLockTrashHolding = false
 	restoreCamLockTrashSession()
@@ -2236,7 +2198,6 @@ local function stopCamLockTrashAll()
 		camLockTrashConn = nil
 	end
 end
-
 local function startCamLockTrashLoop()
 	if camLockTrashConn then return end
 	camLockTrashConn = RunService.Heartbeat:Connect(function()
@@ -2247,13 +2208,11 @@ local function startCamLockTrashLoop()
 			return
 		end
 		if not _G.NOTHINGX_TrashPlayer then return end
-
 		local targetPlr = getCamlockPlayer()
 		if not targetPlr then
 			stopCamLockTrashActive()
 			return
 		end
-
 		if playerChosen ~= targetPlr then
 			playerChosen = targetPlr
 		end
@@ -2264,7 +2223,6 @@ local function startCamLockTrashLoop()
 		camLockTrashActive = true
 	end)
 end
-
 local function bindCamLockTrashInput()
 	if camLockTrashInputBegan then return end
 	camLockTrashInputBegan = UserInputService.InputBegan:Connect(function(input, gp)
@@ -2292,7 +2250,6 @@ local function bindCamLockTrashInput()
 		end
 	end)
 end
-
 local function unbindCamLockTrashInput()
 	if camLockTrashInputBegan then
 		camLockTrashInputBegan:Disconnect()
@@ -2303,7 +2260,6 @@ local function unbindCamLockTrashInput()
 		camLockTrashInputEnded = nil
 	end
 end
-
 Tabs.TOG:AddToggle("camlocktrash", {
 	Title = "Cam-Lock Trash Cant (Hold Right)",
 	Default = false,
@@ -2326,7 +2282,6 @@ Tabs.TOG:AddToggle("VisualFixToggle", {
     end
 })
 task.defer(function()
-
 local LocalPlayer = Players.LocalPlayer
 local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
@@ -2420,17 +2375,23 @@ local function onUltimateChanged(plr)
     local val = tonumber(plr:GetAttribute("Ultimate") or 0) or 0
     local prev = UltEspState.lastUlt[plr]
     UltEspState.lastUlt[plr] = val
-    if prev == nil then return end
-    if prev >= 100 and val <= 0 then
-        UltEspState.active[plr] = true
-        startUltTimer(plr)
-        if ToggleDetectUlt and ToggleDetectUlt.Value then
-            createUltEsp(plr)
+    if ToggleDetectUlt and ToggleDetectUlt.Value then
+        if val >= 100 then
+            if not UltEspState.active[plr] then
+                UltEspState.active[plr] = true
+                createUltEsp(plr)
+            end
+            return
         end
-        return
-    end
-    if val > 0 then
-        finishUltEsp(plr)
+        if prev and prev >= 100 and val <= 0 then
+            UltEspState.active[plr] = true
+            startUltTimer(plr)
+            createUltEsp(plr)
+            return
+        end
+        if val > 0 and val < 100 and not UltEspState.timer[plr] then
+            finishUltEsp(plr)
+        end
     end
 end
 local function clearDetectConns(plr)
@@ -2600,7 +2561,6 @@ local billboardTimer = 0
 local function ManageHeartbeat()
     local showUlt = ToggleUlt and ToggleUlt.Value
     local showClass = ToggleClass and ToggleClass.Value
-
     if showUlt or showClass then
         if not conn then
             billboardTimer = 0
@@ -2723,7 +2683,6 @@ task.delay(1.5, function()
     end
 end)
 end)
-
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local viewing = false
@@ -2755,7 +2714,6 @@ local function buildDropdownValues()
     local values = { "None" }
     local showFull = (tick() - lastFullRefreshTime < 11)
     if RefreshToggle and RefreshToggle.Value then showFull = true end
-    
     if showFull then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer then
@@ -2806,7 +2764,6 @@ local function stopView()
 end
 local function startFlingOne()
     if flingOneConnection then flingOneConnection:Disconnect() end
-
     flingOneConnection = RunService.Heartbeat:Connect(function(dt)
         if isSafeTeleportLocked() then
             return
@@ -2817,38 +2774,31 @@ local function startFlingOne()
             FlingOneToggle:SetValue(false)
             return
         end
-
         local myChar = LocalPlayer.Character
         local targetChar = playerChosen.Character
         if not (myChar and targetChar) then
             FlingOneToggle:SetValue(false)
             return
         end
-
         local myRoot = getRootUniversal(myChar)
         local targetRoot = getRootUniversal(targetChar)
         if not (myRoot and targetRoot) then
             FlingOneToggle:SetValue(false)
             return
         end
-
         orbitStepXZ = orbitStepXZ + orbitIncrement
         orbitStepY = orbitStepY + orbitIncrement
-
         if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
         if orbitStepY > orbitMax then orbitStepY = 0 end
-
         local t = tick() * orbitSpeed
         local offset = Vector3.new(
             math.cos(t) * orbitStepXZ,
             orbitStepY,
             math.sin(t) * orbitStepXZ
         )
-
         myRoot.AssemblyLinearVelocity = Vector3.zero
         myRoot.AssemblyAngularVelocity = Vector3.zero
         myChar:PivotTo(targetRoot.CFrame + offset)
-
         local p = FLING_INF_POWER
         myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
         myRoot.AssemblyLinearVelocity =
@@ -2869,18 +2819,15 @@ local function startAutoTp()
         local myRoot = getRootUniversal(myChar)
         local targetRoot = getRootUniversal(targetChar)
         if not (myRoot and targetRoot) then return end
-        
         local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
         if targetVel.Magnitude > 1000 then
             targetVel = Vector3.zero
         end
-        
         local ping = LocalPlayer:GetNetworkPing() or 0
         local prediction = targetVel * ping
         if prediction.Magnitude > 10 then
             prediction = prediction.Unit * 10
         end
-        
         myRoot.AssemblyLinearVelocity = (targetVel.Magnitude > 250) and (targetVel.Unit * 100) or targetVel
         myRoot.AssemblyAngularVelocity = Vector3.zero
         myChar:PivotTo(targetRoot.CFrame + prediction)
@@ -2893,7 +2840,6 @@ local Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
     Default = "None",
 Callback = function(value)
     playerChosen = dropdownMap[value]
-
     if not playerChosen then
         if autoTpOn then AutoTpToggle:SetValue(false) end
         if flingOneOn then FlingOneToggle:SetValue(false) end
@@ -2903,11 +2849,9 @@ Callback = function(value)
         end
         return
     end
-
     if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
         _G.NOTHINGX_TrashPlayer.AttachTarget(playerChosen)
     end
-
     if viewing then
         startView(playerChosen)
     end
@@ -2916,7 +2860,6 @@ end
 local function refreshDropdown()
     local oldTarget = playerChosen
     local values = buildDropdownValues()
-    
     Dropdown:SetValues(values)
     local restored = false
     for display, plr in pairs(dropdownMap) do
@@ -2956,7 +2899,6 @@ local function triggerFullRefresh()
         refreshDropdown() 
     end)
 end
-
 local nextRefresh = 0
 local function scheduleDropdownRefresh()
     local thisRefresh = tick() + 0.15
@@ -2985,7 +2927,6 @@ registerJoinLeave("remove", function(plr)
     end
     scheduleDropdownRefresh()
 end)
-
 local lastManualRefresh = 0
 local RefreshToggle
 RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
@@ -3000,10 +2941,8 @@ RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
                 end)
                 return
             end
-            
             lastManualRefresh = now
             triggerFullRefresh()
-            
             task.delay(11, function()
                 if RefreshToggle.Value then
                     RefreshToggle:SetValue(false)
@@ -3034,18 +2973,15 @@ Tabs.PLYR:AddButton({
 AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
     Title = "Auto TP Player",
     Default = false,
-
     Callback = function(state)
         if state then
             if not playerChosen then
                 AutoTpToggle:SetValue(false)
                 return
             end
-
             if flingOneOn then
                 FlingOneToggle:SetValue(false)
             end
-
             autoTpOn = true
             startAutoTp()
         else
@@ -3057,7 +2993,6 @@ AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
         end
     end
 })
-
 local function createTrashPlayerKeybind()
     if TrashPlayerKeybind then return end
     TrashPlayerKeybind = Tabs.PLYR:AddKeybind("TrashPlayerKeybind", {
@@ -3078,7 +3013,6 @@ local function createTrashPlayerKeybind()
         _G.NOTHINGX_TrashPlayer.EnsureStatus()
     end
 end
-
 local function removeTrashPlayerKeybind()
     if not TrashPlayerKeybind then return end
     if _G.NOTHINGX_TrashPlayer then
@@ -3096,7 +3030,6 @@ local function removeTrashPlayerKeybind()
     end)
     TrashPlayerKeybind = nil
 end
-
 local function shouldCreateTrashPlayerKeybindOnce()
     local map = workspace:FindFirstChild("Map")
     local mainPart = map and map:FindFirstChild("MainPart")
@@ -3106,13 +3039,11 @@ local function shouldCreateTrashPlayerKeybindOnce()
     end
     return true
 end
-
 if shouldCreateTrashPlayerKeybindOnce() then
     createTrashPlayerKeybind()
 else
     removeTrashPlayerKeybind()
 end
-
 ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
     Title = "View Player",
     Default = false,
@@ -3131,18 +3062,15 @@ ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
 FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     Title = "Fling Player",
     Default = false,
-
     Callback = function(state)
         if state then
             if not playerChosen then
                 FlingOneToggle:SetValue(false)
                 return
             end
-
             if autoTpOn then
                 AutoTpToggle:SetValue(false)
             end
-
             flingOneOn = true
             startFlingOne()
         else
@@ -3180,10 +3108,8 @@ local FixCam = Tabs.TOG:AddButton({
 	local player = Players.LocalPlayer
         local character = player.Character
         if not character then return end
-
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
-
         humanoid.CameraOffset = Vector3.new(0, 0, 0)
     end
 })
