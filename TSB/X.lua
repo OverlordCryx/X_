@@ -2319,7 +2319,7 @@ Tabs.TOG:AddToggle("camlocktrash", {
 })
 Tabs.TOG:AddToggle("VisualFixToggle", {
     Title = "Visual TP Fix (Smooth View)",
-    Default = true,
+    Default = false,
     Callback = function(state)
         VisualFixEnabled = state
         if not state then VisualFix:Stop() end
