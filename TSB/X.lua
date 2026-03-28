@@ -185,10 +185,10 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.LeftAlt
 })
 local Tabs = {
-    XXX = Window:AddTab({Title = "", Icon = "menu"}),
-	TOG = Window:AddTab({Title = "", Icon = "menu"}),
-	PLYR = Window:AddTab({Title = "", Icon = "menu"}),
-    	KEY = Window:AddTab({Title = "", Icon = "menu"})
+    XXX = Window:AddTab({Title = "", Icon = "info"}),
+	TOG = Window:AddTab({Title = "", Icon = "sliders-horizontal"}),
+	PLYR = Window:AddTab({Title = "", Icon = "users"}),
+    	KEY = Window:AddTab({Title = "", Icon = "keyboard"})
 }
 local UIStatus = {
     attack = nil,
