@@ -120,25 +120,9 @@ local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
     return 
 end
-local partName = "NOTHING X"
-if not workspace:FindFirstChild(partName) then
-    local part = Instance.new("Part")
-    part.Name = partName
-    part.Size = Vector3.new(2048, 1600, 2048)
-    part.CFrame = mainPart.CFrame
-    part.Color = Color3.new(0, 0, 0)
-    part.Material = Enum.Material.Air 
-    part.Reflectance = 1 
-    part.Transparency = 1 
-    part.Locked = true
-    part.CastShadow = false
-    part.Archivable = false
-    part.EnableFluidForces = false
-    part.CanCollide = false
-    part.CanQuery = false
-    part.CanTouch = false
-    part.Anchored = true
-    part.Parent = workspace
+local oldPart = workspace:FindFirstChild("NOTHING X")
+if oldPart then
+    oldPart:Destroy()
 end
 end)
 task.defer(function()
@@ -152,8 +136,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
-local nothingX = workspace:FindFirstChild("NOTHING X")
-if not mainPart or not nothingX then
+local NOTHING_X_SIZE = Vector3.new(100000, 0, 100000)
+if not mainPart then
 	return
 end
 local player = Players.LocalPlayer
@@ -162,11 +146,10 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 local spawnPart = mainPart
 local function isOutside()
 	local pos = hrp.Position
-	local cf = nothingX.CFrame
+	local cf = mainPart.CFrame
 	local localPos = cf:PointToObjectSpace(pos)
-	local s = nothingX.Size / 2
+	local s = NOTHING_X_SIZE / 2
 	return localPos.X < -s.X or localPos.X > s.X
-	or localPos.Y < -s.Y or localPos.Y > s.Y
 	or localPos.Z < -s.Z or localPos.Z > s.Z
 end
 local checkTime = 0
@@ -3400,7 +3383,7 @@ local function resetVelocity(hrp)
     hrp.Velocity = Vector3.new(0,0,0) 
 end
 local function tripleFixTP(hrp, pos)
-    for i = 1, 3 do
+    for i = 1, 5 do
         resetVelocity(hrp)
         hrp.CFrame = CFrame.new(pos.X, pos.Y + 5, pos.Z)
         task.wait() 
