@@ -243,6 +243,7 @@ local SkillHighlights = {}
 local protectConnections = {}
 local allowDestroy = {}
 local activeTimers = {}
+local playerConnections = {}
 local function SendNotification(title, text, duration)
     Fluent:Notify({
         Title = title,
@@ -296,19 +297,45 @@ local function createImmortalHighlight(plr, isStrong)
         end
     end)
 end
-local function getSkillType(backpack)
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if strongSkills[tool.Name] then
-            return "strong"
-        end
-        if weakSkills[tool.Name] then
-            return "weak"
+local function getSkillTypeFromContainer(container)
+    if not container then return nil end
+    local foundWeak = false
+    for _, tool in ipairs(container:GetChildren()) do
+        if tool:IsA("Tool") then
+            if strongSkills[tool.Name] then
+                return "strong"
+            end
+            if weakSkills[tool.Name] then
+                foundWeak = true
+            end
         end
     end
-    return nil
+    return foundWeak and "weak" or nil
 end
 local function cancelTimer(plr)
     activeTimers[plr] = nil
+end
+local function clearPlayerState(plr, notifyEnd)
+    local oldState = state[plr]
+    cancelTimer(plr)
+    state[plr] = nil
+    safeDestroyHighlight(plr)
+    if notifyEnd and (oldState == "strong" or oldState == "weak") then
+        SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+    end
+end
+local function getSkillType(plr)
+    local char = plr.Character
+    local backpack = plr:FindFirstChildOfClass("Backpack")
+    local charType = getSkillTypeFromContainer(char)
+    local backpackType = getSkillTypeFromContainer(backpack)
+    if charType == "strong" or backpackType == "strong" then
+        return "strong"
+    end
+    if charType == "weak" or backpackType == "weak" then
+        return "weak"
+    end
+    return nil
 end
 local function updatePlayer(plr)
     if plr == LocalPlayer then return end
@@ -316,28 +343,18 @@ local function updatePlayer(plr)
     local backpack = plr:FindFirstChildOfClass("Backpack")
     if not char or not backpack then
         if state[plr] ~= nil then
-            local oldState = state[plr]
-            state[plr] = nil
-            safeDestroyHighlight(plr)
-            if oldState == "strong" or oldState == "weak" then
-                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
-            end
+            clearPlayerState(plr, true)
         end
         return
     end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid or humanoid.Health <= 0 then
         if state[plr] ~= nil then
-            local oldState = state[plr]
-            state[plr] = nil
-            safeDestroyHighlight(plr)
-            if oldState == "strong" or oldState == "weak" then
-                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
-            end
+            clearPlayerState(plr, true)
         end
         return
     end
-    local skillType = getSkillType(backpack)
+    local skillType = getSkillType(plr)
     local lastState = state[plr]
     if skillType == "strong" then
         if lastState ~= "strong" then
@@ -358,26 +375,18 @@ local function updatePlayer(plr)
             task.delay(9.4, function()
                 if activeTimers[plr] ~= currentId then return end
                 if state[plr] == "weak" then
-                    state[plr] = nil
-                    safeDestroyHighlight(plr)
-                    SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+                    clearPlayerState(plr, true)
                 end
             end)
         elseif lastState ~= "weak" then
             if lastState ~= nil then
-                state[plr] = nil
-                safeDestroyHighlight(plr)
+                clearPlayerState(plr, false)
             end
         end
         return
     end
     if not skillType and lastState ~= nil then
-        local oldState = lastState
-        state[plr] = nil
-        safeDestroyHighlight(plr)
-        if oldState == "strong" or oldState == "weak" then
-            SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
-        end
+        clearPlayerState(plr, true)
     end
 end
 task.defer(function()
@@ -392,38 +401,61 @@ task.defer(function()
 end)
 local function setupPlayer(plr)
     if plr == LocalPlayer then return end
+    if playerConnections[plr] then
+        for _, conn in ipairs(playerConnections[plr]) do
+            conn:Disconnect()
+        end
+    end
+    playerConnections[plr] = {}
     local function onCharacter()
-        cancelTimer(plr)
-        state[plr] = nil
-        safeDestroyHighlight(plr)
+        clearPlayerState(plr, false)
         local backpack = plr:WaitForChild("Backpack", 5)
         local humanoid = plr.Character:WaitForChild("Humanoid", 5)
         if not humanoid or not backpack then return end
-        humanoid.Died:Connect(function()
+        table.insert(playerConnections[plr], humanoid.Died:Connect(function()
             if state[plr] == "strong" or state[plr] == "weak" then
                 SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
             end
-            cancelTimer(plr)
-            state[plr] = nil
-            safeDestroyHighlight(plr)
-        end)
+            clearPlayerState(plr, false)
+        end))
         updatePlayer(plr)
-        backpack.ChildAdded:Connect(function()
-            updatePlayer(plr)
-        end)
-        backpack.ChildRemoved:Connect(function()
-            updatePlayer(plr)
-        end)
+        table.insert(playerConnections[plr], backpack.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then
+                updatePlayer(plr)
+            end
+        end))
+        table.insert(playerConnections[plr], backpack.ChildRemoved:Connect(function(child)
+            if child:IsA("Tool") then
+                updatePlayer(plr)
+            end
+        end))
+        table.insert(playerConnections[plr], plr.Character.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then
+                updatePlayer(plr)
+            end
+        end))
+        table.insert(playerConnections[plr], plr.Character.ChildRemoved:Connect(function(child)
+            if child:IsA("Tool") then
+                updatePlayer(plr)
+            end
+        end))
     end
     if plr.Character then
         onCharacter()
     end
-    plr.CharacterAdded:Connect(onCharacter)
+    table.insert(playerConnections[plr], plr.CharacterAdded:Connect(function()
+            task.defer(onCharacter)
+    end))
 end
 local function cleanupPlayer(plr)
-    cancelTimer(plr)
-    state[plr] = nil
+    clearPlayerState(plr, false)
     allowDestroy[plr] = nil
+    if playerConnections[plr] then
+        for _, conn in ipairs(playerConnections[plr]) do
+            conn:Disconnect()
+        end
+        playerConnections[plr] = nil
+    end
     if protectConnections[plr] then
         protectConnections[plr]:Disconnect()
         protectConnections[plr] = nil
