@@ -198,6 +198,10 @@ local UIStatus = {
     target = nil
 }
 local forceUpdateTargetStatusParagraph
+local setDropdownVisualTarget
+local getPlayerFromTargetRoot
+local buildDropdownValues
+local dropdownMap
 Window:SelectTab()
 task.defer(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
@@ -1180,10 +1184,10 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
 local CamlockTarget = nil
-local BasePrediction = 0.135
+local BasePrediction = 0.08
 local FOV = 150
 local camlockState = { statusParagraph = UIStatus.camlock }
-local SCAN_INTERVAL = 1.5
+local SCAN_INTERVAL = 0.05
 local scanTimer = 0
 local CachedTargets = {}
 local targetPool = workspace:FindFirstChild("Live")
@@ -1244,7 +1248,7 @@ local function GetClosestTarget()
 end
 local function GetPrediction()
     local ping = LocalPlayer:GetNetworkPing() or 0
-    return ping * 1.15 + 0.06
+    return ping * 0.9 + 0.015
 end
 local camlockConn
 local function camlockStep(dt)
@@ -1279,11 +1283,13 @@ local function camlockStep(dt)
         local model = CamlockTarget:FindFirstAncestorOfClass("Model")
         if not model or not IsAlive(model) then
             CamlockTarget = nil
+            setDropdownVisualTarget(nil)
             forceUpdateTargetStatusParagraph()
         end
     end
     if not CamlockTarget then
         CamlockTarget = GetClosestTarget()
+        setDropdownVisualTarget(getPlayerFromTargetRoot(CamlockTarget))
         forceUpdateTargetStatusParagraph()
         if not CamlockTarget then return end
     end
@@ -1314,12 +1320,14 @@ Tabs.KEY:AddKeybind("camKeybind", {
         if v then
             RefreshTargets()
             CamlockTarget = GetClosestTarget()
+            setDropdownVisualTarget(getPlayerFromTargetRoot(CamlockTarget))
             forceUpdateTargetStatusParagraph()
             if not camlockConn then
                 camlockConn = RunService.RenderStepped:Connect(camlockStep)
             end
         else
             CamlockTarget = nil
+            setDropdownVisualTarget(nil)
             forceUpdateTargetStatusParagraph()
             if camlockConn then
                 camlockConn:Disconnect()
@@ -1681,8 +1689,8 @@ local attackState = {
     active = false,
     statusParagraph = UIStatus.attack
 }
-local ATTACK_RATE = 1/120
-local MODEL_SCAN_RATE = 0.3
+local ATTACK_RATE = 1/240
+local MODEL_SCAN_RATE = 0.05
 local MAX_TARGET_DISTANCE = 2000
 local TRASH_DISTANCE = 12
 local BACK_OFFSET = 0.97
@@ -1710,7 +1718,7 @@ local function refreshCharacter()
         or Character:FindFirstChildWhichIsA("BasePart")
 end
 LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(0.1)
+    task.wait()
     refreshCharacter()
 end)
 refreshCharacter()
@@ -1952,7 +1960,19 @@ local targetState = {
     statusParagraph = UIStatus.target
 }
 local lastTargetStatusTitle = nil
-local function getPlayerFromTargetRoot(targetRoot)
+local function getTargetDisplayNameFromRoot(targetRoot)
+    if not (targetRoot and targetRoot.Parent) then return nil end
+    local model = targetRoot:FindFirstAncestorOfClass("Model")
+    if not model then return nil end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return nil end
+    local plr = Players:GetPlayerFromCharacter(model)
+    if plr and plr.Parent == Players then
+        return plr.DisplayName
+    end
+    return model.Name
+end
+getPlayerFromTargetRoot = function(targetRoot)
     if not (targetRoot and targetRoot.Parent) then return nil end
     local model = targetRoot:FindFirstAncestorOfClass("Model")
     if not model then return nil end
@@ -1967,17 +1987,41 @@ local function getPriorityTargetPlayer()
             return camlockPlayer
         end
     end
-    if playerChosen and playerChosen.Parent == Players and playerChosen.Character then
-        local hum = playerChosen.Character:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Health > 0 then
-            return playerChosen
-        end
+    if playerChosen and playerChosen.Parent == Players then
+        return playerChosen
     end
     return nil
 end
+local chosenTargetHumConn = nil
+local chosenTargetCharConn = nil
+local chosenTargetRemovingConn = nil
+local chosenTargetHeartbeatConn = nil
+local function disconnectChosenTargetWatch()
+    if chosenTargetHumConn then
+        chosenTargetHumConn:Disconnect()
+        chosenTargetHumConn = nil
+    end
+    if chosenTargetCharConn then
+        chosenTargetCharConn:Disconnect()
+        chosenTargetCharConn = nil
+    end
+    if chosenTargetRemovingConn then
+        chosenTargetRemovingConn:Disconnect()
+        chosenTargetRemovingConn = nil
+    end
+    if chosenTargetHeartbeatConn then
+        chosenTargetHeartbeatConn:Disconnect()
+        chosenTargetHeartbeatConn = nil
+    end
+end
 local function clearChosenTarget()
+    disconnectChosenTargetWatch()
+    dropdownChosen = nil
     playerChosen = nil
     _G.playerChosen = nil
+    if setDropdownVisualTarget then
+        setDropdownVisualTarget(nil)
+    end
     if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
         _G.NOTHINGX_TrashPlayer.SetRunning(false)
     end
@@ -1985,12 +2029,20 @@ local function clearChosenTarget()
         ViewToggle:SetValue(false)
     end
 end
-local function hasChosenTarget()
-    if playerChosen and playerChosen.Parent == Players and playerChosen.Character then
-        local hum = playerChosen.Character:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Health > 0 then
-            return true
+local function watchChosenTarget(plr)
+    disconnectChosenTargetWatch()
+    if not (plr and plr.Parent == Players) then return end
+    chosenTargetHeartbeatConn = RunService.Heartbeat:Connect(function()
+        if playerChosen ~= plr then return end
+        if not plr.Parent then
+            clearChosenTarget()
+            forceUpdateTargetStatusParagraph()
         end
+    end)
+end
+local function hasChosenTarget()
+    if playerChosen and playerChosen.Parent == Players then
+        return true
     end
     if playerChosen then
         clearChosenTarget()
@@ -2007,8 +2059,16 @@ local function updateTargetStatusParagraph()
         forceUpdateTargetStatusParagraph()
         return
     end
-    local priorityPlayer = getPriorityTargetPlayer()
-    local nextTitle = priorityPlayer and ("Target : " .. priorityPlayer.DisplayName) or "Target : None"
+    local nextTitle = "Target : None"
+    if CamlockEnabled then
+        local camlockName = getTargetDisplayNameFromRoot(CamlockTarget)
+        if camlockName then
+            nextTitle = "Target : " .. camlockName
+        end
+    end
+    if nextTitle == "Target : None" and playerChosen and playerChosen.Parent == Players then
+        nextTitle = "Target : " .. playerChosen.DisplayName
+    end
     if nextTitle ~= lastTargetStatusTitle then
         lastTargetStatusTitle = nextTitle
         paragraph:SetTitle(nextTitle)
@@ -2021,7 +2081,7 @@ end
 task.defer(function()
     while true do
         updateTargetStatusParagraph()
-        task.wait(0.15)
+        task.wait(0.05)
     end
 end)
 local Dropdown
@@ -2029,9 +2089,37 @@ local refreshDropdown
 local startView
 local lastFullRefreshTime = 0
 local lastMouseTargetSetTick = 0
+setDropdownVisualTarget = function(plr)
+    if not Dropdown or not Dropdown.SetValues or not Dropdown.SetValue then return end
+
+    local values = buildDropdownValues()
+    local selectedDisplay = "None"
+
+    if plr and plr.Parent == Players then
+        selectedDisplay = plr.DisplayName .. " (@" .. plr.Name .. ")"
+        dropdownMap[selectedDisplay] = plr
+        local found = false
+        for i = 1, #values do
+            if values[i] == selectedDisplay then
+                found = true
+                break
+            end
+        end
+        if not found then
+            table.insert(values, selectedDisplay)
+        end
+    end
+
+    pcall(function()
+        Dropdown:SetValues(values)
+    end)
+    pcall(function()
+        Dropdown:SetValue(selectedDisplay)
+    end)
+end
 local function triggerMouseTargetSet()
     local now = tick()
-    if now - lastMouseTargetSetTick < 0.2 then
+    if now - lastMouseTargetSetTick < 0.05 then
         return
     end
     lastMouseTargetSetTick = now
@@ -2041,6 +2129,7 @@ local function triggerMouseTargetSet()
     
     if hasChosenTarget() then
         clearChosenTarget()
+        setDropdownVisualTarget(nil)
         forceUpdateTargetStatusParagraph()
         return
     end
@@ -2074,7 +2163,7 @@ local function triggerMouseTargetSet()
                 local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
                 if root then
                     local d = (root.Position - hitPos).Magnitude
-                    if d < closestWorldDist and d < 200 then
+                    if d < closestWorldDist and d < 350 then
                         closestWorldDist = d
                         target = plr
                     end
@@ -2096,10 +2185,10 @@ local function triggerMouseTargetSet()
                     local pos, visible = cam:WorldToViewportPoint(root.Position)
                     if visible then
                         local distance = (mouseLoc - Vector2.new(pos.X, pos.Y)).Magnitude
-                        if distance < closestDist and distance < 150 then
-                            closestDist = distance
-                            target = plr
-                        end
+                            if distance < closestDist and distance < 260 then
+                                closestDist = distance
+                                target = plr
+                            end
                     end
                 end
             end
@@ -2109,6 +2198,8 @@ local function triggerMouseTargetSet()
     if target then
         playerChosen = target
         _G.playerChosen = target
+        watchChosenTarget(target)
+        setDropdownVisualTarget(target)
         forceUpdateTargetStatusParagraph()
         if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
             _G.NOTHINGX_TrashPlayer.AttachTarget(target)
@@ -2890,7 +2981,8 @@ local viewing = false
 local currentTarget = nil
 local viewDied = nil
 local viewChanged = nil
-local dropdownMap = {}
+dropdownMap = dropdownMap or {}
+local dropdownChosen = nil
 local flingOneOn = false
 local flingOneConnection = nil
 local autoTpOn = false
@@ -2910,7 +3002,7 @@ local function getRootUniversal(char)
     )
 end
 lastFullRefreshTime = lastFullRefreshTime or 0
-local function buildDropdownValues()
+buildDropdownValues = function()
     dropdownMap = {}
     local values = { "None" }
     local showFull = (tick() - lastFullRefreshTime < 11)
@@ -2923,10 +3015,10 @@ local function buildDropdownValues()
                 dropdownMap[display] = plr
             end
         end
-    elseif playerChosen and playerChosen.Parent == Players then
-        local display = playerChosen.DisplayName .. " (@" .. playerChosen.Name .. ")"
+    elseif dropdownChosen and dropdownChosen.Parent == Players then
+        local display = dropdownChosen.DisplayName .. " (@" .. dropdownChosen.Name .. ")"
         table.insert(values, display)
-        dropdownMap[display] = playerChosen
+        dropdownMap[display] = dropdownChosen
     end
     return values
 end
@@ -3040,11 +3132,15 @@ Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
     Multi = false,
     Default = "None",
 Callback = function(value)
-    playerChosen = dropdownMap[value]
+    dropdownChosen = dropdownMap[value]
+    playerChosen = dropdownChosen
+    _G.playerChosen = dropdownChosen
     if playerChosen and playerChosen.Character then
+        watchChosenTarget(playerChosen)
         forceUpdateTargetStatusParagraph()
     end
     if not playerChosen then
+        dropdownChosen = nil
         forceUpdateTargetStatusParagraph()
         if autoTpOn then AutoTpToggle:SetValue(false) end
         if flingOneOn then FlingOneToggle:SetValue(false) end
@@ -3063,7 +3159,7 @@ Callback = function(value)
 end
 })
 refreshDropdown = function()
-    local oldTarget = playerChosen
+    local oldTarget = dropdownChosen
     local values = buildDropdownValues()
     Dropdown:SetValues(values)
     local restored = false
@@ -3075,6 +3171,7 @@ refreshDropdown = function()
         end
     end
     if not restored then
+        dropdownChosen = nil
         playerChosen = nil
         Dropdown:SetValue("None")
         forceUpdateTargetStatusParagraph()
