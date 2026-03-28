@@ -1165,6 +1165,55 @@ local function createTrashKeybind()
         end
     })
 end
+
+
+if not hasTrashFlag then
+    createTrashKeybind()
+end
+if not trashState.statusParagraph then
+    trashState.statusParagraph = UIStatus.trash
+end
+_G.NOTHINGX_TrashPlayer = {
+    SetRunning = function(state)
+        if state and not playerChosen then
+            state = false
+        end
+        trashPlayer.running = state
+        if state then
+            trashKeybindRunning = false
+            if trashState.statusParagraph then
+                trashState.statusParagraph:SetTitle("Trash : OFF")
+            end
+            startHasTrashObserver()
+            attachTrashPlayerWatch(playerChosen)
+            startTrashPlayerLoop()
+        else
+            clearTrashPlayerWatch()
+        end
+        setTrashPlayerParagraph(state)
+        setTrashPlayerKeybindState(state)
+    end,
+    SetDistance = function(v)
+        trashPlayer.distance = v
+    end,
+    EnsureStatus = function()
+        setTrashPlayerParagraph(trashPlayer.running)
+    end,
+    AttachTarget = function(plr)
+        attachTrashPlayerWatch(plr)
+    end,
+    OnHasTrash = function(fn)
+        table.insert(hasTrashListeners, fn)
+        pcall(fn, hasTrashFlag)
+    end,
+    HasTrash = function()
+        return hasTrashFlag
+    end,
+    IsRunning = function()
+        return trashPlayer.running
+    end
+}
+end)
 local DropDownYKeybind = nil
 local dropDownLastUse = 0
 local dropDownCooldown = 2
@@ -1263,54 +1312,7 @@ local function createDropDownYKeybind()
         end
     })
 end
-if not hasTrashFlag then
-    createTrashKeybind()
-end
 createDropDownYKeybind()
-if not trashState.statusParagraph then
-    trashState.statusParagraph = UIStatus.trash
-end
-_G.NOTHINGX_TrashPlayer = {
-    SetRunning = function(state)
-        if state and not playerChosen then
-            state = false
-        end
-        trashPlayer.running = state
-        if state then
-            trashKeybindRunning = false
-            if trashState.statusParagraph then
-                trashState.statusParagraph:SetTitle("Trash : OFF")
-            end
-            startHasTrashObserver()
-            attachTrashPlayerWatch(playerChosen)
-            startTrashPlayerLoop()
-        else
-            clearTrashPlayerWatch()
-        end
-        setTrashPlayerParagraph(state)
-        setTrashPlayerKeybindState(state)
-    end,
-    SetDistance = function(v)
-        trashPlayer.distance = v
-    end,
-    EnsureStatus = function()
-        setTrashPlayerParagraph(trashPlayer.running)
-    end,
-    AttachTarget = function(plr)
-        attachTrashPlayerWatch(plr)
-    end,
-    OnHasTrash = function(fn)
-        table.insert(hasTrashListeners, fn)
-        pcall(fn, hasTrashFlag)
-    end,
-    HasTrash = function()
-        return hasTrashFlag
-    end,
-    IsRunning = function()
-        return trashPlayer.running
-    end
-}
-end)
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CamlockEnabled = false
