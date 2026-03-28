@@ -196,7 +196,7 @@ local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
     SubTitle = "",
     TabWidth = 30,
-    Size = UDim2.fromOffset(400, 450),
+    Size = UDim2.fromOffset(420, 510),
     Acrylic = false,
     Theme = "Darker",
     MinimizeKey = Enum.KeyCode.LeftAlt
@@ -204,8 +204,17 @@ local Window = Fluent:CreateWindow({
 local Tabs = {
     XXX = Window:AddTab({Title = "", Icon = "menu"}),
 	TOG = Window:AddTab({Title = "", Icon = "menu"}),
-	PLYR = Window:AddTab({Title = "", Icon = "menu"})
+	PLYR = Window:AddTab({Title = "", Icon = "menu"}),
+    	KEY = Window:AddTab({Title = "", Icon = "menu"})
 }
+local UIStatus = {
+    attack = nil,
+    camlock = nil,
+    walkfling = nil,
+    trash = nil,
+    target = nil
+}
+local forceUpdateTargetStatusParagraph
 Window:SelectTab()
 task.defer(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
@@ -585,7 +594,7 @@ state.cleanup = function()
     end
     state.active = false
 end
-Tabs.XXX:AddKeybind("SpeedToggle", {
+Tabs.KEY:AddKeybind("SpeedToggle", {
     Title = "Speed",
     Mode = "Toggle",
     Default = "E",
@@ -628,8 +637,6 @@ state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
 end)
 local plr = Players.LocalPlayer
 local cam = workspace.CurrentCamera
-local RS = RunService
-local UIS = UserInputService
 local char = plr.Character or plr.CharacterAdded:Wait()
 local hum = char:WaitForChild("Humanoid")
 local root = char:WaitForChild("HumanoidRootPart")
@@ -736,7 +743,7 @@ RunService.Heartbeat:Connect(function(dt)
         end
     end
 end)
-Tabs.XXX:AddKeybind("FlyIY", {
+Tabs.KEY:AddKeybind("FlyIY", {
     Title = "Fly",
     Default = "R",
     Mode = "Toggle",
@@ -758,6 +765,39 @@ Tabs.XXX:AddSlider("FlySpeedIY", {
         speed = v
     end
 })
+if not UIStatus.attack then
+    UIStatus.attack = Tabs.XXX:AddParagraph({
+        Title = "Attack TP : OFF",
+        Content = ""
+    })
+end
+if not UIStatus.camlock then
+    UIStatus.camlock = Tabs.XXX:AddParagraph({
+        Title = "CamLock : OFF",
+        Content = ""
+    })
+end
+if not UIStatus.walkfling then
+    UIStatus.walkfling = Tabs.XXX:AddParagraph({
+        Title = "Walk Fling : OFF",
+        Content = ""
+    })
+end
+if not UIStatus.trash then
+    UIStatus.trash = Tabs.XXX:AddParagraph({
+        Title = "Trash : OFF",
+        Content = ""
+    })
+end
+if not UIStatus.target then
+    UIStatus.target = Tabs.XXX:AddParagraph({
+        Title = "Target : None",
+        Content = ""
+    })
+end
+if targetState and not targetState.statusParagraph then
+    targetState.statusParagraph = UIStatus.target
+end
 end)
 local playerChosen = nil
 task.defer(function()
@@ -1072,7 +1112,7 @@ startHasTrashObserver = function()
 end
 local function createTrashKeybind()
     if TrashKeybind then return end
-    TrashKeybind = Tabs.XXX:AddKeybind("TrashKeybind", {
+    TrashKeybind = Tabs.KEY:AddKeybind("TrashKeybind", {
         Title = "Get Trash Can",
         Mode = "Toggle",
         Default = "LeftControl",
@@ -1110,10 +1150,7 @@ if not hasTrashFlag then
     createTrashKeybind()
 end
 if not trashState.statusParagraph then
-    trashState.statusParagraph = Tabs.XXX:AddParagraph({
-        Title = "Trash : OFF",
-        Content = ""
-    })
+    trashState.statusParagraph = UIStatus.trash
 end
 _G.NOTHINGX_TrashPlayer = {
     SetRunning = function(state)
@@ -1162,7 +1199,7 @@ local CamlockEnabled = false
 local CamlockTarget = nil
 local BasePrediction = 0.135
 local FOV = 150
-local camlockState = { statusParagraph = nil }
+local camlockState = { statusParagraph = UIStatus.camlock }
 local SCAN_INTERVAL = 1.5
 local scanTimer = 0
 local CachedTargets = {}
@@ -1233,6 +1270,7 @@ local function camlockStep(dt)
     end
     if not CamlockEnabled then
         CamlockTarget = nil
+        forceUpdateTargetStatusParagraph()
         if camlockConn then
             camlockConn:Disconnect()
             camlockConn = nil
@@ -1242,6 +1280,7 @@ local function camlockStep(dt)
     if not IsAlive(LocalPlayer.Character) then
         CamlockEnabled = false
         CamlockTarget = nil
+        forceUpdateTargetStatusParagraph()
         if camlockConn then
             camlockConn:Disconnect()
             camlockConn = nil
@@ -1257,10 +1296,12 @@ local function camlockStep(dt)
         local model = CamlockTarget:FindFirstAncestorOfClass("Model")
         if not model or not IsAlive(model) then
             CamlockTarget = nil
+            forceUpdateTargetStatusParagraph()
         end
     end
     if not CamlockTarget then
         CamlockTarget = GetClosestTarget()
+        forceUpdateTargetStatusParagraph()
         if not CamlockTarget then return end
     end
     BasePrediction = GetPrediction()
@@ -1275,7 +1316,7 @@ local function camlockStep(dt)
     local predicted = CamlockTarget.Position + predictionOffset
     Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, predicted)
 end
-Tabs.XXX:AddKeybind("camKeybind", {
+Tabs.KEY:AddKeybind("camKeybind", {
     Title = "Cam Lock",
     Mode = "Toggle",
     Default = "Z",
@@ -1290,11 +1331,13 @@ Tabs.XXX:AddKeybind("camKeybind", {
         if v then
             RefreshTargets()
             CamlockTarget = GetClosestTarget()
+            forceUpdateTargetStatusParagraph()
             if not camlockConn then
                 camlockConn = RunService.RenderStepped:Connect(camlockStep)
             end
         else
             CamlockTarget = nil
+            forceUpdateTargetStatusParagraph()
             if camlockConn then
                 camlockConn:Disconnect()
                 camlockConn = nil
@@ -1302,12 +1345,6 @@ Tabs.XXX:AddKeybind("camKeybind", {
         end
     end
 })
-if not camlockState.statusParagraph then
-    camlockState.statusParagraph = Tabs.XXX:AddParagraph({
-        Title = "CamLock : OFF",
-        Content = ""
-    })
-end
 local LocalPlayer = Players.LocalPlayer
 local speaker = LocalPlayer
 local power = 1000
@@ -1325,7 +1362,7 @@ local walkflinging = false
 local walkFlingMode = "Normal"
 local zero = Vector3.zero
 local walkFlingState = {
-    statusParagraph = nil
+    statusParagraph = UIStatus.walkfling
 }
 local function getRootUniversal(char)
     return char and (
@@ -1359,7 +1396,7 @@ if char and root then
 end
     end
 end
-Tabs.TOG:AddKeybind("WalkFlingKey", {
+Tabs.KEY:AddKeybind("WalkFlingKey", {
     Title = "Walk Fling Toggle",
     Mode = "Toggle",
     Default = "X",
@@ -1370,17 +1407,16 @@ Tabs.TOG:AddKeybind("WalkFlingKey", {
                 walkflinging and "Walk Fling : ON" or "Walk Fling : OFF"
             )
         end
+        Fluent:Notify({
+            Title = "NOTHING X",
+            Content = "Walk Fling: " .. (walkflinging and "ON" or "OFF"),
+            Duration = 2
+        })
         if walkflinging then
             task.defer(WalkFlingLoop)
         end
     end
 })
-if not walkFlingState.statusParagraph then
-    walkFlingState.statusParagraph = Tabs.TOG:AddParagraph({
-        Title = "Walk Fling : OFF",
-        Content = ""
-    })
-end
 Tabs.TOG:AddInput("WalkPowerInput", {
     Title = "Walk Fling Power",
     Default = tostring(power),
@@ -1660,7 +1696,7 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
-    statusParagraph = nil
+    statusParagraph = UIStatus.attack
 }
 local ATTACK_RATE = 1/120
 local MODEL_SCAN_RATE = 0.3
@@ -1822,18 +1858,14 @@ local function getAttackTarget()
         if t and t.Parent and t:IsDescendantOf(workspace) then
             local model = t:FindFirstAncestorOfClass("Model")
             local hum = model and model:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 and Root then
-                local dist = (t.Position - Root.Position).Magnitude
-                if dist <= MAX_TARGET_DISTANCE then
-                    return t
-                end
-                return nil
-            end
             if hum and hum.Health > 0 then
                 return t
             end
         end
-        return getClosestTarget()
+    end
+    if playerChosen and playerChosen.Character and isAlive(playerChosen.Character) then
+        local root = getRootUniversal(playerChosen.Character)
+        if root then return root end
     end
     return getClosestTarget()
 end
@@ -1919,20 +1951,200 @@ local function setAttackState(enabled)
         stopScanLoop()
     end
 end
-Tabs.XXX:AddKeybind("AttackTPKeybind", {
+Tabs.KEY:AddKeybind("AttackTPKeybind", {
     Title = "Attack TP",
     Mode = "Toggle",
     Default = "T",
     Callback = function()
-        setAttackState(not attackState.active)
+        local nextState = not attackState.active
+        setAttackState(nextState)
+        Fluent:Notify({
+            Title = "NOTHING X",
+            Content = "Attack TP: " .. (nextState and "ON" or "OFF"),
+            Duration = 2
+        })
     end
 })
-if not attackState.statusParagraph then
-    attackState.statusParagraph = Tabs.XXX:AddParagraph({
-        Title = "Attack TP : OFF",
-        Content = ""
-    })
+local targetState = {
+    statusParagraph = UIStatus.target
+}
+local lastTargetStatusTitle = nil
+local function getPlayerFromTargetRoot(targetRoot)
+    if not (targetRoot and targetRoot.Parent) then return nil end
+    local model = targetRoot:FindFirstAncestorOfClass("Model")
+    if not model then return nil end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return nil end
+    return Players:GetPlayerFromCharacter(model)
 end
+local function getPriorityTargetPlayer()
+    if CamlockEnabled then
+        local camlockPlayer = getPlayerFromTargetRoot(CamlockTarget)
+        if camlockPlayer and camlockPlayer.Parent == Players then
+            return camlockPlayer
+        end
+    end
+    if playerChosen and playerChosen.Parent == Players and playerChosen.Character then
+        local hum = playerChosen.Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum.Health > 0 then
+            return playerChosen
+        end
+    end
+    return nil
+end
+local function clearChosenTarget()
+    playerChosen = nil
+    _G.playerChosen = nil
+    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
+        _G.NOTHINGX_TrashPlayer.SetRunning(false)
+    end
+    if viewing and ViewToggle and ViewToggle.SetValue then
+        ViewToggle:SetValue(false)
+    end
+end
+local function hasChosenTarget()
+    if playerChosen and playerChosen.Parent == Players and playerChosen.Character then
+        local hum = playerChosen.Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum.Health > 0 then
+            return true
+        end
+    end
+    if playerChosen then
+        clearChosenTarget()
+    end
+    return false
+end
+local function updateTargetStatusParagraph()
+    local paragraph = (targetState and targetState.statusParagraph) or UIStatus.target
+    if not paragraph then return end
+    if targetState and not targetState.statusParagraph then
+        targetState.statusParagraph = paragraph
+    end
+    if playerChosen and not hasChosenTarget() then
+        forceUpdateTargetStatusParagraph()
+        return
+    end
+    local priorityPlayer = getPriorityTargetPlayer()
+    local nextTitle = priorityPlayer and ("Target : " .. priorityPlayer.DisplayName) or "Target : None"
+    if nextTitle ~= lastTargetStatusTitle then
+        lastTargetStatusTitle = nextTitle
+        paragraph:SetTitle(nextTitle)
+    end
+end
+forceUpdateTargetStatusParagraph = function()
+    lastTargetStatusTitle = nil
+    updateTargetStatusParagraph()
+end
+task.defer(function()
+    while true do
+        updateTargetStatusParagraph()
+        task.wait(0.15)
+    end
+end)
+local Dropdown
+local refreshDropdown
+local startView
+local lastFullRefreshTime = 0
+local lastMouseTargetSetTick = 0
+local function triggerMouseTargetSet()
+    local now = tick()
+    if now - lastMouseTargetSetTick < 0.2 then
+        return
+    end
+    lastMouseTargetSetTick = now
+
+    local Lp = game:GetService("Players").LocalPlayer
+    local Plrs = game:GetService("Players")
+    
+    if hasChosenTarget() then
+        clearChosenTarget()
+        forceUpdateTargetStatusParagraph()
+        return
+    end
+
+    local mouse = Lp:GetMouse()
+    local cam = workspace.CurrentCamera
+    local target = nil
+    
+    local function checkAlive(model)
+        local hum = model and model:FindFirstChildOfClass("Humanoid")
+        return hum and hum.Health > 0
+    end
+
+    local mouseTarget = mouse.Target
+    if mouseTarget then
+        local model = mouseTarget:FindFirstAncestorOfClass("Model")
+        local p = model and Plrs:GetPlayerFromCharacter(model)
+        if p and p ~= Lp and checkAlive(model) then
+            target = p
+        end
+    end
+
+    if not target then
+        local closestWorldDist = math.huge
+        local hitPos = mouse.Hit.p
+        local Players_ = Plrs:GetPlayers()
+        for i = 1, #Players_ do
+            local plr = Players_[i]
+            if plr ~= Lp and plr.Character then
+                local char = plr.Character
+                local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                if root then
+                    local d = (root.Position - hitPos).Magnitude
+                    if d < closestWorldDist and d < 200 then
+                        closestWorldDist = d
+                        target = plr
+                    end
+                end
+            end
+        end
+    end
+
+    if not target then
+        local closestDist = math.huge
+        local mouseLoc = Vector2.new(mouse.X, mouse.Y)
+        local Players_ = Plrs:GetPlayers()
+        for i = 1, #Players_ do
+            local plr = Players_[i]
+            if plr ~= Lp and plr.Character then
+                local char = plr.Character
+                local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                if root then
+                    local pos, visible = cam:WorldToViewportPoint(root.Position)
+                    if visible then
+                        local distance = (mouseLoc - Vector2.new(pos.X, pos.Y)).Magnitude
+                        if distance < closestDist and distance < 150 then
+                            closestDist = distance
+                            target = plr
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if target then
+        playerChosen = target
+        _G.playerChosen = target
+        forceUpdateTargetStatusParagraph()
+        if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
+            _G.NOTHINGX_TrashPlayer.AttachTarget(target)
+        end
+        if viewing then
+            startView(target)
+        end
+    end
+end
+Tabs.KEY:AddKeybind("MouseTargetSet", {
+    Title = "Set Target (Mouse)",
+    Default = "C",
+    Mode = "Toggle",
+    Callback = function(pressed)
+        if not pressed then return end
+        triggerMouseTargetSet()
+    end
+})
+
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -2163,11 +2375,21 @@ local camLockTrashInputEnded = nil
 local camLockTrashPrevPlayer = nil
 local camLockTrashPrevRunning = false
 local function getCamlockPlayer()
-	local t = CamlockTarget
-	if not t or not t.Parent then return nil end
-	local model = t:FindFirstAncestorOfClass("Model")
-	if not model then return nil end
-	return Players:GetPlayerFromCharacter(model)
+	if CamlockEnabled then
+		local t = CamlockTarget
+		if t and t.Parent then
+			local model = t:FindFirstAncestorOfClass("Model")
+			if model then
+				local hum = model:FindFirstChildOfClass("Humanoid")
+				local plr = Players:GetPlayerFromCharacter(model)
+				if hum and hum.Health > 0 and plr then
+					return plr
+				end
+			end
+		end
+	end
+	if playerChosen and playerChosen.Parent == Players then return playerChosen end
+	return nil
 end
 local function stopCamLockTrashActive()
 	if not camLockTrashActive then return end
@@ -2203,10 +2425,6 @@ local function startCamLockTrashLoop()
 	camLockTrashConn = RunService.Heartbeat:Connect(function()
 		if not camLockTrashEnabled or not camLockTrashHolding then return end
 		if isSafeTeleportLocked() then return end
-		if not CamlockEnabled then
-			stopCamLockTrashActive()
-			return
-		end
 		if not _G.NOTHINGX_TrashPlayer then return end
 		local targetPlr = getCamlockPlayer()
 		if not targetPlr then
@@ -2261,7 +2479,7 @@ local function unbindCamLockTrashInput()
 	end
 end
 Tabs.TOG:AddToggle("camlocktrash", {
-	Title = "Cam-Lock Trash Cant (Hold Right)",
+	Title = "Cam-Lock/target/ Trash Cant (Hold Right)",
 	Default = false,
 	Callback = function(state)
 		camLockTrashEnabled = state
@@ -2708,7 +2926,7 @@ local function getRootUniversal(char)
         char:FindFirstChild("UpperTorso")
     )
 end
-local lastFullRefreshTime = 0
+lastFullRefreshTime = lastFullRefreshTime or 0
 local function buildDropdownValues()
     dropdownMap = {}
     local values = { "None" }
@@ -2729,7 +2947,7 @@ local function buildDropdownValues()
     end
     return values
 end
-local function startView(targetPlayer)
+startView = function(targetPlayer)
     if viewDied then viewDied:Disconnect() end
     if viewChanged then viewChanged:Disconnect() end
     if not (targetPlayer and targetPlayer.Character) then return end
@@ -2833,14 +3051,18 @@ local function startAutoTp()
         myChar:PivotTo(targetRoot.CFrame + prediction)
     end)
 end
-local Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
+Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
     Title = "Player",
     Values = buildDropdownValues(),
     Multi = false,
     Default = "None",
 Callback = function(value)
     playerChosen = dropdownMap[value]
+    if playerChosen and playerChosen.Character then
+        forceUpdateTargetStatusParagraph()
+    end
     if not playerChosen then
+        forceUpdateTargetStatusParagraph()
         if autoTpOn then AutoTpToggle:SetValue(false) end
         if flingOneOn then FlingOneToggle:SetValue(false) end
         if viewing then ViewToggle:SetValue(false) end
@@ -2857,7 +3079,7 @@ Callback = function(value)
     end
 end
 })
-local function refreshDropdown()
+refreshDropdown = function()
     local oldTarget = playerChosen
     local values = buildDropdownValues()
     Dropdown:SetValues(values)
@@ -2872,6 +3094,7 @@ local function refreshDropdown()
     if not restored then
         playerChosen = nil
         Dropdown:SetValue("None")
+        forceUpdateTargetStatusParagraph()
         if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
             _G.NOTHINGX_TrashPlayer.SetRunning(false)
         end
@@ -2995,7 +3218,7 @@ AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
 })
 local function createTrashPlayerKeybind()
     if TrashPlayerKeybind then return end
-    TrashPlayerKeybind = Tabs.PLYR:AddKeybind("TrashPlayerKeybind", {
+    TrashPlayerKeybind = Tabs.KEY:AddKeybind("TrashPlayerKeybind", {
         Title = "Trash Player",
         Mode = "Toggle",
         Default = "V",
