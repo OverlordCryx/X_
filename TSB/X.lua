@@ -1275,6 +1275,9 @@ local function camlockStep(dt)
         return
     end
     scanTimer = scanTimer + dt
+    if not CamlockTarget and scanTimer < SCAN_INTERVAL then
+        return
+    end
     if scanTimer >= SCAN_INTERVAL then
         scanTimer = 0
         RefreshTargets()
@@ -1312,6 +1315,9 @@ Tabs.KEY:AddKeybind("camKeybind", {
     Callback = function(v)
         if v and not IsAlive(LocalPlayer.Character) then return end
         CamlockEnabled = v
+        if not camlockState.statusParagraph then
+            camlockState.statusParagraph = UIStatus.camlock
+        end
         if camlockState.statusParagraph then
             camlockState.statusParagraph:SetTitle(
                 v and "CamLock : ON" or "CamLock : OFF"
@@ -1393,6 +1399,9 @@ Tabs.KEY:AddKeybind("WalkFlingKey", {
     Default = "X",
     Callback = function()
         walkflinging = not walkflinging
+        if not walkFlingState.statusParagraph then
+            walkFlingState.statusParagraph = UIStatus.walkfling
+        end
         if walkFlingState.statusParagraph then
             walkFlingState.statusParagraph:SetTitle(
                 walkflinging and "Walk Fling : ON" or "Walk Fling : OFF"
@@ -1927,6 +1936,9 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 local function setAttackState(enabled)
     attackState.active = enabled
+    if not attackState.statusParagraph then
+        attackState.statusParagraph = UIStatus.attack
+    end
     if attackState.statusParagraph then
         attackState.statusParagraph:SetTitle(enabled and "Attack TP : ON" or "Attack TP : OFF")
     end
@@ -2669,13 +2681,13 @@ local function onUltimateChanged(plr)
     UltEspState.lastUlt[plr] = val
     if ToggleDetectUlt and ToggleDetectUlt.Value then
         if val >= 100 then
-            if not UltEspState.active[plr] then
-                UltEspState.active[plr] = true
-                createUltEsp(plr)
+            if UltEspState.active[plr] and not UltEspState.timer[plr] then
+                hideUltEsp(plr)
+                UltEspState.active[plr] = false
             end
             return
         end
-        if prev and prev >= 100 and val <= 0 then
+        if prev and prev >= 100 and val < prev then
             UltEspState.active[plr] = true
             startUltTimer(plr)
             createUltEsp(plr)
