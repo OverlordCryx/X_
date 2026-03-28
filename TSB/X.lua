@@ -1165,9 +1165,108 @@ local function createTrashKeybind()
         end
     })
 end
+local DropDownYKeybind = nil
+local dropDownLastUse = 0
+local dropDownCooldown = 2
+local dropDownActive = false
+local dropDownDistance = 355
+local dropDownSpeed = 450
+local function setWorkspaceCollisionState(enabled, cache)
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            if enabled then
+                local saved = cache[obj]
+                if saved then
+                    obj.CanCollide = saved.CanCollide
+                    obj.CanTouch = saved.CanTouch
+                    obj.CanQuery = saved.CanQuery
+                end
+            else
+                cache[obj] = {
+                    CanCollide = obj.CanCollide,
+                    CanTouch = obj.CanTouch,
+                    CanQuery = obj.CanQuery
+                }
+                obj.CanCollide = false
+                obj.CanTouch = false
+                obj.CanQuery = false
+            end
+        end
+    end
+end
+local function teleportLocalPlayerDown()
+    local character = Players.LocalPlayer and Players.LocalPlayer.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if not hrp then return end
+    local now = tick()
+    if dropDownActive or now - dropDownLastUse < dropDownCooldown then
+        return
+    end
+    dropDownLastUse = now
+    dropDownActive = true
+    local collisionCache = {}
+    setWorkspaceCollisionState(false, collisionCache)
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    end
+    local startTime = tick()
+    local movedDistance = 0
+    local lastStep = startTime
+    while movedDistance < dropDownDistance do
+        if not character.Parent or not hrp.Parent then
+            break
+        end
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        end
+        local nowStep = tick()
+        local dt = nowStep - lastStep
+        lastStep = nowStep
+        local stepDistance = math.min(dropDownSpeed * dt, dropDownDistance - movedDistance)
+        local offsetY = -stepDistance
+        movedDistance = movedDistance + stepDistance
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        character:PivotTo(hrp.CFrame + Vector3.new(0, offsetY, 0))
+        task.wait()
+    end
+    if hrp and hrp.Parent then
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+    if humanoid and humanoid.Parent then
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        task.defer(function()
+            if humanoid and humanoid.Parent then
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end)
+    end
+    setWorkspaceCollisionState(true, collisionCache)
+    dropDownActive = false
+end
+local function createDropDownYKeybind()
+    if DropDownYKeybind then return end
+    DropDownYKeybind = Tabs.KEY:AddKeybind("DropDownYKeybind", {
+        Title = "TP Down (Kill Void)",
+        Mode = "Toggle",
+        Default = "Backquote",
+        Callback = function(state)
+            if not state then return end
+            teleportLocalPlayerDown()
+            task.defer(function()
+                if DropDownYKeybind and DropDownYKeybind.SetValue then
+                    DropDownYKeybind:SetValue(false)
+                end
+            end)
+        end
+    })
+end
 if not hasTrashFlag then
     createTrashKeybind()
 end
+createDropDownYKeybind()
 if not trashState.statusParagraph then
     trashState.statusParagraph = UIStatus.trash
 end
