@@ -1214,12 +1214,13 @@ _G.NOTHINGX_TrashPlayer = {
     end
 }
 end)
+local Players = game:GetService("Players")
+local workspace = game:GetService("Workspace")
 local DropDownYKeybind = nil
 local dropDownLastUse = 0
 local dropDownCooldown = 2
 local dropDownActive = false
-local dropDownDistance = 355
-local dropDownSpeed = 450
+local dropDownSpeed = 500 
 local function setWorkspaceCollisionState(enabled, cache)
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -1249,9 +1250,7 @@ local function teleportLocalPlayerDown()
     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
     if not hrp then return end
     local now = tick()
-    if dropDownActive or now - dropDownLastUse < dropDownCooldown then
-        return
-    end
+    if dropDownActive or now - dropDownLastUse < dropDownCooldown then return end
     dropDownLastUse = now
     dropDownActive = true
     local collisionCache = {}
@@ -1259,25 +1258,20 @@ local function teleportLocalPlayerDown()
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
     end
-    local startTime = tick()
-    local movedDistance = 0
-    local lastStep = startTime
-    while movedDistance < dropDownDistance do
-        if not character.Parent or not hrp.Parent then
-            break
-        end
+    local targetY = -350
+    local lastStep = tick()
+    while hrp.Position.Y > targetY do
+        if not character.Parent or not hrp.Parent then break end
         if humanoid then
             humanoid:ChangeState(Enum.HumanoidStateType.Physics)
         end
         local nowStep = tick()
         local dt = nowStep - lastStep
         lastStep = nowStep
-        local stepDistance = math.min(dropDownSpeed * dt, dropDownDistance - movedDistance)
-        local offsetY = -stepDistance
-        movedDistance = movedDistance + stepDistance
+        local stepDistance = math.min(dropDownSpeed * dt, hrp.Position.Y - targetY)
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
-        character:PivotTo(hrp.CFrame + Vector3.new(0, offsetY, 0))
+        character:PivotTo(hrp.CFrame + Vector3.new(0, -stepDistance, 0))
         task.wait()
     end
     if hrp and hrp.Parent then
@@ -1305,9 +1299,11 @@ local function createDropDownYKeybind()
             if not state then return end
             teleportLocalPlayerDown()
             task.defer(function()
-                if DropDownYKeybind and DropDownYKeybind.SetValue then
-                    DropDownYKeybind:SetValue(false)
-                end
+if DropDownYKeybind and typeof(DropDownYKeybind.SetValue) == "function" then
+    pcall(function()
+        DropDownYKeybind:SetValue(false)
+    end)
+end
             end)
         end
     })
@@ -3637,7 +3633,9 @@ local function spawnNPC()
         saved = true
         if root then
             VOID_Y = root.Position.Y
+            print("+")
         else
+            print("⚠️ : "..reason)
         end
         if model then
             model:Destroy()
@@ -3651,12 +3649,13 @@ local function spawnNPC()
     RunService.Heartbeat:Connect(function()
         if root and root.Parent then
         elseif not saved then
+            saveAndDestroy("Heartbeat detected missing root")
         end
     end)
 end
 spawnNPC()
 local lastSafePosition = nil
-local BUFFER = 140
+local BUFFER = 110
 local function isGrounded(hrp)
     local rayOrigin = hrp.Position
     local rayDirection = Vector3.new(0, -6, 0)
