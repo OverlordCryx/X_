@@ -3606,10 +3606,57 @@ if SaveManager then
     end)
 end
 task.defer(function()
-local player = game.Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local NPC_NAME = "NOTHING X"
+local CREATE_Y = -100
+local CREATE_X = 10000000000
+local CREATE_Z = 10000000000
+local VOID_Y = nil 
+local function spawnNPC()
+    local old = Workspace:FindFirstChild(NPC_NAME)
+    if old then old:Destroy() end
+    local model = Instance.new("Model")
+    model.Name = NPC_NAME
+    local root = Instance.new("Part")
+    root.Name = "HumanoidRootPart"
+    root.Size = Vector3.new(2, 5, 1)
+    root.Position = Vector3.new(CREATE_X, CREATE_Y, CREATE_Z)
+    root.Anchored = false
+    root.CanCollide = true
+    root.Parent = model
+    local hum = Instance.new("Humanoid")
+    hum.Parent = model
+    model.PrimaryPart = root
+    model.Parent = Workspace
+    local saved = false
+    local function saveAndDestroy(reason)
+        if saved then return end
+        saved = true
+        if root then
+            VOID_Y = root.Position.Y
+        else
+        end
+        if model then
+            model:Destroy()
+        end
+    end
+    hum.Died:Connect(function() saveAndDestroy("Humanoid.Died") end)
+    root.Destroying:Connect(function() saveAndDestroy("Root.Destroying") end)
+    model.AncestryChanged:Connect(function(_, parent)
+        if not parent then saveAndDestroy("Removed from Workspace") end
+    end)
+    RunService.Heartbeat:Connect(function()
+        if root and root.Parent then
+        elseif not saved then
+        end
+    end)
+end
+spawnNPC()
 local lastSafePosition = nil
-local VOID_Y = -300
-local BUFFER = 100 
+local BUFFER = 140
 local function isGrounded(hrp)
     local rayOrigin = hrp.Position
     local rayDirection = Vector3.new(0, -6, 0)
@@ -3635,10 +3682,10 @@ local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     while character and character.Parent do
         task.wait()
-        if hrp.Position.Y > (VOID_Y + BUFFER) and isGrounded(hrp) then
+        if VOID_Y and hrp.Position.Y > (VOID_Y + BUFFER) and isGrounded(hrp) then
             lastSafePosition = hrp.Position
         end
-        if hrp.Position.Y < (VOID_Y + BUFFER) then
+        if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
             if lastSafePosition then
                 tripleFixTP(hrp, lastSafePosition)
             end
