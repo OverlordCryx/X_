@@ -19,12 +19,28 @@ local RunService = getService(game, "RunService")
 local UserInputService = getService(game, "UserInputService")
 local StarterGui = getService(game, "StarterGui")
 local VirtualInputManager = getService(game, "VirtualInputManager")
+local PERF = {
+    JoinLeavePollInterval = 1,
+    VisualRefreshInterval = 0.12,
+    TargetStatusInterval = 0.12,
+    TrashScanInterval = 0.05,
+    ProtectLoopInterval = 0.05
+}
 local function isSafeTeleportLocked()
     return _G.SafeTeleportLock == true
 end
 local JoinLeaveHandlers = { add = {}, remove = {} }
 local function registerJoinLeave(kind, fn)
     table.insert(JoinLeaveHandlers[kind], fn)
+    if kind == "add" then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            task.defer(function()
+                if plr and plr.Parent == Players then
+                    pcall(fn, plr)
+                end
+            end)
+        end
+    end
 end
 local function handleJoinLeave(kind, plr)
     task.defer(function()
@@ -41,8 +57,58 @@ local VisualFix = {
     originalSubject = nil,
     target = nil,
     active = false,
-    conn = nil
+    conn = nil,
+    trackedChar = nil,
+    trackedVisuals = {},
+    charAddedConn = nil,
+    charRemovingConn = nil,
+    nextRefreshAt = 0
 }
+function VisualFix:ApplyTrackedTransparency(value)
+    for _, obj in ipairs(self.trackedVisuals) do
+        if obj and obj.Parent then
+            obj.LocalTransparencyModifier = value
+        end
+    end
+end
+function VisualFix:RefreshTrackedVisuals(char)
+    self.trackedVisuals = {}
+    self.trackedChar = char
+    if not char then
+        return
+    end
+    for _, obj in ipairs(char:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Decal") then
+            table.insert(self.trackedVisuals, obj)
+            obj.LocalTransparencyModifier = self.active and 1 or 0
+        end
+    end
+end
+function VisualFix:BindCharacter(char)
+    if self.charAddedConn then self.charAddedConn:Disconnect() end
+    if self.charRemovingConn then self.charRemovingConn:Disconnect() end
+    self:RefreshTrackedVisuals(char)
+    if not char then
+        return
+    end
+    self.charAddedConn = char.DescendantAdded:Connect(function(obj)
+        if obj:IsA("BasePart") or obj:IsA("Decal") then
+            table.insert(self.trackedVisuals, obj)
+            obj.LocalTransparencyModifier = self.active and 1 or 0
+        end
+    end)
+    self.charRemovingConn = char.DescendantRemoving:Connect(function(obj)
+        if not (obj:IsA("BasePart") or obj:IsA("Decal")) then
+            return
+        end
+        for i = #self.trackedVisuals, 1, -1 do
+            if self.trackedVisuals[i] == obj then
+                table.remove(self.trackedVisuals, i)
+                break
+            end
+        end
+    end)
+end
 function VisualFix:Start(target)
     if not VisualFixEnabled then return end
     self.target = target
@@ -51,6 +117,7 @@ function VisualFix:Start(target)
     if not self.originalSubject then
         self.originalSubject = camera.CameraSubject
     end
+    self:BindCharacter(game.Players.LocalPlayer.Character)
     if self.conn then self.conn:Disconnect() end
     self.conn = RunService.RenderStepped:Connect(function()
         if not self.active then return end
@@ -66,34 +133,41 @@ function VisualFix:Start(target)
             end
         end
         local char = game.Players.LocalPlayer.Character
-        if char then
-            for _, v in ipairs(char:GetDescendants()) do
-                if v:IsA("BasePart") or v:IsA("Decal") then
-                    v.LocalTransparencyModifier = 1
-                end
-            end
+        if char ~= self.trackedChar then
+            self:BindCharacter(char)
+        end
+        local now = tick()
+        if now >= self.nextRefreshAt then
+            self.nextRefreshAt = now + PERF.VisualRefreshInterval
+            self:ApplyTrackedTransparency(1)
         end
     end)
 end
 function VisualFix:Stop()
     self.active = false
     if self.conn then self.conn:Disconnect() self.conn = nil end
+    if self.charAddedConn then self.charAddedConn:Disconnect() self.charAddedConn = nil end
+    if self.charRemovingConn then self.charRemovingConn:Disconnect() self.charRemovingConn = nil end
     local camera = workspace.CurrentCamera
     if self.originalSubject then
         camera.CameraSubject = self.originalSubject
         self.originalSubject = nil
     end
     self.target = nil
-    local char = game.Players.LocalPlayer.Character
-    if char then
-        for _, v in ipairs(char:GetDescendants()) do
-            if v:IsA("BasePart") or v:IsA("Decal") then
-                v.LocalTransparencyModifier = 0
-            end
-        end
-    end
+    self.nextRefreshAt = 0
+    self:ApplyTrackedTransparency(0)
 end
 local SeenPlayers = {}
+Players.PlayerAdded:Connect(function(plr)
+    if SeenPlayers[plr] then return end
+    SeenPlayers[plr] = true
+    handleJoinLeave("add", plr)
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    if not SeenPlayers[plr] then return end
+    SeenPlayers[plr] = nil
+    handleJoinLeave("remove", plr)
+end)
 task.defer(function()
     while true do
         local players = Players:GetPlayers()
@@ -111,7 +185,7 @@ task.defer(function()
                 handleJoinLeave("remove", p)
             end
         end
-        task.wait(0.3)
+        task.wait(PERF.JoinLeavePollInterval)
     end
 end)
 task.defer(function()
@@ -321,7 +395,7 @@ local function clearPlayerState(plr, notifyEnd)
     state[plr] = nil
     safeDestroyHighlight(plr)
     if notifyEnd and (oldState == "strong" or oldState == "weak") then
-        SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
+        SendNotification("SERIOUS MODE", plr.Name.." -END", 5)
     end
 end
 local function getSkillType(plr)
@@ -361,7 +435,7 @@ local function updatePlayer(plr)
             cancelTimer(plr)
             state[plr] = "strong"
             createImmortalHighlight(plr, true)
-            SendNotification("SERIOUS MODE", plr.Name.." -ACTIVE", 4)
+            SendNotification("SERIOUS MODE", plr.Name.." -ACTIVE", 6)
         end
         return
     end
@@ -369,7 +443,7 @@ local function updatePlayer(plr)
         if lastState == "strong" then
             state[plr] = "weak"
             createImmortalHighlight(plr, false)
-            SendNotification("SERIOUS MODE", plr.Name.." -DEATH", 4)
+            SendNotification("SERIOUS MODE", plr.Name.." -DEATH", 8)
             local currentId = tick()
             activeTimers[plr] = currentId
             task.delay(9.4, function()
@@ -1864,6 +1938,7 @@ local HasTrash = false
 local TrashNearby = false
 local trashLoopRunning = false
 local trashLoopThread
+local lastTrashScanTime = 0
 local function startTrashLoop()
     if trashLoopRunning then return end
     trashLoopRunning = true
@@ -1872,6 +1947,11 @@ local function startTrashLoop()
             if trashLoopThread then trashLoopThread:Disconnect() trashLoopThread = nil end
             return
         end
+        local now = tick()
+        if now - lastTrashScanTime < PERF.TrashScanInterval then
+            return
+        end
+        lastTrashScanTime = now
         if not isSafeTeleportLocked() then
         if LiveFolder then
             local model = LiveFolder:FindFirstChild(LocalPlayer.Name)
@@ -2173,9 +2253,9 @@ end
 local function watchChosenTarget(plr)
     disconnectChosenTargetWatch()
     if not (plr and plr.Parent == Players) then return end
-    chosenTargetHeartbeatConn = RunService.Heartbeat:Connect(function()
+    chosenTargetHeartbeatConn = plr.AncestryChanged:Connect(function(_, parent)
         if playerChosen ~= plr then return end
-        if not plr.Parent then
+        if parent ~= Players then
             clearChosenTarget()
             forceUpdateTargetStatusParagraph()
         end
@@ -2222,7 +2302,7 @@ end
 task.defer(function()
     while true do
         updateTargetStatusParagraph()
-        task.wait(0.05)
+        task.wait(PERF.TargetStatusInterval)
     end
 end)
 local Dropdown
@@ -3680,7 +3760,7 @@ end
 local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     while character and character.Parent do
-        task.wait()
+        task.wait(PERF.ProtectLoopInterval)
         if VOID_Y and hrp.Position.Y > (VOID_Y + BUFFER) and isGrounded(hrp) then
             lastSafePosition = hrp.Position
         end
