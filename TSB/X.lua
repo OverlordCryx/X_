@@ -1029,11 +1029,8 @@ local function startTrashPlayerLoop()
                 local targetHum = playerChosen.Character and playerChosen.Character:FindFirstChildOfClass("Humanoid")
                 if not targetHum or targetHum.Health <= 0 then
                     if not camLockTrashActive then
-                        local now = tick()
-                        if now - lastDeadTeleport > 1 then
-                            lastDeadTeleport = now
-                            teleportToMainPart()
-                        end
+                        lastDeadTeleport = tick()
+                        teleportToMainPart()
                     end
                     task.wait()
                     continue
@@ -1771,8 +1768,8 @@ local attackState = {
     active = false,
     statusParagraph = UIStatus.attack
 }
-local ATTACK_RATE = 1/240
-local MODEL_SCAN_RATE = 0.05
+local ATTACK_RATE = 0
+local MODEL_SCAN_RATE = 0
 local MAX_TARGET_DISTANCE = 2000
 local TRASH_DISTANCE = 12
 local BACK_OFFSET = 0.97
@@ -1946,6 +1943,37 @@ local holdingMouse = false
 local attackLoopRunning = false
 local lastAttackTime = 0
 local attackLoopThread = nil
+local function performAttackTeleport()
+    if isSafeTeleportLocked() then
+        return
+    end
+    if not (attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby) then
+        VisualFix:Stop()
+        return
+    end
+    local target = getAttackTarget()
+    if not target then
+        VisualFix:Stop()
+        return
+    end
+    VisualFix:Start(target)
+    if Humanoid then
+        Humanoid.AutoRotate = false
+    end
+    local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+    if targetVel.Magnitude > 1000 then
+        targetVel = Vector3.zero
+    end
+    local ping = LocalPlayer:GetNetworkPing() or 0
+    local prediction = targetVel * (ping * 1.05)
+    if prediction.Magnitude > 10 then
+        prediction = prediction.Unit * 10
+    end
+    local behindPos = (target.Position + prediction) - (target.CFrame.LookVector * BACK_OFFSET)
+    Root.AssemblyLinearVelocity = (targetVel.Magnitude > 300) and (targetVel.Unit * 150) or targetVel
+    Root.AssemblyAngularVelocity = Vector3.zero
+    Character:PivotTo(CFrame.lookAt(behindPos, target.Position + prediction))
+end
 local function startAttackLoop()
     if attackLoopRunning then return end
     attackLoopRunning = true
@@ -1958,34 +1986,7 @@ local function startAttackLoop()
         local now = tick()
         if now - lastAttackTime < ATTACK_RATE then return end
         lastAttackTime = now
-        if not isSafeTeleportLocked() then
-            if attackState.active and holdingMouse and Root and not HasTrash and not TrashNearby then
-                local target = getAttackTarget()
-                if target then
-                    VisualFix:Start(target)
-                    if Humanoid then
-                        Humanoid.AutoRotate = false
-                    end
-                    local targetVel = target.AssemblyLinearVelocity or Vector3.zero
-                    if targetVel.Magnitude > 1000 then
-                        targetVel = Vector3.zero
-                    end
-                    local ping = LocalPlayer:GetNetworkPing() or 0
-                    local prediction = targetVel * (ping * 1.05)
-                    if prediction.Magnitude > 10 then
-                        prediction = prediction.Unit * 10
-                    end
-                    local behindPos = (target.Position + prediction) - (target.CFrame.LookVector * BACK_OFFSET)
-                    Root.AssemblyLinearVelocity = (targetVel.Magnitude > 300) and (targetVel.Unit * 150) or targetVel
-                    Root.AssemblyAngularVelocity = Vector3.zero
-                    Character:PivotTo(CFrame.lookAt(behindPos, target.Position + prediction))
-                else
-                    VisualFix:Stop()
-                end
-            else
-                VisualFix:Stop()
-            end
-        end
+        performAttackTeleport()
     end)
 end
 local function stopAttackLoop()
@@ -2000,6 +2001,8 @@ UserInputService.InputBegan:Connect(function(input, gp)
     if not attackState.active then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         holdingMouse = true
+        refreshCharacter()
+        performAttackTeleport()
     end
 end)
 UserInputService.InputEnded:Connect(function(input)
