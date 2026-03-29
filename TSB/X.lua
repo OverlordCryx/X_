@@ -289,14 +289,30 @@ local function createImmortalHighlight(plr, isStrong)
         end
     end)
 end
-local function getSkillType(backpack)
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if strongSkills[tool.Name] then
-            return "strong"
+local function getSkillTypeFromContainer(container)
+    if not container then return nil end
+    for _, tool in ipairs(container:GetChildren()) do
+        if tool:IsA("Tool") then
+            if strongSkills[tool.Name] then
+                return "strong"
+            end
+            if weakSkills[tool.Name] then
+                return "weak"
+            end
         end
-        if weakSkills[tool.Name] then
-            return "weak"
-        end
+    end
+    return nil
+end
+local function getSkillType(plr)
+    local char = plr.Character
+    local backpack = plr:FindFirstChildOfClass("Backpack")
+    local skillType = getSkillTypeFromContainer(char)
+    if skillType then
+        return skillType
+    end
+    skillType = getSkillTypeFromContainer(backpack)
+    if skillType then
+        return skillType
     end
     return nil
 end
@@ -316,8 +332,7 @@ end
 local function updatePlayer(plr)
     if plr == LocalPlayer then return end
     local char = plr.Character
-    local backpack = plr:FindFirstChildOfClass("Backpack")
-    if not char or not backpack then return end
+    if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
     if humanoid.Health <= 0 then
@@ -326,7 +341,7 @@ local function updatePlayer(plr)
         safeDestroyHighlight(plr)
         return
     end
-    local skillType = getSkillType(backpack)
+    local skillType = getSkillType(plr)
     local lastState = state[plr]
     if skillType == "strong" and lastState ~= "strong" then
         cancelTimer(plr)
@@ -336,19 +351,17 @@ local function updatePlayer(plr)
         return
     end
     if skillType == "weak" and lastState == "strong" then
-        state[plr] = "weak"
-        createImmortalHighlight(plr, false)
+        cancelTimer(plr)
+        state[plr] = nil
+        safeDestroyHighlight(plr)
         SendNotification("SERIOUS MODE", plr.Name.." -DEATH", 4)
-        local currentId = tick()
-        activeTimers[plr] = currentId
-        task.delay(9.4, function()
-            if activeTimers[plr] ~= currentId then return end
-            if state[plr] == "weak" then
-                state[plr] = nil
-                safeDestroyHighlight(plr)
-                SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
-            end
-        end)
+        return
+    end
+    if not skillType and lastState ~= nil then
+        cancelTimer(plr)
+        state[plr] = nil
+        safeDestroyHighlight(plr)
+        SendNotification("SERIOUS MODE", plr.Name.." -END", 4)
         return
     end
 end
@@ -372,9 +385,17 @@ local function setupPlayer(plr)
             playerConnections[plr].backpackRemoved:Disconnect()
             playerConnections[plr].backpackRemoved = nil
         end
+        if playerConnections[plr].characterChildAdded then
+            playerConnections[plr].characterChildAdded:Disconnect()
+            playerConnections[plr].characterChildAdded = nil
+        end
+        if playerConnections[plr].characterChildRemoved then
+            playerConnections[plr].characterChildRemoved:Disconnect()
+            playerConnections[plr].characterChildRemoved = nil
+        end
         local backpack = plr:FindFirstChildOfClass("Backpack") or plr:WaitForChild("Backpack", 5)
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-        if not humanoid or not backpack or plr.Parent ~= Players or plr.Character ~= char then
+        if not humanoid or plr.Parent ~= Players or plr.Character ~= char then
             return
         end
         playerConnections[plr].died = humanoid.Died:Connect(function()
@@ -383,10 +404,18 @@ local function setupPlayer(plr)
             safeDestroyHighlight(plr)
         end)
         updatePlayer(plr)
-        playerConnections[plr].backpackAdded = backpack.ChildAdded:Connect(function()
+        if backpack then
+            playerConnections[plr].backpackAdded = backpack.ChildAdded:Connect(function()
+                updatePlayer(plr)
+            end)
+            playerConnections[plr].backpackRemoved = backpack.ChildRemoved:Connect(function()
+                updatePlayer(plr)
+            end)
+        end
+        playerConnections[plr].characterChildAdded = char.ChildAdded:Connect(function()
             updatePlayer(plr)
         end)
-        playerConnections[plr].backpackRemoved = backpack.ChildRemoved:Connect(function()
+        playerConnections[plr].characterChildRemoved = char.ChildRemoved:Connect(function()
             updatePlayer(plr)
         end)
     end
@@ -1167,7 +1196,7 @@ local DropDownYKeybind = nil
 local dropDownLastUse = 0
 local dropDownCooldown = 2
 local dropDownActive = false
-local dropDownSpeed = 510 
+local dropDownSpeed = 500 
 local function setWorkspaceCollisionState(enabled, cache)
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -1205,7 +1234,7 @@ local function teleportLocalPlayerDown()
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
     end
-    local targetY = -315
+    local targetY = -350
     local lastStep = tick()
     while hrp.Position.Y > targetY do
         if not character.Parent or not hrp.Parent then break end
@@ -3553,8 +3582,8 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-local NPC_NAME = "-X-"
-local CREATE_POS = Vector3.new(0, -100, 0)
+local NPC_NAME = "X"
+local CREATE_POS = Vector3.new(0, -50, 0)
 local MAX_RETRIES = 10
 local VOID_Y = nil
 local function spawnNPC()
@@ -3567,6 +3596,11 @@ local function spawnNPC()
     root.Size = Vector3.new(2,5,1)
     root.Position = CREATE_POS
     root.Parent = model
+	root.Anchored = false 
+    root.CanCollide = false
+	root.Color = Color3.fromRGB(255, 165, 0)  
+root.Material = Enum.Material.ForceField
+root.Transparency = 0.5
     local hum = Instance.new("Humanoid")
     hum.Parent = model
     model.PrimaryPart = root
@@ -3578,13 +3612,19 @@ local function spawnNPC()
         saved = true
         if root then
             VOID_Y = root.Position.Y
+			  print("VOID_Y :", VOID_Y)
         else
             warn(" - :", reason)
         end
         if hbConnection then
             hbConnection:Disconnect()
         end
+
+pcall(function()
+    if model then
         model:Destroy()
+    end
+end)
     end
     hum.Died:Connect(function()
         saveAndDestroy("Humanoid.Died")
@@ -3623,7 +3663,7 @@ local function resetVelocity(hrp)
     hrp.AssemblyAngularVelocity = Vector3.zero
 end
 local function tripleFixTP(hrp, pos)
-    for i = 1, 10 do
+    for i = 1, 5 do
         resetVelocity(hrp)
         hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
         task.wait()
@@ -3639,7 +3679,7 @@ local function protect(character)
         if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
             if lastSafePosition then
                 tripleFixTP(hrp, lastSafePosition)
-                 warn("~~")
+                 print("^")
             end
         end
     end
