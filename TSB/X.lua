@@ -1250,10 +1250,11 @@ local CamlockTarget = nil
 local BasePrediction = 0.08
 local FOV = 150
 local camlockState = { statusParagraph = UIStatus.camlock }
-local SCAN_INTERVAL = 0.05
+local SCAN_INTERVAL = 0.12
 local scanTimer = 0
 local CachedTargets = {}
 local targetPool = workspace:FindFirstChild("Live")
+local lastCamlockVisualPlayer = false
 local function IsAlive(model)
     if not model then return false end
     local hum = model:FindFirstChildOfClass("Humanoid")
@@ -1313,6 +1314,15 @@ local function GetPrediction()
     local ping = LocalPlayer:GetNetworkPing() or 0
     return ping * 0.9 + 0.015
 end
+local function syncCamlockVisualTarget()
+    local visualPlayer = getPlayerFromTargetRoot and getPlayerFromTargetRoot(CamlockTarget) or nil
+    if visualPlayer == lastCamlockVisualPlayer then
+        return
+    end
+    lastCamlockVisualPlayer = visualPlayer
+    setDropdownVisualTarget(visualPlayer)
+    forceUpdateTargetStatusParagraph()
+end
 local camlockConn
 local function camlockStep(dt)
     if isSafeTeleportLocked() then
@@ -1320,6 +1330,7 @@ local function camlockStep(dt)
     end
     if not CamlockEnabled then
         CamlockTarget = nil
+        lastCamlockVisualPlayer = false
         forceUpdateTargetStatusParagraph()
         if camlockConn then
             camlockConn:Disconnect()
@@ -1330,6 +1341,7 @@ local function camlockStep(dt)
     if not IsAlive(LocalPlayer.Character) then
         CamlockEnabled = false
         CamlockTarget = nil
+        lastCamlockVisualPlayer = false
         forceUpdateTargetStatusParagraph()
         if camlockConn then
             camlockConn:Disconnect()
@@ -1349,14 +1361,12 @@ local function camlockStep(dt)
         local model = CamlockTarget:FindFirstAncestorOfClass("Model")
         if not model or not IsAlive(model) then
             CamlockTarget = nil
-            setDropdownVisualTarget(nil)
-            forceUpdateTargetStatusParagraph()
+            syncCamlockVisualTarget()
         end
     end
     if not CamlockTarget then
         CamlockTarget = GetClosestTarget()
-        setDropdownVisualTarget(getPlayerFromTargetRoot(CamlockTarget))
-        forceUpdateTargetStatusParagraph()
+        syncCamlockVisualTarget()
         if not CamlockTarget then return end
     end
     BasePrediction = GetPrediction()
@@ -1389,13 +1399,13 @@ Tabs.KEY:AddKeybind("camKeybind", {
         if v then
             RefreshTargets()
             CamlockTarget = GetClosestTarget()
-            setDropdownVisualTarget(getPlayerFromTargetRoot(CamlockTarget))
-            forceUpdateTargetStatusParagraph()
+            syncCamlockVisualTarget()
             if not camlockConn then
                 camlockConn = RunService.RenderStepped:Connect(camlockStep)
             end
         else
             CamlockTarget = nil
+            lastCamlockVisualPlayer = false
             setDropdownVisualTarget(nil)
             forceUpdateTargetStatusParagraph()
             if camlockConn then
