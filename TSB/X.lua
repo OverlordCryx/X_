@@ -36,6 +36,39 @@ local function handleJoinLeave(kind, plr)
         end
     end)
 end
+local TrackedPlayers = {}
+local TrackedPlayerList = {}
+local function rebuildTrackedPlayerList()
+    table.clear(TrackedPlayerList)
+    for plr in pairs(TrackedPlayers) do
+        if plr and plr.Parent == Players then
+            table.insert(TrackedPlayerList, plr)
+        else
+            TrackedPlayers[plr] = nil
+        end
+    end
+end
+local function getTrackedPlayers()
+    return TrackedPlayerList
+end
+local function trackPlayer(plr)
+    if not plr or TrackedPlayers[plr] then return end
+    TrackedPlayers[plr] = true
+    rebuildTrackedPlayerList()
+    handleJoinLeave("add", plr)
+end
+local function untrackPlayer(plr)
+    if not plr or not TrackedPlayers[plr] then return end
+    TrackedPlayers[plr] = nil
+    rebuildTrackedPlayerList()
+    handleJoinLeave("remove", plr)
+end
+for _, plr in ipairs(Players:GetPlayers()) do
+    TrackedPlayers[plr] = true
+end
+rebuildTrackedPlayerList()
+Players.PlayerAdded:Connect(trackPlayer)
+Players.PlayerRemoving:Connect(untrackPlayer)
 local VisualFixEnabled = true
 local VisualFix = {
     originalSubject = nil,
@@ -65,7 +98,7 @@ function VisualFix:Start(target)
                 camera.CameraSubject = obj
             end
         end
-        local char = game.Players.LocalPlayer.Character
+        local char = Players.LocalPlayer.Character
         if char then
             for _, v in ipairs(char:GetDescendants()) do
                 if v:IsA("BasePart") or v:IsA("Decal") then
@@ -84,7 +117,7 @@ function VisualFix:Stop()
         self.originalSubject = nil
     end
     self.target = nil
-    local char = game.Players.LocalPlayer.Character
+    local char = Players.LocalPlayer.Character
     if char then
         for _, v in ipairs(char:GetDescendants()) do
             if v:IsA("BasePart") or v:IsA("Decal") then
@@ -93,27 +126,6 @@ function VisualFix:Stop()
         end
     end
 end
-local SeenPlayers = {}
-task.defer(function()
-    while true do
-        local players = Players:GetPlayers()
-        local currentSet = {}
-        for _, p in ipairs(players) do currentSet[p] = true end
-        for _, p in ipairs(players) do
-            if not SeenPlayers[p] then
-                SeenPlayers[p] = true
-                handleJoinLeave("add", p)
-            end
-        end
-        for p, _ in pairs(SeenPlayers) do
-            if not currentSet[p] then
-                SeenPlayers[p] = nil
-                handleJoinLeave("remove", p)
-            end
-        end
-        task.wait(0.3)
-    end
-end)
 task.defer(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -132,7 +144,6 @@ local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
     return 
 end
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -222,9 +233,8 @@ Window:Dialog({
 while not proceed do task.wait(0.1) end
 if not proceed then return end
 task.defer(function()
-local p=game.Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
+local p=Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
 task.defer(function()
-local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
     ["Omni Directional Punch"] = true,
@@ -373,7 +383,7 @@ local function setupPlayer(plr)
     end
     plr.CharacterAdded:Connect(onCharacter)
 end
-for _, plr in ipairs(Players:GetPlayers()) do
+for _, plr in ipairs(getTrackedPlayers()) do
     setupPlayer(plr)
 end
 Players.PlayerAdded:Connect(setupPlayer)
@@ -390,7 +400,7 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 end)
 task.defer(function()
-local speaker = game.Players.LocalPlayer
+local speaker = Players.LocalPlayer
 local speed = 25
 local jpower = 50
 local HumanModCons = {}
@@ -439,7 +449,7 @@ speaker.CharacterAdded:Connect(function(Char)
     SetupWalkSpeed(Char, Human)
     SetupJumpPower(Char, Human)
 end)
-local player = game.Players.LocalPlayer
+local player = Players.LocalPlayer
 local function usunPusteAccessory(char)
 	if not char then return end
 	for _, obj in ipairs(char:GetChildren()) do
@@ -750,7 +760,7 @@ local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
     return 
 end
-local player = game.Players.LocalPlayer
+local player = Players.LocalPlayer
 local vim = VirtualInputManager
 local character
 local hrp
@@ -865,7 +875,7 @@ local function getRandomTrashCan()
             local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
             if part then
                 local tooClose = false
-                for _, plr in ipairs(Players:GetPlayers()) do
+                for _, plr in ipairs(getTrackedPlayers()) do
                     if plr ~= player and plr.Character then
                         local root = plr.Character:FindFirstChild("HumanoidRootPart")
                             or plr.Character:FindFirstChild("UpperTorso")
@@ -1139,7 +1149,6 @@ _G.NOTHINGX_TrashPlayer = {
     end
 }
 end)
-local Players = game:GetService("Players")
 local workspace = game:GetService("Workspace")
 local DropDownYKeybind = nil
 local dropDownLastUse = 0
@@ -1269,7 +1278,7 @@ local function RefreshTargets()
             end
         end
     end
-    for _, plr in ipairs(Players:GetPlayers()) do
+    for _, plr in ipairs(getTrackedPlayers()) do
         if plr ~= LocalPlayer and plr.Character and IsAlive(plr.Character) then
             local root = GetRoot(plr.Character)
             if root then
@@ -1529,7 +1538,7 @@ local function auraFling()
                 local p = flingAllPower
                 local myPos = myRoot.Position
                 local hitAny = false
-                for _,player in pairs(Players:GetPlayers()) do
+                for _,player in pairs(getTrackedPlayers()) do
                     if player ~= LocalPlayer and player.Character then
                         local targetRoot = getRootUniversal(player.Character)
                         if targetRoot then
@@ -1678,7 +1687,7 @@ local function flingAll()
         local myRoot = myChar and getRootUniversal(myChar)
         if not myRoot then return end
         local p = flingAllPower
-        local players = Players:GetPlayers()
+        local players = getTrackedPlayers()
         local targets = {}
         for i = 1, #players do
             local plr = players[i]
@@ -1729,7 +1738,7 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
                 antifling = nil
             end
             antifling = RunService.Stepped:Connect(function()
-                for _, player in pairs(Players:GetPlayers()) do
+                for _, player in pairs(getTrackedPlayers()) do
                     if player ~= speaker and player.Character then
                         for _, v in pairs(player.Character:GetDescendants()) do
                             if v:IsA("BasePart") then
@@ -1870,7 +1879,7 @@ local function startScanLoop()
                         end
                     end
                 end
-                for _, plr in ipairs(Players:GetPlayers()) do
+                for _, plr in ipairs(getTrackedPlayers()) do
                     if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
                         local char = plr.Character
                         local part =
@@ -2190,8 +2199,8 @@ local function triggerMouseTargetSet()
     end
     lastMouseTargetSetTick = now
 
-    local Lp = game:GetService("Players").LocalPlayer
-    local Plrs = game:GetService("Players")
+    local Lp = Players.LocalPlayer
+    local Plrs = Players
     
     if hasChosenTarget() then
         clearChosenTarget()
@@ -2221,7 +2230,7 @@ local function triggerMouseTargetSet()
     if not target then
         local closestWorldDist = math.huge
         local hitPos = mouse.Hit.p
-        local Players_ = Plrs:GetPlayers()
+        local Players_ = getTrackedPlayers()
         for i = 1, #Players_ do
             local plr = Players_[i]
             if plr ~= Lp and plr.Character then
@@ -2241,7 +2250,7 @@ local function triggerMouseTargetSet()
     if not target then
         local closestDist = math.huge
         local mouseLoc = Vector2.new(mouse.X, mouse.Y)
-        local Players_ = Plrs:GetPlayers()
+        local Players_ = getTrackedPlayers()
         for i = 1, #Players_ do
             local plr = Players_[i]
             if plr ~= Lp and plr.Character then
@@ -2907,7 +2916,7 @@ end
     end
 end
 local function UpdateAll()
-    for _, plr in Players:GetPlayers() do
+    for _, plr in ipairs(getTrackedPlayers()) do
         if plr ~= LocalPlayer then
             UpdateBillboard(plr)
         end
@@ -2954,7 +2963,7 @@ end
 if ToggleDetectUlt then
     ToggleDetectUlt:OnChanged(function(state)
         if state then
-            for _, plr in ipairs(Players:GetPlayers()) do
+            for _, plr in ipairs(getTrackedPlayers()) do
                 setupDetectPlayer(plr)
                 if UltEspState.active[plr] then
                     createUltEsp(plr)
@@ -3071,20 +3080,12 @@ lastFullRefreshTime = lastFullRefreshTime or 0
 buildDropdownValues = function()
     dropdownMap = {}
     local values = { "None" }
-    local showFull = (tick() - lastFullRefreshTime < 11)
-    if RefreshToggle and RefreshToggle.Value then showFull = true end
-    if showFull then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer then
-                local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
-                table.insert(values, display)
-                dropdownMap[display] = plr
-            end
+    for _, plr in ipairs(getTrackedPlayers()) do
+        if plr ~= LocalPlayer then
+            local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            table.insert(values, display)
+            dropdownMap[display] = plr
         end
-    elseif dropdownChosen and dropdownChosen.Parent == Players then
-        local display = dropdownChosen.DisplayName .. " (@" .. dropdownChosen.Name .. ")"
-        table.insert(values, display)
-        dropdownMap[display] = dropdownChosen
     end
     return values
 end
@@ -3452,6 +3453,8 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     end
 })
 task.wait(0.2)
+task.defer(function()
+
 Tabs.TOG:AddButton({
     Title = "Lay",
     Callback = function()
@@ -3526,10 +3529,10 @@ if SaveManager then
         })
     end)
 end
+end)
 task.defer(function()
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local NPC_NAME = "X"
 local CREATE_POS = Vector3.new(0, -50, 0)
