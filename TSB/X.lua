@@ -1167,7 +1167,7 @@ local DropDownYKeybind = nil
 local dropDownLastUse = 0
 local dropDownCooldown = 2
 local dropDownActive = false
-local dropDownSpeed = 500 
+local dropDownSpeed = 485 
 local function setWorkspaceCollisionState(enabled, cache)
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -1205,7 +1205,7 @@ local function teleportLocalPlayerDown()
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
     end
-    local targetY = -350
+    local targetY = -315
     local lastStep = tick()
     while hrp.Position.Y > targetY do
         if not character.Parent or not hrp.Parent then break end
