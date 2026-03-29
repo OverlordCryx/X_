@@ -1167,7 +1167,7 @@ local DropDownYKeybind = nil
 local dropDownLastUse = 0
 local dropDownCooldown = 2
 local dropDownActive = false
-local dropDownSpeed = 485 
+local dropDownSpeed = 510 
 local function setWorkspaceCollisionState(enabled, cache)
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -3553,11 +3553,10 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-local NPC_NAME = "NOTHING X"
-local CREATE_Y = -100
-local CREATE_X = 10000000000
-local CREATE_Z = 10000000000
-local VOID_Y = nil 
+local NPC_NAME = "-X-"
+local CREATE_POS = Vector3.new(0, -100, 0)
+local MAX_RETRIES = 10
+local VOID_Y = nil
 local function spawnNPC()
     local old = Workspace:FindFirstChild(NPC_NAME)
     if old then old:Destroy() end
@@ -3565,68 +3564,74 @@ local function spawnNPC()
     model.Name = NPC_NAME
     local root = Instance.new("Part")
     root.Name = "HumanoidRootPart"
-    root.Size = Vector3.new(2, 5, 1)
-    root.Position = Vector3.new(CREATE_X, CREATE_Y, CREATE_Z)
-    root.Anchored = false
-    root.CanCollide = true
+    root.Size = Vector3.new(2,5,1)
+    root.Position = CREATE_POS
     root.Parent = model
     local hum = Instance.new("Humanoid")
     hum.Parent = model
     model.PrimaryPart = root
     model.Parent = Workspace
     local saved = false
+    local hbConnection
     local function saveAndDestroy(reason)
         if saved then return end
         saved = true
         if root then
             VOID_Y = root.Position.Y
-            print("+")
         else
-            print("⚠️ : "..reason)
+            warn(" - :", reason)
         end
-        if model then
-            model:Destroy()
+        if hbConnection then
+            hbConnection:Disconnect()
         end
+        model:Destroy()
     end
-    hum.Died:Connect(function() saveAndDestroy("Humanoid.Died") end)
-    root.Destroying:Connect(function() saveAndDestroy("Root.Destroying") end)
-    model.AncestryChanged:Connect(function(_, parent)
-        if not parent then saveAndDestroy("Removed from Workspace") end
+    hum.Died:Connect(function()
+        saveAndDestroy("Humanoid.Died")
     end)
-    RunService.Heartbeat:Connect(function()
-        if root and root.Parent then
-        elseif not saved then
-            saveAndDestroy("Heartbeat detected missing root")
+    root.Destroying:Connect(function()
+        saveAndDestroy("Root.Destroying")
+    end)
+    hbConnection = RunService.Heartbeat:Connect(function()
+        if not root or not root.Parent then
+            saveAndDestroy("Heartbeat fail")
         end
     end)
 end
-spawnNPC()
+for i = 1, MAX_RETRIES do
+    spawnNPC()
+    task.wait(0.1)
+    if VOID_Y then
+        break
+    end
+    if i == MAX_RETRIES then
+        warn("---")
+    end
+end
 local lastSafePosition = nil
 local BUFFER = 110
 local function isGrounded(hrp)
     local rayOrigin = hrp.Position
     local rayDirection = Vector3.new(0, -6, 0)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {hrp.Parent}
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-    return result ~= nil
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {hrp.Parent}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    return Workspace:Raycast(rayOrigin, rayDirection, params) ~= nil
 end
 local function resetVelocity(hrp)
-    hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
-    hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
-    hrp.Velocity = Vector3.new(0,0,0) 
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
 end
 local function tripleFixTP(hrp, pos)
-    for i = 1, 5 do
+    for i = 1, 10 do
         resetVelocity(hrp)
-        hrp.CFrame = CFrame.new(pos.X, pos.Y + 5, pos.Z)
-        task.wait() 
+        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+        task.wait()
     end
 end
 local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
-    while character and character.Parent do
+    while character.Parent do
         task.wait()
         if VOID_Y and hrp.Position.Y > (VOID_Y + BUFFER) and isGrounded(hrp) then
             lastSafePosition = hrp.Position
@@ -3634,6 +3639,7 @@ local function protect(character)
         if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
             if lastSafePosition then
                 tripleFixTP(hrp, lastSafePosition)
+                 warn("~~")
             end
         end
     end
