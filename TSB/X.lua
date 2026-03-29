@@ -2536,6 +2536,20 @@ local camLockTrashInputBegan = nil
 local camLockTrashInputEnded = nil
 local camLockTrashPrevPlayer = nil
 local camLockTrashPrevRunning = false
+local function isAlivePlayerTarget(plr)
+	if not (plr and plr.Parent == Players) then
+		return false
+	end
+	local char = plr.Character
+	if not char then
+		return false
+	end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local root = char:FindFirstChild("HumanoidRootPart")
+		or char:FindFirstChild("UpperTorso")
+		or char:FindFirstChild("Torso")
+	return hum ~= nil and hum.Health > 0 and root ~= nil
+end
 local function getCamlockPlayer()
 	if CamlockEnabled then
 		local t = CamlockTarget
@@ -2565,8 +2579,9 @@ local function restoreCamLockTrashSession()
 	stopCamLockTrashActive()
 	if camLockTrashPrevPlayer ~= nil then
 		playerChosen = camLockTrashPrevPlayer
+		_G.playerChosen = camLockTrashPrevPlayer
 	end
-	if camLockTrashPrevRunning and _G.NOTHINGX_TrashPlayer and playerChosen then
+	if camLockTrashPrevRunning and _G.NOTHINGX_TrashPlayer and isAlivePlayerTarget(playerChosen) then
 		_G.NOTHINGX_TrashPlayer.AttachTarget(playerChosen)
 		_G.NOTHINGX_TrashPlayer.SetRunning(true)
 	end
@@ -2589,12 +2604,13 @@ local function startCamLockTrashLoop()
 		if isSafeTeleportLocked() then return end
 		if not _G.NOTHINGX_TrashPlayer then return end
 		local targetPlr = getCamlockPlayer()
-		if not targetPlr then
+		if not isAlivePlayerTarget(targetPlr) then
 			stopCamLockTrashActive()
 			return
 		end
 		if playerChosen ~= targetPlr then
 			playerChosen = targetPlr
+			_G.playerChosen = targetPlr
 		end
 		_G.NOTHINGX_TrashPlayer.AttachTarget(targetPlr)
 		if not _G.NOTHINGX_TrashPlayer.IsRunning() then
