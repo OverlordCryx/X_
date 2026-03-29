@@ -3073,6 +3073,7 @@ local flingOneConnection = nil
 local autoTpOn = false
 local autoTpConnection = nil
 local TrashPlayerKeybind = nil
+RefreshToggle = nil
 local FLING_INF_POWER = 1e12
 local orbitStepXZ = 0
 local orbitStepY = 0
@@ -3090,12 +3091,23 @@ lastFullRefreshTime = lastFullRefreshTime or 0
 buildDropdownValues = function()
     dropdownMap = {}
     local values = { "None" }
-    for _, plr in ipairs(getTrackedPlayers()) do
-        if plr ~= LocalPlayer then
-            local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
-            table.insert(values, display)
-            dropdownMap[display] = plr
+    local seen = { ["None"] = true }
+    local function pushPlayer(plr)
+        if not (plr and plr.Parent == Players) then return end
+        if plr == LocalPlayer then return end
+        local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
+        if seen[display] then return end
+        seen[display] = true
+        dropdownMap[display] = plr
+        table.insert(values, display)
+    end
+    if RefreshToggle and RefreshToggle.Value == true then
+        for _, plr in ipairs(getTrackedPlayers()) do
+            pushPlayer(plr)
         end
+    else
+        pushPlayer(getPriorityTargetPlayer())
+        pushPlayer(dropdownChosen)
     end
     return values
 end
@@ -3236,7 +3248,7 @@ Callback = function(value)
 end
 })
 refreshDropdown = function()
-    local oldTarget = dropdownChosen
+    local oldTarget = dropdownChosen or playerChosen or getPriorityTargetPlayer()
     local values = buildDropdownValues()
     Dropdown:SetValues(values)
     local restored = false
@@ -3250,6 +3262,7 @@ refreshDropdown = function()
     if not restored then
         dropdownChosen = nil
         playerChosen = nil
+        _G.playerChosen = nil
         Dropdown:SetValue("None")
         forceUpdateTargetStatusParagraph()
         if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
@@ -3308,9 +3321,8 @@ registerJoinLeave("remove", function(plr)
     scheduleDropdownRefresh()
 end)
 local lastManualRefresh = 0
-local RefreshToggle
 RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
-    Title = "Refresh Player List",
+    Title = "List Player",
     Default = false,
     Callback = function(state)
         if state then
@@ -3485,7 +3497,7 @@ Tabs.TOG:AddButton({
     end
 })
 local FixCam = Tabs.TOG:AddButton({
-    Title = "Rest Camera",
+    Title = "Fix Camera",
     Callback = function()
 	local player = Players.LocalPlayer
         local character = player.Character
