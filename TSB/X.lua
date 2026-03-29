@@ -313,6 +313,16 @@ local function disconnectPlayerConnections(plr)
     end
     playerConnections[plr] = nil
 end
+local function getTrackedPlayers()
+    local tracked = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            tracked[#tracked + 1] = plr
+        end
+    end
+    return tracked
+end
+local cleanupPlayer
 local function updatePlayer(plr)
     if plr == LocalPlayer then return end
     local char = plr.Character
@@ -372,6 +382,10 @@ local function setupPlayer(plr)
             playerConnections[plr].backpackRemoved:Disconnect()
             playerConnections[plr].backpackRemoved = nil
         end
+        if playerConnections[plr].died then
+            playerConnections[plr].died:Disconnect()
+            playerConnections[plr].died = nil
+        end
         local backpack = plr:FindFirstChildOfClass("Backpack") or plr:WaitForChild("Backpack", 5)
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
         if not humanoid or not backpack or plr.Parent ~= Players or plr.Character ~= char then
@@ -394,11 +408,26 @@ local function setupPlayer(plr)
         onCharacter(plr.Character)
     end
     playerConnections[plr].characterAdded = plr.CharacterAdded:Connect(onCharacter)
+    playerConnections[plr].characterRemoving = plr.CharacterRemoving:Connect(function()
+        cancelTimer(plr)
+        state[plr] = nil
+        safeDestroyHighlight(plr)
+        if protectConnections[plr] then
+            protectConnections[plr]:Disconnect()
+            protectConnections[plr] = nil
+        end
+    end)
+    playerConnections[plr].ancestryChanged = plr.AncestryChanged:Connect(function(_, parent)
+        if parent ~= Players then
+            cleanupPlayer(plr)
+        end
+    end)
 end
-for _, plr in ipairs(Players:GetPlayers()) do
+for _, plr in ipairs(getTrackedPlayers()) do
     setupPlayer(plr)
 end
-local function cleanupPlayer(plr)
+cleanupPlayer = function(plr)
+    safeDestroyHighlight(plr)
     disconnectPlayerConnections(plr)
     cancelTimer(plr)
     state[plr] = nil
@@ -3583,7 +3612,7 @@ root.Transparency = 0.5
         saved = true
         if root then
             VOID_Y = root.Position.Y
-			  print("VOID_Y :", VOID_Y)
+			  print("VOID")
         else
             warn(" - :", reason)
         end
