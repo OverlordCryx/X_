@@ -1189,7 +1189,7 @@ local function teleportLocalPlayerDown()
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
     end
-    local targetY = -255
+    local targetY = -150
     local lastStep = tick()
     while hrp.Position.Y > targetY do
         if not character.Parent or not hrp.Parent then break end
