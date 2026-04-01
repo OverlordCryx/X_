@@ -3530,6 +3530,39 @@ end
 end
 initPlayerTargetUI()
 
+local function disableTeleportFeaturesForVoidProtection()
+    if attackState and attackState.active then
+        setAttackState(false)
+    else
+        holdingMouse = false
+    end
+    if autoTpOn then
+        if AutoTpToggle and AutoTpToggle.SetValue then
+            AutoTpToggle:SetValue(false)
+        else
+            autoTpOn = false
+            if autoTpConnection then
+                autoTpConnection:Disconnect()
+                autoTpConnection = nil
+            end
+        end
+    end
+    if flingOneOn then
+        if FlingOneToggle and FlingOneToggle.SetValue then
+            FlingOneToggle:SetValue(false)
+        else
+            flingOneOn = false
+            if flingOneConnection then
+                flingOneConnection:Disconnect()
+                flingOneConnection = nil
+            end
+        end
+    end
+    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
+        _G.NOTHINGX_TrashPlayer.SetRunning(false)
+    end
+end
+
 local function initBoundaryProtection()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
@@ -3650,7 +3683,7 @@ for i = 1, MAX_RETRIES do
     end
 end
 local lastSafePosition = nil
-local BUFFER = 110
+local BUFFER = 200
 local function isGrounded(hrp)
     local rayOrigin = hrp.Position
     local rayDirection = Vector3.new(0, -6, 0)
@@ -3664,11 +3697,14 @@ local function resetVelocity(hrp)
     hrp.AssemblyAngularVelocity = Vector3.zero
 end
 local function tripleFixTP(hrp, pos)
-    for i = 1, 5 do
+    disableTeleportFeaturesForVoidProtection()
+    _G.SafeTeleportLock = true
+    for i = 1, 15 do
         resetVelocity(hrp)
         hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
         task.wait()
     end
+    _G.SafeTeleportLock = false
 end
 local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
@@ -3679,8 +3715,14 @@ local function protect(character)
         end
         if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
             if lastSafePosition then
-                tripleFixTP(hrp, lastSafePosition)
-                 print("^")
+                local ok, err = pcall(function()
+                    tripleFixTP(hrp, lastSafePosition)
+                end)
+                _G.SafeTeleportLock = false
+                if not ok then
+                    warn("Void protection teleport failed:", err)
+                end
+                print("^")
             end
         end
     end
