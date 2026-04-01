@@ -25,7 +25,7 @@ local function registerJoinLeave(kind, fn)
     table.insert(JoinLeaveHandlers[kind], fn)
 end
 local function handleJoinLeave(kind, plr)
-    task.defer(function()
+    task.spawn(function()
         local skipHandlers = (kind == "add" and (not plr or not plr.Parent))
         if not skipHandlers then
             for _, fn in ipairs(JoinLeaveHandlers[kind]) do
@@ -154,6 +154,9 @@ local UIStatus = {
 local forceUpdateTargetStatusParagraph
 local setDropdownVisualTarget
 local getPlayerFromTargetRoot
+local getPriorityTargetPlayer
+local watchChosenTarget
+local targetState
 local buildDropdownValues
 local dropdownMap
 Window:SelectTab()
@@ -173,14 +176,12 @@ Window:Dialog({
         }
     }
 })
-while not proceed do task.wait(0.1) end
+while not proceed do task.wait(0.05) end
 if not proceed then return end
-task.defer(function()
-local p=Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
-task.defer(function()
 loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()
-end)
-task.defer(function()
+
+local p=game:GetService("Players").LocalPlayer;if game.PlaceId==10449761463 then if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end
+
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
     ["Omni Directional Punch"] = true,
@@ -236,7 +237,7 @@ local function createImmortalHighlight(plr, isStrong)
     protectConnections[plr] = char.DescendantRemoving:Connect(function(obj)
         if obj.Name == "SkillHighlight" and state[plr] ~= nil then
             if allowDestroy[plr] then return end
-            task.defer(function()
+            task.spawn(function()
                 if state[plr] == "strong" then
                     createImmortalHighlight(plr, true)
                 elseif state[plr] == "weak" then
@@ -344,8 +345,6 @@ Players.PlayerRemoving:Connect(function(plr)
     end
     allowDestroy[plr] = nil
 end)
-end)
-task.defer(function()
 local speaker = Players.LocalPlayer
 local speed = 25
 local jpower = 50
@@ -683,7 +682,7 @@ if not UIStatus.walkfling then
         Content = ""
     })
 end
-if not UIStatus.trash then
+if workspace:FindFirstChild("Map") and workspace:FindFirstChild("Map"):FindFirstChild("Trash") and not UIStatus.trash then
     UIStatus.trash = Tabs.XXX:AddParagraph({
         Title = "Trash : OFF",
         Content = ""
@@ -698,19 +697,14 @@ end
 if targetState and not targetState.statusParagraph then
     targetState.statusParagraph = UIStatus.target
 end
-end)
 local playerChosen = nil
-task.defer(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
-if not mainPart then
-    return 
-end
 local player = Players.LocalPlayer
 local vim = VirtualInputManager
 local character
 local hrp
-local trashFolder = workspace:WaitForChild("Map"):WaitForChild("Trash")
+local trashFolder = map and map:FindFirstChild("Trash")
 local TrashKeybind = nil
 local trashKeybindRunning = false
 local debounce = false
@@ -736,6 +730,7 @@ local function setTrashPlayerKeybindState(state)
     end
 end
 local function setTrashPlayerParagraph(state)
+    if not trashFolder then return end
     if not trashPlayerState.statusParagraph and Tabs and Tabs.PLYR then
         trashPlayerState.statusParagraph = Tabs.PLYR:AddParagraph({
             Title = "Trash Player : OFF",
@@ -813,6 +808,9 @@ end
 hasTrashFlag = hasTrash()
 notifyHasTrash()
 local function getRandomTrashCan()
+    if not trashFolder then
+        return nil
+    end
     local candidates = {}
     local fallback = {}
     for _, model in ipairs(trashFolder:GetChildren()) do
@@ -862,6 +860,10 @@ local function useTrashCan(isRunning)
         return
     end
     if not hrp or not hrp.Parent then
+        debounce = false
+        return
+    end
+    if not trashFolder then
         debounce = false
         return
     end
@@ -960,7 +962,7 @@ local function teleportToMainPart()
 end
 local function startTrashPlayerLoop()
     if trashPlayer.thread then return end
-    trashPlayer.thread = task.defer(function()
+    trashPlayer.thread = task.spawn(function()
         while trashPlayer.running do
             if not isSafeTeleportLocked() then
                 startHasTrashObserver()
@@ -1029,7 +1031,7 @@ local function createTrashKeybind()
                     _G.NOTHINGX_TrashPlayer.SetRunning(false)
                 end
                 startHasTrashObserver()
-                task.defer(function()
+                task.spawn(function()
                     while trashKeybindRunning do
                         if not isSafeTeleportLocked() then
                             useTrashCan(function() return trashKeybindRunning end)
@@ -1045,10 +1047,10 @@ local function createTrashKeybind()
 end
 
 
-if not hasTrashFlag then
+if trashFolder and not hasTrashFlag then
     createTrashKeybind()
 end
-if not trashState.statusParagraph then
+if trashFolder and not trashState.statusParagraph then
     trashState.statusParagraph = UIStatus.trash
 end
 _G.NOTHINGX_TrashPlayer = {
@@ -1091,7 +1093,7 @@ _G.NOTHINGX_TrashPlayer = {
         return trashPlayer.running
     end
 }
-end)
+
 local workspace = game:GetService("Workspace")
 local DropDownYKeybind = nil
 local dropDownLastUse = 0
@@ -1157,7 +1159,7 @@ local function teleportLocalPlayerDown()
     end
     if humanoid and humanoid.Parent then
         humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        task.defer(function()
+        task.spawn(function()
             if humanoid and humanoid.Parent then
                 humanoid:ChangeState(Enum.HumanoidStateType.Running)
             end
@@ -1175,7 +1177,7 @@ local function createDropDownYKeybind()
         Callback = function(state)
             if not state then return end
             teleportLocalPlayerDown()
-            task.defer(function()
+            task.spawn(function()
 if DropDownYKeybind and typeof(DropDownYKeybind.SetValue) == "function" then
     pcall(function()
         DropDownYKeybind:SetValue(false)
@@ -1429,7 +1431,7 @@ Tabs.KEY:AddKeybind("WalkFlingKey", {
             Duration = 2
         })
         if walkflinging then
-            task.defer(WalkFlingLoop)
+            task.spawn(WalkFlingLoop)
         end
     end
 })
@@ -1482,7 +1484,7 @@ local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
     end
 })
 local function auraFling()
-    task.defer(function()
+    task.spawn(function()
         while auraFlingOn do
             local myChar = LocalPlayer.Character
             local myRoot = getRootUniversal(myChar)
@@ -1548,7 +1550,7 @@ end
 local function clickFlingTarget(targetPlayer)
     if clickFlingBusy then return end
     clickFlingBusy = true
-    task.defer(function()
+    task.spawn(function()
         local myChar = LocalPlayer.Character
         local targetChar = targetPlayer and targetPlayer.Character
         local myRoot = getRootUniversal(myChar)
@@ -1709,6 +1711,7 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
         end
     end
 })
+local function initAttackTargeting()
 local LocalPlayer = Players.LocalPlayer
 local attackState = {
     active = false,
@@ -1990,7 +1993,7 @@ Tabs.KEY:AddKeybind("AttackTPKeybind", {
         })
     end
 })
-local targetState = {
+targetState = {
     statusParagraph = UIStatus.target
 }
 local lastTargetStatusTitle = nil
@@ -2014,7 +2017,7 @@ getPlayerFromTargetRoot = function(targetRoot)
     if not hum or hum.Health <= 0 then return nil end
     return Players:GetPlayerFromCharacter(model)
 end
-local function getPriorityTargetPlayer()
+getPriorityTargetPlayer = function()
     if CamlockEnabled then
         local camlockPlayer = getPlayerFromTargetRoot(CamlockTarget)
         if camlockPlayer and camlockPlayer.Parent == Players then
@@ -2063,7 +2066,7 @@ local function clearChosenTarget()
         ViewToggle:SetValue(false)
     end
 end
-local function watchChosenTarget(plr)
+watchChosenTarget = function(plr)
     disconnectChosenTargetWatch()
     if not (plr and plr.Parent == Players) then return end
     chosenTargetHeartbeatConn = RunService.Heartbeat:Connect(function()
@@ -2112,7 +2115,7 @@ forceUpdateTargetStatusParagraph = function()
     lastTargetStatusTitle = nil
     updateTargetStatusParagraph()
 end
-task.defer(function()
+task.spawn(function()
     while true do
         updateTargetStatusParagraph()
         task.wait(0.05)
@@ -2252,7 +2255,10 @@ Tabs.KEY:AddKeybind("MouseTargetSet", {
         triggerMouseTargetSet()
     end
 })
+end
+initAttackTargeting()
 
+local function initDefenseAndUtilityUI()
 local LocalPlayer = Players.LocalPlayer
 local stayPos
 local conn
@@ -2602,19 +2608,23 @@ local function unbindCamLockTrashInput()
 		camLockTrashInputEnded = nil
 	end
 end
-Tabs.TOG:AddToggle("camlocktrash", {
-	Title = "Cam-Lock/target/ Trash Cant (Hold Right)",
-	Default = false,
-	Callback = function(state)
-		camLockTrashEnabled = state
-		if state then
-			bindCamLockTrashInput()
-		else
-			unbindCamLockTrashInput()
-			stopCamLockTrashAll()
+if trashFolder then
+	Tabs.TOG:AddToggle("camlocktrash", {
+		Title = "Cam-Lock/target/ Trash Cant (Hold Right)",
+		Default = false,
+		Callback = function(state)
+			camLockTrashEnabled = state
+			if state then
+				bindCamLockTrashInput()
+			else
+				unbindCamLockTrashInput()
+				stopCamLockTrashAll()
+			end
 		end
-	end
-})
+	})
+end
+end
+initDefenseAndUtilityUI()
 Tabs.TOG:AddToggle("VisualFixToggle", {
     Title = "Visual TP Fix (Smooth View)",
     Default = false,
@@ -2626,7 +2636,7 @@ Tabs.TOG:AddToggle("VisualFixToggle", {
 local ToggleUlt
 local ToggleClass
 local ToggleDetectUlt
-task.defer(function()
+local function initUltEspUI()
 local LocalPlayer = Players.LocalPlayer
 local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
@@ -2692,7 +2702,7 @@ local function createUltEsp(plr)
         if obj.Name == "UltUseESP" and UltEspState.active[plr] then
             if UltEspState.allowDestroy[plr] then return end
             if ToggleDetectUlt and ToggleDetectUlt.Value then
-                task.defer(function()
+                task.spawn(function()
                     if UltEspState.active[plr] then
                         createUltEsp(plr)
                     end
@@ -3024,8 +3034,10 @@ task.delay(1.5, function()
         UpdateAll()
     end
 end)
-end)
-task.defer(function()
+end
+initUltEspUI()
+
+local function initPlayerTargetUI()
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local viewing = false
@@ -3441,8 +3453,6 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     end
 })
 task.wait(0.2)
-end)
-task.defer(function()
 
 Tabs.TOG:AddButton({
     Title = "Lay",
@@ -3518,7 +3528,10 @@ if SaveManager then
         })
     end)
 end
-end)
+end
+initPlayerTargetUI()
+
+local function initBoundaryProtection()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if not mainPart then
@@ -3563,7 +3576,10 @@ player.CharacterAdded:Connect(function(char)
 	character = char
 	hrp = char:WaitForChild("HumanoidRootPart")
 end)
+end
+initBoundaryProtection()
 
+local function initVoidProtection()
 
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
@@ -3676,3 +3692,5 @@ end
 player.CharacterAdded:Connect(function(char)
     task.spawn(protect, char)
 end)
+end
+initVoidProtection()
