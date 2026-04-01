@@ -160,9 +160,9 @@ local targetState
 local buildDropdownValues
 local dropdownMap
 Window:SelectTab()
-task.defer(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()
-end)
+task.defer(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()end)
+task.defer(function() loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()end)
+
 local proceed = false
 Window:Dialog({
     Title = "NOTHING X Load",
@@ -178,7 +178,6 @@ Window:Dialog({
 })
 while not proceed do task.wait(0.05) end
 if not proceed then return end
-loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()
 
 local p=game:GetService("Players").LocalPlayer;if game.PlaceId==10449761463 then if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end
 
