@@ -8,9 +8,7 @@ if coreGui:FindFirstChild("ScreenGui") then
     })
     return
 end
-task.defer(function()
-loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()
-end)
+
 local game = game
 local workspace = workspace
 local getService = game.GetService
@@ -126,64 +124,9 @@ function VisualFix:Stop()
         end
     end
 end
-task.defer(function()
-local map = workspace:FindFirstChild("Map")
-local mainPart = map and map:FindFirstChild("MainPart")
-if not mainPart then
-    return 
-end
-local oldPart = workspace:FindFirstChild("NOTHING X")
-if oldPart then
-    oldPart:Destroy()
-end
-end)
-task.defer(function()
-task.wait(0.2)
-local map = workspace:FindFirstChild("Map")
-local mainPart = map and map:FindFirstChild("MainPart")
-if not mainPart then
-    return 
-end
-local RunService = game:GetService("RunService")
-local map = workspace:FindFirstChild("Map")
-local mainPart = map and map:FindFirstChild("MainPart")
-local NOTHING_X_SIZE = Vector3.new(100000, 0, 100000)
-if not mainPart then
-	return
-end
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
-local spawnPart = mainPart
-local function isOutside()
-	local pos = hrp.Position
-	local cf = mainPart.CFrame
-	local localPos = cf:PointToObjectSpace(pos)
-	local s = NOTHING_X_SIZE / 2
-	return localPos.X < -s.X or localPos.X > s.X
-	or localPos.Z < -s.Z or localPos.Z > s.Z
-end
-local checkTime = 0
-local interval = 0
-RunService.Heartbeat:Connect(function(dt)
-	if _G.SafeTeleportLock then
-		return
-	end
-	checkTime += dt
-	if checkTime < interval then return end
-	checkTime = 0
-	if not hrp or not hrp.Parent then return end
-	if isOutside() then
-		hrp.AssemblyLinearVelocity = Vector3.zero
-		hrp.AssemblyAngularVelocity = Vector3.zero
-		character:PivotTo(spawnPart.CFrame + Vector3.new(0,5,0))
-	end
-end)
-player.CharacterAdded:Connect(function(char)
-	character = char
-	hrp = char:WaitForChild("HumanoidRootPart")
-end)
-end)
+
+
+
 local SaveManager = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/raw/refs/heads/master/Addons/SaveManager.lua"))()
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
@@ -234,6 +177,9 @@ while not proceed do task.wait(0.1) end
 if not proceed then return end
 task.defer(function()
 local p=Players.LocalPlayer;if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end)
+task.defer(function()
+loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()
+end)
 task.defer(function()
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
@@ -2677,13 +2623,13 @@ Tabs.TOG:AddToggle("VisualFixToggle", {
         if not state then VisualFix:Stop() end
     end
 })
+local ToggleUlt
+local ToggleClass
+local ToggleDetectUlt
 task.defer(function()
 local LocalPlayer = Players.LocalPlayer
 local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
-local ToggleUlt
-local ToggleClass
-local ToggleDetectUlt
 if hasUltimate then
     ToggleUlt = Tabs.TOG:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
     ToggleDetectUlt = Tabs.TOG:AddToggle("detectult", { Title = "Detect Use Ult (ESP Yellow)", Default = false })
@@ -3079,6 +3025,7 @@ task.delay(1.5, function()
     end
 end)
 end)
+task.defer(function()
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local viewing = false
@@ -3494,6 +3441,7 @@ FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
     end
 })
 task.wait(0.2)
+end)
 task.defer(function()
 
 Tabs.TOG:AddButton({
@@ -3571,7 +3519,52 @@ if SaveManager then
     end)
 end
 end)
-task.defer(function()
+local map = workspace:FindFirstChild("Map")
+local mainPart = map and map:FindFirstChild("MainPart")
+if not mainPart then
+    return 
+end
+local RunService = game:GetService("RunService")
+local map = workspace:FindFirstChild("Map")
+local mainPart = map and map:FindFirstChild("MainPart")
+local NOTHING_X_SIZE = Vector3.new(100000, 0, 100000)
+if not mainPart then
+	return
+end
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local spawnPart = mainPart
+local function isOutside()
+	local pos = hrp.Position
+	local cf = mainPart.CFrame
+	local localPos = cf:PointToObjectSpace(pos)
+	local s = NOTHING_X_SIZE / 2
+	return localPos.X < -s.X or localPos.X > s.X
+	or localPos.Z < -s.Z or localPos.Z > s.Z
+end
+local checkTime = 0
+local interval = 0
+RunService.Heartbeat:Connect(function(dt)
+	if _G.SafeTeleportLock then
+		return
+	end
+	checkTime += dt
+	if checkTime < interval then return end
+	checkTime = 0
+	if not hrp or not hrp.Parent then return end
+	if isOutside() then
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		character:PivotTo(spawnPart.CFrame + Vector3.new(0,5,0))
+	end
+end)
+player.CharacterAdded:Connect(function(char)
+	character = char
+	hrp = char:WaitForChild("HumanoidRootPart")
+end)
+
+
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
@@ -3682,5 +3675,4 @@ if player.Character then
 end
 player.CharacterAdded:Connect(function(char)
     task.spawn(protect, char)
-end)
 end)
