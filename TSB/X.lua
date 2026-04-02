@@ -3803,31 +3803,90 @@ local function disableTeleportFeaturesForVoidProtection()
     end
 end
 
+_G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
+_G.NOTHINGX_Protection.defaultCFrame = CFrame.new(0, 0, 0)
+_G.NOTHINGX_Protection.boundarySize = Vector3.new(100000, 0, 100000)
+_G.NOTHINGX_Protection.lastSafePosition = nil
+
+function _G.NOTHINGX_Protection.getMainPart()
+    local map = workspace:FindFirstChild("Map")
+    return map and map:FindFirstChild("MainPart")
+end
+
+function _G.NOTHINGX_Protection.getReferenceCFrame()
+    local mainPart = _G.NOTHINGX_Protection.getMainPart()
+    return (mainPart and mainPart.CFrame) or _G.NOTHINGX_Protection.defaultCFrame
+end
+
+function _G.NOTHINGX_Protection.isOutsideBoundary(position)
+    local cf = _G.NOTHINGX_Protection.getReferenceCFrame()
+    local localPos = cf:PointToObjectSpace(position)
+    local halfSize = _G.NOTHINGX_Protection.boundarySize / 2
+    return localPos.X < -halfSize.X or localPos.X > halfSize.X
+        or localPos.Z < -halfSize.Z or localPos.Z > halfSize.Z
+end
+
+function _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
+    if not hrp or not hrp.Parent then
+        return nil
+    end
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {hrp.Parent}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    return workspace:Raycast(hrp.Position, Vector3.new(0, -8, 0), params)
+end
+
+function _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minY)
+    if not hrp or not hrp.Parent then
+        return false
+    end
+    if minY and hrp.Position.Y < minY then
+        return false
+    end
+    if _G.NOTHINGX_Protection.isOutsideBoundary(hrp.Position) then
+        return false
+    end
+    local groundResult = _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
+    if not groundResult or not groundResult.Instance then
+        return false
+    end
+    _G.NOTHINGX_Protection.lastSafePosition = hrp.CFrame
+    return true
+end
+
+function _G.NOTHINGX_Protection.getRescueCFrame()
+    return _G.NOTHINGX_Protection.lastSafePosition or _G.NOTHINGX_Protection.getReferenceCFrame()
+end
+
+function _G.NOTHINGX_Protection.resetVelocity(hrp)
+    if not hrp or not hrp.Parent then
+        return
+    end
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+end
+
+function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame)
+    _G.SafeTeleportLock = true
+    disableTeleportFeaturesForVoidProtection()
+    local rescueCFrame = targetCFrame or _G.NOTHINGX_Protection.getRescueCFrame()
+    if not rescueCFrame then
+        _G.SafeTeleportLock = false
+        return false
+    end
+    for _ = 1, 15 do
+        _G.NOTHINGX_Protection.resetVelocity(hrp)
+        character:PivotTo(rescueCFrame + Vector3.new(0, 5, 0))
+        task.wait()
+    end
+    _G.SafeTeleportLock = false
+    return true
+end
+
 local function initBoundaryProtection()
-local map = workspace:FindFirstChild("Map")
-local mainPart = map and map:FindFirstChild("MainPart")
-if not mainPart then
-    return 
-end
-local RunService = game:GetService("RunService")
-local map = workspace:FindFirstChild("Map")
-local mainPart = map and map:FindFirstChild("MainPart")
-local NOTHING_X_SIZE = Vector3.new(100000, 0, 100000)
-if not mainPart then
-	return
-end
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
-local spawnPart = mainPart
-local function isOutside()
-	local pos = hrp.Position
-	local cf = mainPart.CFrame
-	local localPos = cf:PointToObjectSpace(pos)
-	local s = NOTHING_X_SIZE / 2
-	return localPos.X < -s.X or localPos.X > s.X
-	or localPos.Z < -s.Z or localPos.Z > s.Z
-end
 local checkTime = 0
 local interval = 0
 RunService.Heartbeat:Connect(function(dt)
@@ -3838,10 +3897,16 @@ RunService.Heartbeat:Connect(function(dt)
 	if checkTime < interval then return end
 	checkTime = 0
 	if not hrp or not hrp.Parent then return end
-	if isOutside() then
-		hrp.AssemblyLinearVelocity = Vector3.zero
-		hrp.AssemblyAngularVelocity = Vector3.zero
-		character:PivotTo(spawnPart.CFrame + Vector3.new(0,5,0))
+	_G.NOTHINGX_Protection.updateLastSafePosition(hrp)
+	if _G.NOTHINGX_Protection.isOutsideBoundary(hrp.Position) then
+        local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame()
+        local ok, err = pcall(function()
+            _G.NOTHINGX_Protection.teleportCharacter(character, hrp, rescueCFrame)
+        end)
+        _G.SafeTeleportLock = false
+        if not ok then
+            warn("Boundary protection teleport failed:", err)
+        end
 	end
 end)
 player.CharacterAdded:Connect(function(char)
@@ -3860,8 +3925,6 @@ local NPC_NAME = "X"
 local CREATE_POS = Vector3.new(0, -50, 0)
 local MAX_RETRIES = 10
 local VOID_Y = nil
-local map = workspace:FindFirstChild("Map")
-local mainPart = map and map:FindFirstChild("MainPart")
 local function spawnNPC()
     local old = Workspace:FindFirstChild(NPC_NAME)
     if old then old:Destroy() end
@@ -3924,48 +3987,17 @@ for i = 1, MAX_RETRIES do
         warn("---")
     end
 end
-local lastSafePosition = nil
 local BUFFER = 210
-local function isGrounded(hrp)
-    local rayOrigin = hrp.Position
-    local rayDirection = Vector3.new(0, -6, 0)
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {hrp.Parent}
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    return Workspace:Raycast(rayOrigin, rayDirection, params) ~= nil
-end
-local function resetVelocity(hrp)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-end
-local function tripleFixTP(hrp, pos)
-    _G.SafeTeleportLock = true
-    disableTeleportFeaturesForVoidProtection()
-    local targetCFrame = pos or (mainPart and mainPart.CFrame)
-    if not targetCFrame then
-        _G.SafeTeleportLock = false
-        return
-    end
-    local attempts = 15
-    for i = 1, attempts do
-        resetVelocity(hrp)
-        hrp.CFrame = targetCFrame + Vector3.new(0,5,0)
-        task.wait()
-    end
-    _G.SafeTeleportLock = false
-end
 local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     while character.Parent do
         task.wait()
-        if VOID_Y and hrp.Position.Y > (VOID_Y + BUFFER) then
-            lastSafePosition = hrp.CFrame
-        end
+        _G.NOTHINGX_Protection.updateLastSafePosition(hrp, VOID_Y and (VOID_Y + BUFFER) or nil)
         if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
-            local rescueCFrame = lastSafePosition or (mainPart and mainPart.CFrame)
+            local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame()
             if rescueCFrame then
                 local ok, err = pcall(function()
-                    tripleFixTP(hrp, rescueCFrame)
+                    _G.NOTHINGX_Protection.teleportCharacter(character, hrp, rescueCFrame)
                 end)
                 _G.SafeTeleportLock = false
                 if not ok then
