@@ -531,6 +531,48 @@ RunService.Heartbeat:Connect(function()
 		end
     end
 end)
+local player = game.Players.LocalPlayer
+local function safeDeleteAnimationPlayer(characterHandler)
+    local success, result = pcall(function()
+        for i = 1, 5 do  
+            local animationPlayer = characterHandler:FindFirstChild("AnimationPlayer")
+            if animationPlayer then
+                animationPlayer:Destroy()
+                return true
+            end
+            wait(0.1)
+        end
+        return false
+    end)
+    if not success then
+    end
+end
+local function handleCharacter(character)
+    local characterHandler
+    local success, result = pcall(function()
+        characterHandler = character:FindFirstChild("CharacterHandler")
+    end)
+    if success and characterHandler then
+        safeDeleteAnimationPlayer(characterHandler)
+        pcall(function()
+            characterHandler.ChildAdded:Connect(function(child)
+                pcall(function()
+                    if child.Name == "AnimationPlayer" then
+                        child:Destroy()
+                    end
+                end)
+            end)
+        end)
+    end
+end
+pcall(function()
+    if player.Character then
+        handleCharacter(player.Character)
+    end
+end)
+pcall(function()
+    player.CharacterAdded:Connect(handleCharacter)
+end)
 local player = Players.LocalPlayer
 local holdingWKey = false
 local holdingSKey = false
