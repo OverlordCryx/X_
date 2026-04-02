@@ -179,7 +179,7 @@ Window:Dialog({
 while not proceed do task.wait(0.05) end
 if not proceed then return end
 
-local p=game:GetService("Players").LocalPlayer;if game.PlaceId==10449761463 then if p.Character then task.wait(0.3)local h=p.Character:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13499771836"h:LoadAnimation(a):Play()end;p.CharacterAdded:Connect(function(c)task.wait(0.3)local h=c:WaitForChild("Humanoid")local a=Instance.new("Animation")a.AnimationId="rbxassetid://13497875049"h:LoadAnimation(a):Play()end)end
+local p=game:GetService("Players").LocalPlayer;if({[3808081382]=true,[10449761463]=true})[game.GameId] or ({[3808081382]=true,[10449761463]=true})[game.PlaceId] then local function a(c,i)local h=c:WaitForChild("Humanoid")local an=Instance.new("Animation")an.AnimationId="rbxassetid://"..i;h:LoadAnimation(an):Play()end;if p.Character then task.wait(0.1) a(p.Character,"13499771836") end;p.CharacterAdded:Connect(function(c) task.wait(0.1) a(c,"13497875049") end) end
 
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
