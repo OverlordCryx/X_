@@ -246,7 +246,76 @@ local function createImmortalHighlight(plr, isStrong)
         end
     end)
 end
+local TELEPORT_MAX_HORIZONTAL_SPEED = 420
+local TELEPORT_MAX_VERTICAL_SPEED = 260
+local TELEPORT_MAX_PREDICTION = 18
+local TELEPORT_MOMENTUM_GRACE = 0.14
+local teleportMomentumPauseUntil = 0
+local function getTeleportMomentumPauseRemaining()
+    local remaining = teleportMomentumPauseUntil - tick()
+    return (remaining > 0 and remaining) or 0
+end
+local function markTeleportMomentumPause(duration)
+    local holdUntil = tick() + (duration or TELEPORT_MOMENTUM_GRACE)
+    if holdUntil > teleportMomentumPauseUntil then
+        teleportMomentumPauseUntil = holdUntil
+    end
+end
+local function sanitizeTeleportVelocity(rawVel)
+    if typeof(rawVel) ~= "Vector3" then
+        return Vector3.zero
+    end
+    local x, y, z = rawVel.X, rawVel.Y, rawVel.Z
+    if x ~= x or y ~= y or z ~= z then
+        return Vector3.zero
+    end
+    local horizontal = Vector3.new(x, 0, z)
+    local horizontalMag = horizontal.Magnitude
+    if horizontalMag > TELEPORT_MAX_HORIZONTAL_SPEED then
+        horizontal = horizontal.Unit * TELEPORT_MAX_HORIZONTAL_SPEED
+    end
+    return Vector3.new(
+        horizontal.X,
+        math.clamp(y, -TELEPORT_MAX_VERTICAL_SPEED, TELEPORT_MAX_VERTICAL_SPEED),
+        horizontal.Z
+    )
+end
+local function getTeleportPrediction(targetVel, scale)
+    local safeVel = sanitizeTeleportVelocity(targetVel)
+    local ping = 0
+    local plr = Players.LocalPlayer
+    if plr and plr.GetNetworkPing then
+        ping = plr:GetNetworkPing() or 0
+    end
+    local prediction = safeVel * math.max(ping, 0) * (scale or 1)
+    if prediction.Magnitude > TELEPORT_MAX_PREDICTION then
+        prediction = prediction.Unit * TELEPORT_MAX_PREDICTION
+    end
+    return prediction, safeVel
+end
+local function strongPivotCharacter(characterModel, rootPart, targetCFrame, pauseDuration)
+    if not (characterModel and targetCFrame) then return end
+    markTeleportMomentumPause(pauseDuration)
+    if rootPart and rootPart.Parent then
+        rootPart.AssemblyLinearVelocity = Vector3.zero
+        rootPart.AssemblyAngularVelocity = Vector3.zero
+        local bodyPosition = rootPart:FindFirstChildOfClass("BodyPosition")
+        if bodyPosition then
+            bodyPosition.Position = targetCFrame.Position
+        end
+        local bodyGyro = rootPart:FindFirstChildOfClass("BodyGyro")
+        if bodyGyro then
+            bodyGyro.CFrame = targetCFrame
+        end
+    end
+    local humanoid = characterModel:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid:Move(Vector3.zero, true)
+    end
+    characterModel:PivotTo(targetCFrame)
+end
 local function getTeleportFollowCFrame(targetRoot, targetVel, backOffset, verticalOffset)
+    targetVel = sanitizeTeleportVelocity(targetVel)
     local basePos = targetRoot.Position
     local moveDir
     if targetVel and targetVel.Magnitude > 1 then
@@ -340,10 +409,42 @@ local TPVariantSettings = {
         trashVertical = -2.2,
         playerBack = 1,
         playerVertical = 0
+    },
+    ["Ultra+"] = {
+        groundBack = 0.02,
+        groundVertical = -0.7,
+        fallBack = 0,
+        fallVertical = -2.55,
+        riseBack = 0.02,
+        riseVertical = -1.45,
+        autoBack = 0,
+        autoVertical = -0.45,
+        trashBack = 0.08,
+        trashVertical = -3.05,
+        playerBack = 0,
+        playerVertical = -0.28,
+        attackPredictionFast = 0.78,
+        attackPrediction = 1.18,
+        autoPredictionFast = 0.7,
+        autoPrediction = 1.08,
+        playerPrediction = 0.68,
+        trashPrediction = 0.82,
+        pauseDuration = 0.2
     }
 }
 local function getTpVariantConfig()
     return TPVariantSettings[TPVariantMode] or TPVariantSettings["Aggressive"]
+end
+local function getTpVariantValue(name, fallback)
+    local config = getTpVariantConfig()
+    local value = config and config[name]
+    if value == nil then
+        return fallback
+    end
+    return value
+end
+local function getTpVariantPauseDuration()
+    return getTpVariantValue("pauseDuration", TELEPORT_MOMENTUM_GRACE)
 end
 local function getAttackTeleportOffsets(targetVel)
     local config = getTpVariantConfig()
@@ -454,367 +555,415 @@ Players.PlayerRemoving:Connect(function(plr)
     end
     allowDestroy[plr] = nil
 end)
-local speaker = Players.LocalPlayer
-local speed = 25
-local jpower = 50
-local HumanModCons = {}
-local function SetupWalkSpeed(Char, Human)
-    local function WalkSpeedChange()
-        if Char and Human then
-            Human.WalkSpeed = speed
+do
+    local speaker = Players.LocalPlayer
+    local speed = 25
+    local jpower = 50
+    local HumanModCons = {}
+    local function getManagedWalkSpeed()
+        if getTeleportMomentumPauseRemaining() > 0 then
+            return 0
         end
+        return speed
     end
-    WalkSpeedChange() 
-    HumanModCons.wsLoop = (HumanModCons.wsLoop and HumanModCons.wsLoop:Disconnect() and false) or nil
-    HumanModCons.wsCA = (HumanModCons.wsCA and HumanModCons.wsCA:Disconnect() and false) or nil
-    HumanModCons.wsLoop = Human:GetPropertyChangedSignal("WalkSpeed"):Connect(WalkSpeedChange)
-    HumanModCons.wsCA = speaker.CharacterAdded:Connect(function(nChar)
-        Char, Human = nChar, nChar:WaitForChild("Humanoid")
-        SetupWalkSpeed(Char, Human) 
-    end)
-end
-local function SetupJumpPower(Char, Human)
-    local function JumpPowerChange()
-        if Char and Human then
-            if Human.UseJumpPower then
-                Human.JumpPower = jpower
-            else
-                Human.JumpHeight = jpower
+    local function applyManagedWalkSpeed(human)
+        if human and human.Parent then
+            local desiredSpeed = getManagedWalkSpeed()
+            if human.WalkSpeed ~= desiredSpeed then
+                human.WalkSpeed = desiredSpeed
             end
         end
     end
-    JumpPowerChange() 
-    HumanModCons.jpLoop = (HumanModCons.jpLoop and HumanModCons.jpLoop:Disconnect() and false) or nil
-    HumanModCons.jpCA = (HumanModCons.jpCA and HumanModCons.jpCA:Disconnect() and false) or nil
-    HumanModCons.jpLoop = Human:GetPropertyChangedSignal(Human.UseJumpPower and "JumpPower" or "JumpHeight"):Connect(JumpPowerChange)
-    HumanModCons.jpCA = speaker.CharacterAdded:Connect(function(nChar)
-        Char, Human = nChar, nChar:WaitForChild("Humanoid")
-        SetupJumpPower(Char, Human) 
-    end)
-end
-if speaker.Character and speaker.Character:FindFirstChildWhichIsA("Humanoid") then
-    local Char = speaker.Character
-    local Human = Char:FindFirstChildWhichIsA("Humanoid")
-    SetupWalkSpeed(Char, Human)
-    SetupJumpPower(Char, Human)
-end
-speaker.CharacterAdded:Connect(function(Char)
-    local Human = Char:WaitForChild("Humanoid")
-    SetupWalkSpeed(Char, Human)
-    SetupJumpPower(Char, Human)
-end)
-local player = Players.LocalPlayer
-local function usunPusteAccessory(char)
-	if not char then return end
-	for _, obj in ipairs(char:GetChildren()) do
-		if obj:IsA("Accessory") then
-			if not next(obj:GetChildren()) then
-				obj:Destroy()
-			end
-		end
-	end
-end
-if player.Character then
-	usunPusteAccessory(player.Character)
-end
-player.CharacterAdded:Connect(function(char)
-	usunPusteAccessory(char)
-end)
-local nextAccessoryClean = 0
-RunService.Heartbeat:Connect(function()
-    if tick() >= nextAccessoryClean then
-        nextAccessoryClean = tick() + 0.21
-		if not isSafeTeleportLocked() then
-			if player.Character then
-				usunPusteAccessory(player.Character)
-			end
-		end
-    end
-end)
-local player = game.Players.LocalPlayer
-local function safeDeleteAnimationPlayer(characterHandler)
-    local success, result = pcall(function()
-        for i = 1, 5 do  
-            local animationPlayer = characterHandler:FindFirstChild("AnimationPlayer")
-            if animationPlayer then
-                animationPlayer:Destroy()
-                return true
+    local function SetupWalkSpeed(Char, Human)
+        local function WalkSpeedChange()
+            if Char and Human then
+                applyManagedWalkSpeed(Human)
             end
-            wait(0.1)
         end
-        return false
-    end)
-    if not success then
-    end
-end
-local function handleCharacter(character)
-    local characterHandler
-    local success, result = pcall(function()
-        characterHandler = character:FindFirstChild("CharacterHandler")
-    end)
-    if success and characterHandler then
-        safeDeleteAnimationPlayer(characterHandler)
-        pcall(function()
-            characterHandler.ChildAdded:Connect(function(child)
-                pcall(function()
-                    if child.Name == "AnimationPlayer" then
-                        child:Destroy()
-                    end
-                end)
-            end)
+        WalkSpeedChange()
+        HumanModCons.wsLoop = (HumanModCons.wsLoop and HumanModCons.wsLoop:Disconnect() and false) or nil
+        HumanModCons.wsCA = (HumanModCons.wsCA and HumanModCons.wsCA:Disconnect() and false) or nil
+        HumanModCons.wsLoop = Human:GetPropertyChangedSignal("WalkSpeed"):Connect(WalkSpeedChange)
+        HumanModCons.wsCA = speaker.CharacterAdded:Connect(function(nChar)
+            Char, Human = nChar, nChar:WaitForChild("Humanoid")
+            SetupWalkSpeed(Char, Human)
         end)
     end
+    local function SetupJumpPower(Char, Human)
+        local function JumpPowerChange()
+            if Char and Human then
+                if Human.UseJumpPower then
+                    Human.JumpPower = jpower
+                else
+                    Human.JumpHeight = jpower
+                end
+            end
+        end
+        JumpPowerChange()
+        HumanModCons.jpLoop = (HumanModCons.jpLoop and HumanModCons.jpLoop:Disconnect() and false) or nil
+        HumanModCons.jpCA = (HumanModCons.jpCA and HumanModCons.jpCA:Disconnect() and false) or nil
+        HumanModCons.jpLoop = Human:GetPropertyChangedSignal(Human.UseJumpPower and "JumpPower" or "JumpHeight"):Connect(JumpPowerChange)
+        HumanModCons.jpCA = speaker.CharacterAdded:Connect(function(nChar)
+            Char, Human = nChar, nChar:WaitForChild("Humanoid")
+            SetupJumpPower(Char, Human)
+        end)
+    end
+    if speaker.Character and speaker.Character:FindFirstChildWhichIsA("Humanoid") then
+        local Char = speaker.Character
+        local Human = Char:FindFirstChildWhichIsA("Humanoid")
+        SetupWalkSpeed(Char, Human)
+        SetupJumpPower(Char, Human)
+    end
+    speaker.CharacterAdded:Connect(function(Char)
+        local Human = Char:WaitForChild("Humanoid")
+        SetupWalkSpeed(Char, Human)
+        SetupJumpPower(Char, Human)
+    end)
+    RunService.Heartbeat:Connect(function()
+        local char = speaker.Character
+        local human = char and char:FindFirstChildWhichIsA("Humanoid")
+        if human then
+            applyManagedWalkSpeed(human)
+        end
+    end)
 end
-pcall(function()
+do
+    local player = Players.LocalPlayer
+    local function usunPusteAccessory(char)
+	    if not char then return end
+	    for _, obj in ipairs(char:GetChildren()) do
+		    if obj:IsA("Accessory") then
+			    if not next(obj:GetChildren()) then
+				    obj:Destroy()
+			    end
+		    end
+	    end
+    end
     if player.Character then
-        handleCharacter(player.Character)
+	    usunPusteAccessory(player.Character)
     end
-end)
-pcall(function()
-    player.CharacterAdded:Connect(handleCharacter)
-end)
-local player = Players.LocalPlayer
-local holdingWKey = false
-local holdingSKey = false
-local holdingAKey = false
-local holdingDKey = false
-local Speed = 1.5
-local state = {
-    active = false,
-    heartbeat = nil,
-    statusParagraph = nil,
-    inputBeganConnection = nil,
-    inputEndedConnection = nil
-}
-local function updateMovement()
-    if isSafeTeleportLocked() then return end
-    if not state.active then return end
-    local moveVector = Vector3.new(0, 0, 0)
-    if holdingWKey then
-        moveVector = moveVector + Vector3.new(0, 0, -Speed)
-    end
-    if holdingSKey then
-        moveVector = moveVector + Vector3.new(0, 0, Speed)
-    end
-    if holdingAKey then
-        moveVector = moveVector + Vector3.new(-Speed, 0, 0)
-    end
-    if holdingDKey then
-        moveVector = moveVector + Vector3.new(Speed, 0, 0)
-    end
-    if moveVector.Magnitude > 0 then
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = hrp.CFrame * CFrame.new(moveVector)
+    player.CharacterAdded:Connect(function(char)
+	    usunPusteAccessory(char)
+    end)
+    local nextAccessoryClean = 0
+    RunService.Heartbeat:Connect(function()
+        if tick() >= nextAccessoryClean then
+            nextAccessoryClean = tick() + 0.21
+		    if not isSafeTeleportLocked() then
+			    if player.Character then
+				    usunPusteAccessory(player.Character)
+			    end
+		    end
         end
-    end
+    end)
 end
-state.toggle = function()
-    state.active = not state.active
-    if state.statusParagraph then
-        state.statusParagraph:SetTitle(state.active and "Speed : ON" or "Speed : OFF")
-    end
-    if state.active then
-        if not state.heartbeat then
-            state.heartbeat = RunService.Heartbeat:Connect(updateMovement)
+do
+    local player = game.Players.LocalPlayer
+    local function safeDeleteAnimationPlayer(characterHandler)
+        local success = pcall(function()
+            for i = 1, 5 do
+                local animationPlayer = characterHandler:FindFirstChild("AnimationPlayer")
+                if animationPlayer then
+                    animationPlayer:Destroy()
+                    return true
+                end
+                wait(0.1)
+            end
+            return false
+        end)
+        if not success then
         end
-    else
+    end
+    local function handleCharacter(character)
+        local characterHandler
+        local success = pcall(function()
+            characterHandler = character:FindFirstChild("CharacterHandler")
+        end)
+        if success and characterHandler then
+            safeDeleteAnimationPlayer(characterHandler)
+            pcall(function()
+                characterHandler.ChildAdded:Connect(function(child)
+                    pcall(function()
+                        if child.Name == "AnimationPlayer" then
+                            child:Destroy()
+                        end
+                    end)
+                end)
+            end)
+        end
+    end
+    pcall(function()
+        if player.Character then
+            handleCharacter(player.Character)
+        end
+    end)
+    pcall(function()
+        player.CharacterAdded:Connect(handleCharacter)
+    end)
+end
+do
+    local player = Players.LocalPlayer
+    local holdingWKey = false
+    local holdingSKey = false
+    local holdingAKey = false
+    local holdingDKey = false
+    local Speed = 1.5
+    local state = {
+        active = false,
+        heartbeat = nil,
+        statusParagraph = nil,
+        inputBeganConnection = nil,
+        inputEndedConnection = nil
+    }
+    local function updateMovement()
+        if isSafeTeleportLocked() then return end
+        if getTeleportMomentumPauseRemaining() > 0 then
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+            end
+            return
+        end
+        if not state.active then return end
+        local moveVector = Vector3.new(0, 0, 0)
+        if holdingWKey then
+            moveVector = moveVector + Vector3.new(0, 0, -Speed)
+        end
+        if holdingSKey then
+            moveVector = moveVector + Vector3.new(0, 0, Speed)
+        end
+        if holdingAKey then
+            moveVector = moveVector + Vector3.new(-Speed, 0, 0)
+        end
+        if holdingDKey then
+            moveVector = moveVector + Vector3.new(Speed, 0, 0)
+        end
+        if moveVector.Magnitude > 0 then
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = hrp.CFrame * CFrame.new(moveVector)
+            end
+        end
+    end
+    state.toggle = function()
+        state.active = not state.active
+        if state.statusParagraph then
+            state.statusParagraph:SetTitle(state.active and "Speed : ON" or "Speed : OFF")
+        end
+        if state.active then
+            if not state.heartbeat then
+                state.heartbeat = RunService.Heartbeat:Connect(updateMovement)
+            end
+        else
+            if state.heartbeat then
+                state.heartbeat:Disconnect()
+                state.heartbeat = nil
+            end
+        end
+    end
+    state.cleanup = function()
         if state.heartbeat then
             state.heartbeat:Disconnect()
             state.heartbeat = nil
         end
+        if state.inputBeganConnection then
+            state.inputBeganConnection:Disconnect()
+            state.inputBeganConnection = nil
+        end
+        if state.inputEndedConnection then
+            state.inputEndedConnection:Disconnect()
+            state.inputEndedConnection = nil
+        end
+        if state.statusParagraph then
+            state.statusParagraph:Destroy()
+            state.statusParagraph = nil
+        end
+        state.active = false
     end
-end
-state.cleanup = function()
-    if state.heartbeat then
-        state.heartbeat:Disconnect()
-        state.heartbeat = nil
-    end
-    if state.inputBeganConnection then
-        state.inputBeganConnection:Disconnect()
-        state.inputBeganConnection = nil
-    end
-    if state.inputEndedConnection then
-        state.inputEndedConnection:Disconnect()
-        state.inputEndedConnection = nil
-    end
-    if state.statusParagraph then
-        state.statusParagraph:Destroy()
-        state.statusParagraph = nil
-    end
-    state.active = false
-end
-Tabs.KEY:AddKeybind("SpeedToggle", {
-    Title = "Speed",
-    Mode = "Toggle",
-    Default = "E",
-    Callback = function()
-        state.toggle()
-    end
-})
-if not state.statusParagraph then
-    state.statusParagraph = Tabs.XXX:AddParagraph({
-        Title = "Speed : OFF",
-        Content = ""
+    Tabs.KEY:AddKeybind("SpeedToggle", {
+        Title = "Speed",
+        Mode = "Toggle",
+        Default = "E",
+        Callback = function()
+            state.toggle()
+        end
     })
+    if not state.statusParagraph then
+        state.statusParagraph = Tabs.XXX:AddParagraph({
+            Title = "Speed : OFF",
+            Content = ""
+        })
+    end
+    Tabs.XXX:AddSlider("SpeedSlider", {
+        Title = "Speed +/-",
+        Default = Speed,
+        Min = 0.1,
+        Max = 45,
+        Rounding = 1.1,
+        Callback = function(value)
+            Speed = value
+        end
+    })
+    state.inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        local key = input.KeyCode
+        if key == Enum.KeyCode.W then holdingWKey = true
+        elseif key == Enum.KeyCode.S then holdingSKey = true
+        elseif key == Enum.KeyCode.A then holdingAKey = true
+        elseif key == Enum.KeyCode.D then holdingDKey = true
+        end
+    end)
+    state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+        local key = input.KeyCode
+        if key == Enum.KeyCode.W then holdingWKey = false
+        elseif key == Enum.KeyCode.S then holdingSKey = false
+        elseif key == Enum.KeyCode.A then holdingAKey = false
+        elseif key == Enum.KeyCode.D then holdingDKey = false
+        end
+    end)
 end
-Tabs.XXX:AddSlider("SpeedSlider", {
-    Title = "Speed +/-",
-    Default = Speed,
-    Min = 0.1,
-    Max = 45,
-    Rounding = 1.1,
-    Callback = function(value)
-        Speed = value
-    end
-})
-state.inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    local key = input.KeyCode
-    if key == Enum.KeyCode.W then holdingWKey = true
-    elseif key == Enum.KeyCode.S then holdingSKey = true
-    elseif key == Enum.KeyCode.A then holdingAKey = true
-    elseif key == Enum.KeyCode.D then holdingDKey = true
-    end
-end)
-state.inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
-    local key = input.KeyCode
-    if key == Enum.KeyCode.W then holdingWKey = false
-    elseif key == Enum.KeyCode.S then holdingSKey = false
-    elseif key == Enum.KeyCode.A then holdingAKey = false
-    elseif key == Enum.KeyCode.D then holdingDKey = false
-    end
-end)
-local plr = Players.LocalPlayer
-local cam = workspace.CurrentCamera
-local char = plr.Character or plr.CharacterAdded:Wait()
-local hum = char:WaitForChild("Humanoid")
-local root = char:WaitForChild("HumanoidRootPart")
-local flying = false
-local bv, bg = nil, nil
-local speed = 280
-local maxSpeed = 1000
-local velocity = Vector3.new()
-local currentVel = Vector3.new()
-local accel = 16
-local decel = 11
-local tiltMax = 14
-local track = nil
-local function onCharacterAdded(newChar)
-    char = newChar
-    hum = newChar:WaitForChild("Humanoid")
-    root = newChar:WaitForChild("HumanoidRootPart")
-    if flying then
-        flying = false
-        task.wait(0.1)
-        toggleFly()
-    end
-end
-plr.CharacterAdded:Connect(onCharacterAdded)
-local flyState = {
-    statusParagraph = nil
-}
-local function toggleFly()
-    flying = not flying
-    if flyState.statusParagraph then
-        flyState.statusParagraph:SetTitle(flying and "Fly : ON" or "Fly : OFF")
-    end
-    if flying then
-        hum.PlatformStand = true
-        hum.WalkSpeed = 0
-        bv = Instance.new("BodyPosition")
-        bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-        bv.Position = root.Position
-        bv.D = 2000
-        bv.P = 18000
-        bv.Parent = root
-        bg = Instance.new("BodyGyro")
-        bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
-        bg.P = 28000
-        bg.D = 2200
-        bg.Parent = root
-        if track then track:Play(0.2, 1, 1.2) end
-    else
-        hum.PlatformStand = false
-        hum.WalkSpeed = 16
-        if bv then bv:Destroy() bv = nil end
-        if bg then bg:Destroy() bg = nil end
-        if track then track:Stop(0.3) end
-        velocity = Vector3.new()
-        currentVel = Vector3.new()
-    end
-end
-local function getMovementInput()
-    local forward = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0
-    local backward = UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0
-    local left = UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0
-    local right = UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0
-    local z = forward - backward
-    local x = right - left
-    local mult = 1
-    return z, x, mult
-end
-RunService.Heartbeat:Connect(function(dt)
-    if isSafeTeleportLocked() then
-        return
-    end
-    if not flying or not bv or not bg or not root or not root.Parent then
-        return
-    end
-    local z, x, mult = getMovementInput()
-    local camLook = cam.CFrame.LookVector
-    local camRight = cam.CFrame.RightVector
-    local inputDir = (camLook * z) + (camRight * x)
-    local targetVel = Vector3.new()
-    if inputDir.Magnitude > 0.01 then
-        targetVel = inputDir.Unit * (speed * mult)
-    end
-    local lerpSpeed = (targetVel.Magnitude > 0) and accel or decel
-    velocity = velocity:Lerp(targetVel, dt * lerpSpeed)
-    currentVel = currentVel:Lerp(velocity, dt * 22)
-    bv.Position = root.Position + currentVel * dt * 65
-    if currentVel.Magnitude > 3 then
-        local moveDir = currentVel.Unit
-        local tilt = -x * math.rad(tiltMax)
-        local targetCF = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
-        bg.CFrame = bg.CFrame:Lerp(targetCF, dt * 16)
-    else
-        bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), dt * 11)
-    end
-    if track then
-        if currentVel.Magnitude > 14 and z > 0.6 then
-            if not track.IsPlaying then
-                track:Play(0.1, 1, 1.1)
-            end
+do
+    local plr = Players.LocalPlayer
+    local cam = workspace.CurrentCamera
+    local char = plr.Character or plr.CharacterAdded:Wait()
+    local hum = char:WaitForChild("Humanoid")
+    local root = char:WaitForChild("HumanoidRootPart")
+    local flying = false
+    local bv, bg = nil, nil
+    local speed = 280
+    local maxSpeed = 1000
+    local velocity = Vector3.new()
+    local currentVel = Vector3.new()
+    local accel = 16
+    local decel = 11
+    local tiltMax = 14
+    local track = nil
+    local flyState = {
+        statusParagraph = nil
+    }
+    local function toggleFly()
+        flying = not flying
+        if flyState.statusParagraph then
+            flyState.statusParagraph:SetTitle(flying and "Fly : ON" or "Fly : OFF")
+        end
+        if flying then
+            hum.PlatformStand = true
+            hum.WalkSpeed = 0
+            bv = Instance.new("BodyPosition")
+            bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+            bv.Position = root.Position
+            bv.D = 2000
+            bv.P = 18000
+            bv.Parent = root
+            bg = Instance.new("BodyGyro")
+            bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+            bg.P = 28000
+            bg.D = 2200
+            bg.Parent = root
+            if track then track:Play(0.2, 1, 1.2) end
         else
-            if track.IsPlaying then
-                track:Stop(0.25)
-            end
+            hum.PlatformStand = false
+            hum.WalkSpeed = 16
+            if bv then bv:Destroy() bv = nil end
+            if bg then bg:Destroy() bg = nil end
+            if track then track:Stop(0.3) end
+            velocity = Vector3.new()
+            currentVel = Vector3.new()
         end
     end
-end)
-Tabs.KEY:AddKeybind("FlyIY", {
-    Title = "Fly",
-    Default = "R",
-    Mode = "Toggle",
-    Callback = toggleFly
-})
-if not flyState.statusParagraph then
-    flyState.statusParagraph = Tabs.XXX:AddParagraph({
-        Title = "Fly : OFF",
-        Content = ""
+    local function onCharacterAdded(newChar)
+        char = newChar
+        hum = newChar:WaitForChild("Humanoid")
+        root = newChar:WaitForChild("HumanoidRootPart")
+        if flying then
+            flying = false
+            task.wait(0.1)
+            toggleFly()
+        end
+    end
+    local function getMovementInput()
+        local forward = UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0
+        local backward = UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0
+        local left = UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0
+        local right = UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0
+        local z = forward - backward
+        local x = right - left
+        local mult = 1
+        return z, x, mult
+    end
+    plr.CharacterAdded:Connect(onCharacterAdded)
+    RunService.Heartbeat:Connect(function(dt)
+        if isSafeTeleportLocked() then
+            return
+        end
+        if not flying or not bv or not bg or not root or not root.Parent then
+            return
+        end
+        if getTeleportMomentumPauseRemaining() > 0 then
+            velocity = Vector3.zero
+            currentVel = Vector3.zero
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+            bv.Position = root.Position
+            bg.CFrame = root.CFrame
+            return
+        end
+        local z, x, mult = getMovementInput()
+        local camLook = cam.CFrame.LookVector
+        local camRight = cam.CFrame.RightVector
+        local inputDir = (camLook * z) + (camRight * x)
+        local targetVel = Vector3.new()
+        if inputDir.Magnitude > 0.01 then
+            targetVel = inputDir.Unit * (speed * mult)
+        end
+        local lerpSpeed = (targetVel.Magnitude > 0) and accel or decel
+        velocity = velocity:Lerp(targetVel, dt * lerpSpeed)
+        currentVel = currentVel:Lerp(velocity, dt * 22)
+        bv.Position = root.Position + currentVel * dt * 65
+        if currentVel.Magnitude > 3 then
+            local moveDir = currentVel.Unit
+            local tilt = -x * math.rad(tiltMax)
+            local targetCF = CFrame.lookAt(Vector3.new(), moveDir) * CFrame.Angles(0, 0, tilt)
+            bg.CFrame = bg.CFrame:Lerp(targetCF, dt * 16)
+        else
+            bg.CFrame = bg.CFrame:Lerp(CFrame.lookAt(Vector3.new(), camLook), dt * 11)
+        end
+        if track then
+            if currentVel.Magnitude > 14 and z > 0.6 then
+                if not track.IsPlaying then
+                    track:Play(0.1, 1, 1.1)
+                end
+            else
+                if track.IsPlaying then
+                    track:Stop(0.25)
+                end
+            end
+        end
+    end)
+    Tabs.KEY:AddKeybind("FlyIY", {
+        Title = "Fly",
+        Default = "R",
+        Mode = "Toggle",
+        Callback = toggleFly
+    })
+    if not flyState.statusParagraph then
+        flyState.statusParagraph = Tabs.XXX:AddParagraph({
+            Title = "Fly : OFF",
+            Content = ""
+        })
+    end
+    Tabs.XXX:AddSlider("FlySpeedIY", {
+        Title = "Fly +/-",
+        Min = 35,
+        Max = maxSpeed,
+        Default = speed,
+        Rounding = 0,
+        Callback = function(v)
+            speed = v
+        end
     })
 end
-Tabs.XXX:AddSlider("FlySpeedIY", {
-    Title = "Fly +/-",
-    Min = 35,
-    Max = maxSpeed,
-    Default = speed,
-    Rounding = 0,
-    Callback = function(v)
-        speed = v
-    end
-})
 if not UIStatus.attack then
     UIStatus.attack = Tabs.XXX:AddParagraph({
         Title = "Attack TP : OFF",
@@ -1085,30 +1234,32 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
         or targetPlayer.Character:FindFirstChild("UpperTorso")
         or targetPlayer.Character:FindFirstChild("Torso")
     if not targetRoot then return end
-    local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
-    if targetVel.Magnitude > 1000 then 
-        targetVel = Vector3.zero
-    end
-    local prediction = Vector3.zero
+    local prediction
+    local targetVel
+    prediction, targetVel = getTeleportPrediction(
+        targetRoot.AssemblyLinearVelocity or Vector3.zero,
+        getTpVariantValue("trashPrediction", 0.55)
+    )
     local config = getTpVariantConfig()
     local offset = behindDist or config.trashBack or 0.7
     local verticalOffset = config.trashVertical or -2.46
     VisualFix:Start(targetRoot)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
     local targetProxy = {
         Position = targetRoot.Position + prediction,
         CFrame = targetRoot.CFrame
     }
-    character:PivotTo(getTeleportFollowCFrame(targetProxy, targetVel + prediction, offset, verticalOffset))
+    strongPivotCharacter(
+        character,
+        hrp,
+        getTeleportFollowCFrame(targetProxy, targetVel, offset, verticalOffset),
+        getTpVariantPauseDuration()
+    )
     click()
 end
 local function teleportToMainPart()
     if not hrp or not hrp.Parent then return end
     if not mainPart then return end
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    character:PivotTo(mainPart.CFrame + Vector3.new(0, -3, 0))
+    strongPivotCharacter(character, hrp, mainPart.CFrame + Vector3.new(0, -3, 0), getTpVariantPauseDuration())
 end
 local function startTrashPlayerLoop()
     if trashPlayer.thread then return end
@@ -1871,7 +2022,7 @@ local attackState = {
 local ZERO_DELAY_ALL_TP = true
 local ATTACK_RATE = 0
 local MODEL_SCAN_RATE = 0
-local MAX_TARGET_DISTANCE = 2000
+local MAX_TARGET_DISTANCE = 90000
 local TRASH_DISTANCE = 12
 local BACK_OFFSET = 0.97
 local MapFolder
@@ -2102,33 +2253,27 @@ local function performAttackTeleport()
     if Humanoid then
         Humanoid.AutoRotate = false
     end
-    local targetVel = target.AssemblyLinearVelocity or Vector3.zero
-    if targetVel.Magnitude > 1000 then
-        targetVel = Vector3.zero
-    end
-    local prediction = Vector3.zero
-    if not ZERO_DELAY_ALL_TP then
-        local ping = LocalPlayer:GetNetworkPing() or 0
-        prediction = targetVel * (ping * 1.05)
-        if prediction.Magnitude > 10 then
-            prediction = prediction.Unit * 10
-        end
-    end
-    local combinedVel = targetVel + prediction
-    local isAirTarget = math.abs(combinedVel.Y) > 8
+    local predictionScale = ZERO_DELAY_ALL_TP
+        and getTpVariantValue("attackPredictionFast", 0.55)
+        or getTpVariantValue("attackPrediction", 1.05)
+    local prediction, targetVel = getTeleportPrediction(target.AssemblyLinearVelocity or Vector3.zero, predictionScale)
+    local isAirTarget = math.abs(targetVel.Y) > 8
     local tpVelocity = (targetVel.Magnitude > 300) and (targetVel.Unit * 180) or (targetVel * 1.35)
     local directPush = (target.Position + prediction) - Root.Position
     if directPush.Magnitude > 0.001 then
         tpVelocity = tpVelocity + (directPush.Unit * (isAirTarget and 340 or 220))
     end
-    Root.AssemblyLinearVelocity = Vector3.zero
-    Root.AssemblyAngularVelocity = Vector3.zero
-    local attackBackOffset, attackVerticalOffset = getAttackTeleportOffsets(combinedVel)
+    local attackBackOffset, attackVerticalOffset = getAttackTeleportOffsets(targetVel)
     local targetProxy = {
         Position = target.Position + prediction,
         CFrame = target.CFrame
     }
-    Character:PivotTo(getTeleportFollowCFrame(targetProxy, targetVel + prediction, attackBackOffset, attackVerticalOffset))
+    strongPivotCharacter(
+        Character,
+        Root,
+        getTeleportFollowCFrame(targetProxy, targetVel, attackBackOffset, attackVerticalOffset),
+        getTpVariantPauseDuration()
+    )
 end
 local function startAttackLoop()
     if attackLoopRunning then return end
@@ -2853,7 +2998,7 @@ Tabs.TOG:AddToggle("VisualFixToggle", {
 })
 Tabs.TOG:AddDropdown("TpVariantAll", {
     Title = "TP Variant All",
-    Values = {"Aggressive", "Direct", "Under", "Above", "Behind"},
+    Values = {"Aggressive", "Direct", "Under", "Above", "Behind", "Ultra+"},
     Multi = false,
     Default = "Behind",
     Callback = function(value)
@@ -3406,26 +3551,21 @@ local function startAutoTp()
         local myRoot = getRootUniversal(myChar)
         local targetRoot = getRootUniversal(targetChar)
         if not (myRoot and targetRoot) then return end
-        local targetVel = targetRoot.AssemblyLinearVelocity or Vector3.zero
-        if targetVel.Magnitude > 1000 then
-            targetVel = Vector3.zero
-        end
-        local prediction = Vector3.zero
-        if not ZERO_DELAY_ALL_TP then
-            local ping = LocalPlayer:GetNetworkPing() or 0
-            prediction = targetVel * ping
-            if prediction.Magnitude > 10 then
-                prediction = prediction.Unit * 10
-            end
-        end
-        myRoot.AssemblyLinearVelocity = Vector3.zero
-        myRoot.AssemblyAngularVelocity = Vector3.zero
+        local predictionScale = ZERO_DELAY_ALL_TP
+            and getTpVariantValue("autoPredictionFast", 0.45)
+            or getTpVariantValue("autoPrediction", 1)
+        local prediction, targetVel = getTeleportPrediction(targetRoot.AssemblyLinearVelocity or Vector3.zero, predictionScale)
         local config = getTpVariantConfig()
         local targetProxy = {
             Position = targetRoot.Position + prediction,
             CFrame = targetRoot.CFrame
         }
-        myChar:PivotTo(getTeleportFollowCFrame(targetProxy, targetVel + prediction, config.autoBack, config.autoVertical))
+        strongPivotCharacter(
+            myChar,
+            myRoot,
+            getTeleportFollowCFrame(targetProxy, targetVel, config.autoBack, config.autoVertical),
+            getTpVariantPauseDuration()
+        )
     end)
 end
 Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
@@ -3569,15 +3709,21 @@ Tabs.PLYR:AddButton({
         local hrp = getRootUniversal(char)
         local myHrp = getRootUniversal(myChar)
         if hrp and myHrp then
-            myHrp.AssemblyLinearVelocity = Vector3.zero
-            myHrp.AssemblyAngularVelocity = Vector3.zero
             local config = getTpVariantConfig()
-            local targetVel = hrp.AssemblyLinearVelocity or Vector3.zero
+            local prediction, targetVel = getTeleportPrediction(
+                hrp.AssemblyLinearVelocity or Vector3.zero,
+                getTpVariantValue("playerPrediction", 0.45)
+            )
             local targetProxy = {
-                Position = hrp.Position,
+                Position = hrp.Position + prediction,
                 CFrame = hrp.CFrame
             }
-            myChar:PivotTo(getTeleportFollowCFrame(targetProxy, targetVel, config.playerBack, config.playerVertical))
+            strongPivotCharacter(
+                myChar,
+                myHrp,
+                getTeleportFollowCFrame(targetProxy, targetVel, config.playerBack, config.playerVertical),
+                getTpVariantPauseDuration()
+            )
         end
     end
 })
@@ -3807,6 +3953,8 @@ _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
 _G.NOTHINGX_Protection.defaultCFrame = CFrame.new(0, 0, 0)
 _G.NOTHINGX_Protection.boundarySize = Vector3.new(100000, 0, 100000)
 _G.NOTHINGX_Protection.lastSafePosition = nil
+_G.NOTHINGX_Protection.safePositionHistory = _G.NOTHINGX_Protection.safePositionHistory or {}
+_G.NOTHINGX_Protection.safeHistoryLimit = 5
 
 function _G.NOTHINGX_Protection.getMainPart()
     local map = workspace:FindFirstChild("Map")
@@ -3836,6 +3984,48 @@ function _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
     return workspace:Raycast(hrp.Position, Vector3.new(0, -8, 0), params)
 end
 
+function _G.NOTHINGX_Protection.getSupportResultAt(position, ignoreInstance)
+    if not position then
+        return nil
+    end
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = ignoreInstance and {ignoreInstance} or {}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    return workspace:Raycast(position + Vector3.new(0, 3, 0), Vector3.new(0, -14, 0), params)
+end
+
+function _G.NOTHINGX_Protection.pushSafeHistory(cf)
+    if not cf then
+        return
+    end
+    local history = _G.NOTHINGX_Protection.safePositionHistory
+    local latest = history[1]
+    if latest and (latest.Position - cf.Position).Magnitude < 3 then
+        history[1] = cf
+        return
+    end
+    table.insert(history, 1, cf)
+    while #history > (_G.NOTHINGX_Protection.safeHistoryLimit or 5) do
+        table.remove(history)
+    end
+end
+
+function _G.NOTHINGX_Protection.isUsableRescueCFrame(cf, minY)
+    if not cf then
+        return false
+    end
+    local position = cf.Position
+    if minY and position.Y < minY then
+        return false
+    end
+    if _G.NOTHINGX_Protection.isOutsideBoundary(position) then
+        return false
+    end
+    local localCharacter = Players.LocalPlayer and Players.LocalPlayer.Character
+    local support = _G.NOTHINGX_Protection.getSupportResultAt(position, localCharacter)
+    return support and support.Instance ~= nil
+end
+
 function _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minY)
     if not hrp or not hrp.Parent then
         return false
@@ -3851,11 +4041,30 @@ function _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minY)
         return false
     end
     _G.NOTHINGX_Protection.lastSafePosition = hrp.CFrame
+    _G.NOTHINGX_Protection.pushSafeHistory(hrp.CFrame)
     return true
 end
 
-function _G.NOTHINGX_Protection.getRescueCFrame()
-    return _G.NOTHINGX_Protection.lastSafePosition or _G.NOTHINGX_Protection.getReferenceCFrame()
+function _G.NOTHINGX_Protection.getRescueCFrame(preferredCFrame, minY)
+    local history = _G.NOTHINGX_Protection.safePositionHistory or {}
+    local candidates = {}
+    local function pushCandidate(cf)
+        if cf then
+            candidates[#candidates + 1] = cf
+        end
+    end
+    pushCandidate(preferredCFrame)
+    pushCandidate(_G.NOTHINGX_Protection.lastSafePosition)
+    for i = 1, math.min(#history, _G.NOTHINGX_Protection.safeHistoryLimit or 5) do
+        pushCandidate(history[i])
+    end
+    for i = 1, #candidates do
+        local candidate = candidates[i]
+        if _G.NOTHINGX_Protection.isUsableRescueCFrame(candidate, minY) then
+            return candidate
+        end
+    end
+    return _G.NOTHINGX_Protection.getReferenceCFrame()
 end
 
 function _G.NOTHINGX_Protection.resetVelocity(hrp)
@@ -3866,10 +4075,10 @@ function _G.NOTHINGX_Protection.resetVelocity(hrp)
     hrp.AssemblyAngularVelocity = Vector3.zero
 end
 
-function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame)
+function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, minY)
     _G.SafeTeleportLock = true
     disableTeleportFeaturesForVoidProtection()
-    local rescueCFrame = targetCFrame or _G.NOTHINGX_Protection.getRescueCFrame()
+    local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame(targetCFrame, minY)
     if not rescueCFrame then
         _G.SafeTeleportLock = false
         return false
@@ -3899,7 +4108,7 @@ RunService.Heartbeat:Connect(function(dt)
 	if not hrp or not hrp.Parent then return end
 	_G.NOTHINGX_Protection.updateLastSafePosition(hrp)
 	if _G.NOTHINGX_Protection.isOutsideBoundary(hrp.Position) then
-        local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame()
+        local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame(nil)
         local ok, err = pcall(function()
             _G.NOTHINGX_Protection.teleportCharacter(character, hrp, rescueCFrame)
         end)
@@ -3951,7 +4160,7 @@ root.Transparency = 0.5
         saved = true
         if root then
             VOID_Y = root.Position.Y
-			  print("VOID")
+			      print("VOID + + + | ", VOID_Y, " | NOTHING X ANTI VOID")
         else
             warn(" - :", reason)
         end
@@ -3994,16 +4203,16 @@ local function protect(character)
         task.wait()
         _G.NOTHINGX_Protection.updateLastSafePosition(hrp, VOID_Y and (VOID_Y + BUFFER) or nil)
         if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
-            local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame()
+            local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame(nil, VOID_Y and (VOID_Y + BUFFER) or nil)
             if rescueCFrame then
                 local ok, err = pcall(function()
-                    _G.NOTHINGX_Protection.teleportCharacter(character, hrp, rescueCFrame)
+                    _G.NOTHINGX_Protection.teleportCharacter(character, hrp, rescueCFrame, VOID_Y and (VOID_Y + BUFFER) or nil)
                 end)
                 _G.SafeTeleportLock = false
                 if not ok then
                     warn("Void protection teleport failed:", err)
                 end
-                print("^")
+                print(" | + + + |")
             end
         end
     end
