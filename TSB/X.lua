@@ -391,28 +391,51 @@ local function getTeleportFollowCFrame(proxy, vel, back, vert)
     return base * CFrame.new(0, vert or 0, back or 0) * CFrame.Angles(0, math.pi, 0)
 end
 
+local currentTarget = nil
+local viewDied = nil
+local viewChanged = nil
+local FLING_INF_POWER = 1e12
+
 local function stopView()
+    local localPlayer = Players.LocalPlayer
+    local camera = workspace.CurrentCamera
     viewing = false
-    local lp = game.Players.LocalPlayer
-    if lp and lp.Character then
-        local hum = lp.Character:FindFirstChildOfClass("Humanoid")
-        if hum then workspace.CurrentCamera.CameraSubject = hum end
+    currentTarget = nil
+    if viewDied then viewDied:Disconnect() viewDied = nil end
+    if viewChanged then viewChanged:Disconnect() viewChanged = nil end
+    if localPlayer and localPlayer.Character then
+        local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum and camera then camera.CameraSubject = hum end
     end
 end
 
-local function startView(plr)
-    if not (plr and plr.Character) then stopView() return end
-    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-    if not hum then stopView() return end
+local function startView(targetPlayer)
+    local camera = workspace.CurrentCamera
+    if viewDied then viewDied:Disconnect() end
+    if viewChanged then viewChanged:Disconnect() end
+    if not (camera and targetPlayer and targetPlayer.Character) then return end
+    local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    currentTarget = targetPlayer
     viewing = true
-    workspace.CurrentCamera.CameraSubject = hum
-    
-    -- Auto-stop if player leaves or dies
-    task.spawn(function()
-        while viewing and plr and plr.Parent == game.Players and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 do
-            task.wait(0.5)
+    camera.CameraType = Enum.CameraType.Custom
+    camera.CameraSubject = hum
+    viewDied = targetPlayer.CharacterAdded:Connect(function(char)
+        repeat task.wait() until char:FindFirstChildOfClass("Humanoid")
+        if viewing and currentTarget == targetPlayer then
+            local nextCamera = workspace.CurrentCamera
+            local nextHum = char:FindFirstChildOfClass("Humanoid")
+            if nextCamera and nextHum then
+                nextCamera.CameraSubject = nextHum
+            end
         end
-        if viewing then stopView() end
+    end)
+    viewChanged = camera:GetPropertyChangedSignal("CameraSubject"):Connect(function()
+        if viewing and currentTarget == targetPlayer and targetPlayer.Character then
+            local h = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+            local nextCamera = workspace.CurrentCamera
+            if h and nextCamera then nextCamera.CameraSubject = h end
+        end
     end)
 end
 local function strongPivotCharacter(characterModel, rootPart, targetCFrame, pauseDuration)
@@ -3483,6 +3506,82 @@ function initPlayerTargetUI()
     local LocalPlayer = game.Players.LocalPlayer
     dropdownMap = dropdownMap or {}
     local lastDropdownValues = {}
+    local function startFlingOne()
+        if flingOneConnection then flingOneConnection:Disconnect() end
+        flingOneConnection = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function(dt)
+            if isSafeTeleportLocked() then
+                return
+            end
+            if not flingOneOn then return end
+            local targetPlr = getPriorityTargetPlayer()
+            if not targetPlr then return end
+            if not targetPlr.Parent then
+                FlingOneToggle:SetValue(false)
+                return
+            end
+            local myChar = LocalPlayer.Character
+            local targetChar = targetPlr.Character
+            if not (myChar and targetChar) then
+                FlingOneToggle:SetValue(false)
+                return
+            end
+            local myRoot = getRootUniversal(myChar)
+            local targetRoot = getRootUniversal(targetChar)
+            if not (myRoot and targetRoot) then
+                FlingOneToggle:SetValue(false)
+                return
+            end
+            orbitStepXZ = orbitStepXZ + orbitIncrement
+            orbitStepY = orbitStepY + orbitIncrement
+            if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
+            if orbitStepY > orbitMax then orbitStepY = 0 end
+            local t = tick() * orbitSpeed
+            local offset = Vector3.new(
+                math.cos(t) * orbitStepXZ,
+                orbitStepY,
+                math.sin(t) * orbitStepXZ
+            )
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
+            myChar:PivotTo(targetRoot.CFrame + offset)
+            local p = FLING_INF_POWER
+            myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
+            myRoot.AssemblyLinearVelocity =
+                myRoot.CFrame.LookVector * p + Vector3.new(0, p / 2, 0)
+        end)
+    end
+    local function startAutoTp()
+        if autoTpConnection then autoTpConnection:Disconnect() end
+        autoTpConnection = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function()
+            if isSafeTeleportLocked() then
+                return
+            end
+            if not autoTpOn then return end
+            local targetPlr = getPriorityTargetPlayer()
+            if not targetPlr then return end
+            local myChar = LocalPlayer.Character
+            local targetChar = targetPlr.Character
+            if not (myChar and targetChar) then return end
+            local myRoot = getRootUniversal(myChar)
+            local targetRoot = getRootUniversal(targetChar)
+            if not (myRoot and targetRoot) then return end
+            local predictionScale = ZERO_DELAY_ALL_TP
+                and getTpVariantValue("autoPredictionFast", 0.45)
+                or getTpVariantValue("autoPrediction", 1)
+            local prediction, targetVel = getTeleportPrediction(targetRoot.AssemblyLinearVelocity or Vector3.zero, predictionScale)
+            local config = getTpVariantConfig()
+            local targetProxy = {
+                Position = targetRoot.Position + prediction,
+                CFrame = targetRoot.CFrame
+            }
+            strongPivotCharacter(
+                myChar,
+                myRoot,
+                getTeleportFollowCFrame(targetProxy, targetVel, config.autoBack, config.autoVertical),
+                getTpVariantPauseDuration()
+            )
+        end)
+    end
 
     buildDropdownValues = function()
         dropdownMap = {}
@@ -3576,14 +3675,28 @@ function initPlayerTargetUI()
         Title = "TP Player",
         Callback = function()
             local targetPlr = getPriorityTargetPlayer()
-            if not (targetPlr and targetPlr.Character) then return end
-            local hrp = getRootUniversal(targetPlr.Character)
-            local lp = game.Players.LocalPlayer
-            local myHrp = lp.Character and getRootUniversal(lp.Character)
+            if not targetPlr then return end
+            local char = targetPlr.Character
+            local myChar = LocalPlayer.Character
+            if not (char and myChar) then return end
+            local hrp = getRootUniversal(char)
+            local myHrp = getRootUniversal(myChar)
             if hrp and myHrp then
-                myHrp.AssemblyLinearVelocity = Vector3.zero
-                myHrp.AssemblyAngularVelocity = Vector3.zero
-                lp.Character:PivotTo(hrp.CFrame * CFrame.new(0, 0, -5) * CFrame.Angles(0, math.pi, 0))
+                local config = getTpVariantConfig()
+                local prediction, targetVel = getTeleportPrediction(
+                    hrp.AssemblyLinearVelocity or Vector3.zero,
+                    getTpVariantValue("playerPrediction", 0.45)
+                )
+                local targetProxy = {
+                    Position = hrp.Position + prediction,
+                    CFrame = hrp.CFrame
+                }
+                strongPivotCharacter(
+                    myChar,
+                    myHrp,
+                    getTeleportFollowCFrame(targetProxy, targetVel, config.playerBack, config.playerVertical),
+                    getTpVariantPauseDuration()
+                )
             end
         end
     })
@@ -3592,28 +3705,22 @@ function initPlayerTargetUI()
         Title = "Auto TP Player",
         Default = false,
         Callback = function(state)
-            autoTpOn = state
             if state then
-                if not getPriorityTargetPlayer() then AutoTpToggle:SetValue(false) return end
-                if flingOneOn then FlingOneToggle:SetValue(false) end
-                if autoTpConnection then autoTpConnection:Disconnect() end
-                autoTpConnection = (ZERO_DELAY_ALL_TP and game:GetService("RunService").RenderStepped or game:GetService("RunService").Heartbeat):Connect(function()
-                    if isSafeTeleportLocked() or not autoTpOn then return end
-                    local t = getPriorityTargetPlayer()
-                    if not (t and t.Character) then return end
-                    local hrp = getRootUniversal(t.Character)
-                    local lp = game.Players.LocalPlayer
-                    local myHrp = lp.Character and getRootUniversal(lp.Character)
-                    if hrp and myHrp then
-                        local config = getTpVariantConfig()
-                        local prediction, targetVel = getTeleportPrediction(hrp.AssemblyLinearVelocity or Vector3.zero, getTpVariantValue("autoPrediction", 1))
-                        local targetProxy = { Position = hrp.Position + prediction, CFrame = hrp.CFrame }
-                        strongPivotCharacter(lp.Character, myHrp, getTeleportFollowCFrame(targetProxy, targetVel, config.autoBack, config.autoVertical), getTpVariantPauseDuration())
-                    end
-                end)
-            elseif autoTpConnection then
-                autoTpConnection:Disconnect()
-                autoTpConnection = nil
+                if not getPriorityTargetPlayer() then
+                    AutoTpToggle:SetValue(false)
+                    return
+                end
+                if flingOneOn then
+                    FlingOneToggle:SetValue(false)
+                end
+                autoTpOn = true
+                startAutoTp()
+            else
+                autoTpOn = false
+                if autoTpConnection then
+                    autoTpConnection:Disconnect()
+                    autoTpConnection = nil
+                end
             end
         end
     })
@@ -3632,31 +3739,22 @@ function initPlayerTargetUI()
         Title = "Fling Player",
         Default = false,
         Callback = function(state)
-            flingOneOn = state
             if state then
-                if not getPriorityTargetPlayer() then FlingOneToggle:SetValue(false) return end
-                if autoTpOn then AutoTpToggle:SetValue(false) end
-                if flingOneConnection then flingOneConnection:Disconnect() end
-                flingOneConnection = (ZERO_DELAY_ALL_TP and game:GetService("RunService").RenderStepped or game:GetService("RunService").Heartbeat):Connect(function()
-                    if isSafeTeleportLocked() or not flingOneOn then return end
-                    local t = getPriorityTargetPlayer()
-                    if not (t and t.Character) then return end
-                    local hrp = getRootUniversal(t.Character)
-                    local lp = game.Players.LocalPlayer
-                    local myHrp = lp.Character and getRootUniversal(lp.Character)
-                    if not (hrp and myHrp) then return end
-                    orbitStepXZ = (orbitStepXZ + 0.1) % 1.3
-                    orbitStepY = (orbitStepY + 0.1) % 1.3
-                    local offset = Vector3.new(math.cos(tick()*999)*orbitStepXZ, orbitStepY, math.sin(tick()*999)*orbitStepXZ)
-                    myHrp.AssemblyLinearVelocity = Vector3.zero
-                    myHrp.AssemblyAngularVelocity = Vector3.zero
-                    lp.Character:PivotTo(hrp.CFrame + offset)
-                    myHrp.AssemblyAngularVelocity = Vector3.new(1e12, 1e12, 1e12)
-                    myHrp.AssemblyLinearVelocity = myHrp.CFrame.LookVector * 1e12 + Vector3.new(0, 5e11, 0)
-                end)
-            elseif flingOneConnection then
-                flingOneConnection:Disconnect()
-                flingOneConnection = nil
+                if not getPriorityTargetPlayer() then
+                    FlingOneToggle:SetValue(false)
+                    return
+                end
+                if autoTpOn then
+                    AutoTpToggle:SetValue(false)
+                end
+                flingOneOn = true
+                startFlingOne()
+            else
+                flingOneOn = false
+                if flingOneConnection then
+                    flingOneConnection:Disconnect()
+                    flingOneConnection = nil
+                end
             end
         end
     })
@@ -3664,6 +3762,15 @@ function initPlayerTargetUI()
 
 
     registerJoinLeave("remove", function(plr)
+        if viewing and currentTarget == plr then
+            ViewToggle:SetValue(false)
+        end
+        if flingOneOn and playerChosen == plr then
+            FlingOneToggle:SetValue(false)
+        end
+        if autoTpOn and playerChosen == plr then
+            AutoTpToggle:SetValue(false)
+        end
         if playerChosen == plr then clearChosenTarget() end
         queueSyncUI()
     end)
