@@ -8,7 +8,6 @@ if coreGui:FindFirstChild("ScreenGui") then
     })
     return
 end
-
 local game = game
 local workspace = workspace
 local getService = game.GetService
@@ -124,9 +123,6 @@ function VisualFix:Stop()
         end
     end
 end
-
-
-
 local SaveManager = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/raw/refs/heads/master/Addons/SaveManager.lua"))()
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
@@ -156,15 +152,20 @@ local setDropdownVisualTarget
 local getPlayerFromTargetRoot
 local getPriorityTargetPlayer
 local watchChosenTarget
-local targetState
-local buildDropdownValues
 local dropdownMap
+local syncTargetUI
+local disconnectChosenTargetWatch
+local lastDropdownValues = {}
+local syncCamlockVisualTarget
+local isUIUpdating = false
+local viewing = false
+local lastTargetStatusTitle = ""
+local syncQueued = false
+local TrashPlayerKeybind
 Window:SelectTab()
 task.defer(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()end)
 task.defer(function() loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()end)
 local player = game.Players.LocalPlayer
-
-
 local proceed = false
 Window:Dialog({
     Title = "NOTHING X Load",
@@ -183,7 +184,6 @@ if not proceed then return end
 local player = game.Players.LocalPlayer
 local displayName = player.DisplayName
 local jobId = game.JobId
-
 Fluent:Notify({
     Title = "NOTHING X",
     Content = "| "..displayName.."\n| "..jobId,
@@ -191,7 +191,6 @@ Fluent:Notify({
     Duration = 6.6
 })
 local p=game:GetService("Players").LocalPlayer;if({[3808081382]=true,[10449761463]=true})[game.GameId] or ({[3808081382]=true,[10449761463]=true})[game.PlaceId] then local function a(c,i)local h=c:WaitForChild("Humanoid")local an=Instance.new("Animation")an.AnimationId="rbxassetid://"..i;h:LoadAnimation(an):Play()end;if p.Character then task.wait(0.1) a(p.Character,"17141153099") end;p.CharacterAdded:Connect(function(c) task.wait(0.1) a(c,"13497875049") end) end
-
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
     ["Omni Directional Punch"] = true,
@@ -303,6 +302,99 @@ local function getTeleportPrediction(targetVel, scale)
         prediction = prediction.Unit * TELEPORT_MAX_PREDICTION
     end
     return prediction, safeVel
+end
+local function queueSyncUI()
+    if syncQueued then return end
+    syncQueued = true
+    task.delay(0.5, function()
+        syncQueued = false
+        if syncTargetUI then syncTargetUI() end
+    end)
+end
+local function createTrashPlayerKeybind()
+    if TrashPlayerKeybind then return end
+    TrashPlayerKeybind = Tabs.KEY:AddKeybind("TrashPlayerKeybind", {
+        Title = "Trash Player",
+        Mode = "Toggle",
+        Default = "V",
+        Callback = function(state)
+            if _G.NOTHINGX_TrashPlayer then
+                local nextState = state
+                if nextState and not getPriorityTargetPlayer() then
+                    nextState = false
+                    if TrashPlayerKeybind and TrashPlayerKeybind.SetValue then TrashPlayerKeybind:SetValue(false) end
+                end
+                _G.NOTHINGX_TrashPlayer.SetRunning(nextState)
+            end
+        end
+    })
+    if _G.NOTHINGX_TrashPlayer then
+        _G.NOTHINGX_TrashPlayer.EnsureStatus()
+    end
+end
+local function removeTrashPlayerKeybind()
+    if not TrashPlayerKeybind then return end
+    if _G.NOTHINGX_TrashPlayer then
+        _G.NOTHINGX_TrashPlayer.SetRunning(false)
+    end
+    pcall(function()
+        if TrashPlayerKeybind.SetValue then
+            TrashPlayerKeybind:SetValue(false)
+        end
+    end)
+    pcall(function()
+        if TrashPlayerKeybind.Destroy then
+            TrashPlayerKeybind:Destroy()
+        end
+    end)
+    TrashPlayerKeybind = nil
+end
+local function shouldCreateTrashPlayerKeybindOnce()
+    local map = workspace:FindFirstChild("Map")
+    local mainPart = map and map:FindFirstChild("MainPart")
+    if not mainPart then return false end
+    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.HasTrash then
+        return not _G.NOTHINGX_TrashPlayer.HasTrash()
+    end
+    return true
+end
+local function getTpVariantValue(name, default)
+    if _G.TpConfig and _G.TpConfig[name] then
+        return _G.TpConfig[name]
+    end
+    return default
+end
+local function getTpVariantPauseDuration()
+    return getTpVariantValue("tpPauseDuration", 0.05)
+end
+local function getTeleportFollowCFrame(proxy, vel, back, vert)
+    if not proxy then return CFrame.new() end
+    local base = proxy.CFrame
+    if vel and vel.Magnitude > 10 then
+        base = CFrame.new(proxy.Position, proxy.Position + vel)
+    end
+    return base * CFrame.new(0, vert or 0, back or 0) * CFrame.Angles(0, math.pi, 0)
+end
+local function stopView()
+    viewing = false
+    local lp = game.Players.LocalPlayer
+    if lp and lp.Character then
+        local hum = lp.Character:FindFirstChildOfClass("Humanoid")
+        if hum then workspace.CurrentCamera.CameraSubject = hum end
+    end
+end
+local function startView(plr)
+    if not (plr and plr.Character) then stopView() return end
+    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+    if not hum then stopView() return end
+    viewing = true
+    workspace.CurrentCamera.CameraSubject = hum
+    task.spawn(function()
+        while viewing and plr and plr.Parent == game.Players and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 do
+            task.wait(0.5)
+        end
+        if viewing then stopView() end
+    end)
 end
 local function strongPivotCharacter(characterModel, rootPart, targetCFrame, pauseDuration)
     if not (characterModel and targetCFrame) then return end
@@ -1063,6 +1155,15 @@ local trashPlayer = {
     charConn = nil,
     charRemovingConn = nil
 }
+local function getTrashPlayerTarget()
+    if getPriorityTargetPlayer then
+        local target = getPriorityTargetPlayer()
+        if target then
+            return target
+        end
+    end
+    return playerChosen
+end
 local function stopTrashPlayer()
     if _G.NOTHINGX_TrashPlayer then
         _G.NOTHINGX_TrashPlayer.SetRunning(false)
@@ -1075,6 +1176,7 @@ local function clearTrashPlayerWatch()
     if trashPlayer.charRemovingConn then trashPlayer.charRemovingConn:Disconnect() trashPlayer.charRemovingConn = nil end
 end
 local function attachTrashPlayerWatch(plr)
+    plr = plr or getTrashPlayerTarget()
     if trashPlayer.target == plr and (trashPlayer.humConn or trashPlayer.charConn) then
         return
     end
@@ -1278,15 +1380,16 @@ local function startTrashPlayerLoop()
         while trashPlayer.running do
             if not isSafeTeleportLocked() then
                 startHasTrashObserver()
-                if not playerChosen then
+                local targetPlr = getTrashPlayerTarget()
+                if not targetPlr then
                     stopTrashPlayer()
                     break
                 end
-                if playerChosen and not playerChosen.Character then
+                if not targetPlr.Character then
                     task.wait()
                     continue
                 end
-                local targetHum = playerChosen.Character and playerChosen.Character:FindFirstChildOfClass("Humanoid")
+                local targetHum = targetPlr.Character and targetPlr.Character:FindFirstChildOfClass("Humanoid")
                 if not targetHum or targetHum.Health <= 0 then
                     if not camLockTrashActive then
                         lastDeadTeleport = tick()
@@ -1295,11 +1398,9 @@ local function startTrashPlayerLoop()
                     task.wait()
                     continue
                 end
-                attachTrashPlayerWatch(playerChosen)
+                attachTrashPlayerWatch(targetPlr)
                 if hasTrashFlag then
-                    if playerChosen then
-                        deliverTrashToPlayer(playerChosen, trashPlayer.distance or 0.7)
-                    end
+                    deliverTrashToPlayer(targetPlr, trashPlayer.distance or 0.7)
                 else
                     useTrashCan(function() return trashPlayer.running end)
                 end
@@ -1357,8 +1458,6 @@ local function createTrashKeybind()
         end
     })
 end
-
-
 if trashFolder and not hasTrashFlag then
     createTrashKeybind()
 end
@@ -1367,7 +1466,8 @@ if trashFolder and not trashState.statusParagraph then
 end
 _G.NOTHINGX_TrashPlayer = {
     SetRunning = function(state)
-        if state and not playerChosen then
+        local targetPlr = getTrashPlayerTarget()
+        if state and not targetPlr then
             state = false
         end
         trashPlayer.running = state
@@ -1377,7 +1477,7 @@ _G.NOTHINGX_TrashPlayer = {
                 trashState.statusParagraph:SetTitle("Trash : OFF")
             end
             startHasTrashObserver()
-            attachTrashPlayerWatch(playerChosen)
+            attachTrashPlayerWatch(targetPlr)
             startTrashPlayerLoop()
         else
             clearTrashPlayerWatch()
@@ -1405,7 +1505,6 @@ _G.NOTHINGX_TrashPlayer = {
         return trashPlayer.running
     end
 }
-
 local workspace = game:GetService("Workspace")
 local DropDownYKeybind = nil
 local dropDownLastUse = 0
@@ -1571,7 +1670,7 @@ local function GetPrediction()
     local ping = LocalPlayer:GetNetworkPing() or 0
     return ping * 0.9 + 0.015
 end
-local function syncCamlockVisualTarget()
+syncCamlockVisualTarget = function()
     local visualPlayer = getPlayerFromTargetRoot and getPlayerFromTargetRoot(CamlockTarget) or nil
     if visualPlayer == lastCamlockVisualPlayer then
         return
@@ -2393,232 +2492,141 @@ getPlayerFromTargetRoot = function(targetRoot)
 end
 getPriorityTargetPlayer = function()
     if CamlockEnabled then
-        local camlockPlayer = getPlayerFromTargetRoot(CamlockTarget)
-        if camlockPlayer and camlockPlayer.Parent == Players then
-            return camlockPlayer
-        end
+        local camPlayer = getPlayerFromTargetRoot(CamlockTarget)
+        if camPlayer then return camPlayer end
     end
-    if playerChosen and playerChosen.Parent == Players then
+    if playerChosen and playerChosen.Parent == game.Players then
         return playerChosen
     end
     return nil
 end
-local chosenTargetHumConn = nil
-local chosenTargetCharConn = nil
-local chosenTargetRemovingConn = nil
-local chosenTargetHeartbeatConn = nil
-local function disconnectChosenTargetWatch()
-    if chosenTargetHumConn then
-        chosenTargetHumConn:Disconnect()
-        chosenTargetHumConn = nil
-    end
-    if chosenTargetCharConn then
-        chosenTargetCharConn:Disconnect()
-        chosenTargetCharConn = nil
-    end
-    if chosenTargetRemovingConn then
-        chosenTargetRemovingConn:Disconnect()
-        chosenTargetRemovingConn = nil
-    end
-    if chosenTargetHeartbeatConn then
-        chosenTargetHeartbeatConn:Disconnect()
-        chosenTargetHeartbeatConn = nil
-    end
-end
-local function clearChosenTarget()
-    disconnectChosenTargetWatch()
-    dropdownChosen = nil
-    playerChosen = nil
-    _G.playerChosen = nil
-    if setDropdownVisualTarget then
-        setDropdownVisualTarget(nil)
-    end
-    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
-        _G.NOTHINGX_TrashPlayer.SetRunning(false)
-    end
-    if viewing and ViewToggle and ViewToggle.SetValue then
-        ViewToggle:SetValue(false)
-    end
-end
-watchChosenTarget = function(plr)
-    disconnectChosenTargetWatch()
-    if not (plr and plr.Parent == Players) then return end
-    chosenTargetHeartbeatConn = RunService.Heartbeat:Connect(function()
-        if playerChosen ~= plr then return end
-        if not plr.Parent then
-            clearChosenTarget()
-            forceUpdateTargetStatusParagraph()
-        end
-    end)
-end
-local function hasChosenTarget()
-    if playerChosen and playerChosen.Parent == Players then
-        return true
-    end
-    if playerChosen then
-        clearChosenTarget()
-    end
-    return false
-end
-local function updateTargetStatusParagraph()
+forceUpdateTargetStatusParagraph = function()
     local paragraph = (targetState and targetState.statusParagraph) or UIStatus.target
     if not paragraph then return end
-    if targetState and not targetState.statusParagraph then
-        targetState.statusParagraph = paragraph
-    end
-    if playerChosen and not hasChosenTarget() then
-        forceUpdateTargetStatusParagraph()
-        return
-    end
+    local target = getPriorityTargetPlayer()
     local nextTitle = "Target : None"
-    if CamlockEnabled then
-        local camlockName = getTargetDisplayNameFromRoot(CamlockTarget)
-        if camlockName then
-            nextTitle = "Target : " .. camlockName
-        end
+    if target then
+        nextTitle = "Target : " .. target.DisplayName
     end
-    if nextTitle == "Target : None" and playerChosen and playerChosen.Parent == Players then
-        nextTitle = "Target : " .. playerChosen.DisplayName
-    end
-    if nextTitle ~= lastTargetStatusTitle then
+    if lastTargetStatusTitle ~= nextTitle then
         lastTargetStatusTitle = nextTitle
         paragraph:SetTitle(nextTitle)
     end
 end
-forceUpdateTargetStatusParagraph = function()
-    lastTargetStatusTitle = nil
-    updateTargetStatusParagraph()
-end
-task.spawn(function()
-    while true do
-        updateTargetStatusParagraph()
-        task.wait(0.05)
-    end
-end)
-local Dropdown
-local refreshDropdown
-local startView
-local lastFullRefreshTime = 0
-local lastMouseTargetSetTick = 0
-setDropdownVisualTarget = function(plr)
-    if not Dropdown or not Dropdown.SetValues or not Dropdown.SetValue then return end
-
+syncTargetUI = function()
+    if isUIUpdating or not (Dropdown and Dropdown.SetValues) then return end
+    isUIUpdating = true
+    local target = getPriorityTargetPlayer()
+    local display = "None"
+    if target then display = target.DisplayName .. " (@" .. target.Name .. ")" end
     local values = buildDropdownValues()
-    local selectedDisplay = "None"
-
-    if plr and plr.Parent == Players then
-        selectedDisplay = plr.DisplayName .. " (@" .. plr.Name .. ")"
-        dropdownMap[selectedDisplay] = plr
+    if display ~= "None" then
         local found = false
+        for _, v in ipairs(values) do if v == display then found = true break end end
+        if not found then table.insert(values, display) end
+    end
+    local changed = #values ~= #lastDropdownValues
+    if not changed then
         for i = 1, #values do
-            if values[i] == selectedDisplay then
-                found = true
-                break
-            end
-        end
-        if not found then
-            table.insert(values, selectedDisplay)
+            if values[i] ~= lastDropdownValues[i] then changed = true break end
         end
     end
-
-    pcall(function()
-        Dropdown:SetValues(values)
-    end)
-    pcall(function()
-        Dropdown:SetValue(selectedDisplay)
+    if changed then
+        lastDropdownValues = values
+        pcall(function() Dropdown:SetValues(values) end)
+    end
+    pcall(function() Dropdown:SetValue(display) end)
+    forceUpdateTargetStatusParagraph()
+    isUIUpdating = false
+end
+setDropdownVisualTarget = function(plr)
+    syncTargetUI()
+end
+refreshDropdown = function()
+    syncTargetUI()
+end
+local chosenTargetHumConn = nil
+local chosenTargetHeartbeatConn = nil
+disconnectChosenTargetWatch = function()
+    if chosenTargetHumConn then chosenTargetHumConn:Disconnect() chosenTargetHumConn = nil end
+    if chosenTargetHeartbeatConn then chosenTargetHeartbeatConn:Disconnect() chosenTargetHeartbeatConn = nil end
+end
+clearChosenTarget = function()
+    disconnectChosenTargetWatch()
+    playerChosen = nil
+    _G.playerChosen = nil
+    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
+        _G.NOTHINGX_TrashPlayer.SetRunning(false)
+    end
+    if autoTpOn then pcall(function() AutoTpToggle:SetValue(false) end) end
+    if flingOneOn then pcall(function() FlingOneToggle:SetValue(false) end) end
+    if viewing then pcall(function() ViewToggle:SetValue(false) end) end
+    syncTargetUI()
+end
+watchChosenTarget = function(plr)
+    disconnectChosenTargetWatch()
+    if not (plr and plr.Parent == game.Players) then return end
+    chosenTargetHeartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if playerChosen ~= plr or not plr.Parent then
+            clearChosenTarget()
+        end
     end)
 end
-local function triggerMouseTargetSet()
-    local now = tick()
-    if now - lastMouseTargetSetTick < 0.05 then
-        return
-    end
-    lastMouseTargetSetTick = now
-
-    local Lp = Players.LocalPlayer
-    local Plrs = Players
-    
-    if hasChosenTarget() then
+triggerMouseTargetSet = function()
+    local Lp = game.Players.LocalPlayer
+    if CamlockEnabled or not Lp then return end
+    if playerChosen then
         clearChosenTarget()
-        setDropdownVisualTarget(nil)
-        forceUpdateTargetStatusParagraph()
         return
     end
-
     local mouse = Lp:GetMouse()
-    local cam = workspace.CurrentCamera
     local target = nil
-    
-    local function checkAlive(model)
-        local hum = model and model:FindFirstChildOfClass("Humanoid")
-        return hum and hum.Health > 0
-    end
-
     local mouseTarget = mouse.Target
     if mouseTarget then
         local model = mouseTarget:FindFirstAncestorOfClass("Model")
-        local p = model and Plrs:GetPlayerFromCharacter(model)
-        if p and p ~= Lp and checkAlive(model) then
+        local p = model and game.Players:GetPlayerFromCharacter(model)
+        if p and p ~= Lp and model:FindFirstChildOfClass("Humanoid") and model.Humanoid.Health > 0 then
             target = p
         end
     end
-
     if not target then
-        local closestWorldDist = math.huge
-        local hitPos = mouse.Hit.p
-        local Players_ = getTrackedPlayers()
-        for i = 1, #Players_ do
-            local plr = Players_[i]
-            if plr ~= Lp and plr.Character then
-                local char = plr.Character
-                local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-                if root then
-                    local d = (root.Position - hitPos).Magnitude
-                    if d < closestWorldDist and d < 350 then
-                        closestWorldDist = d
-                        target = plr
-                    end
-                end
-            end
-        end
-    end
-
-    if not target then
-        local closestDist = math.huge
+        local closestDist = 260
         local mouseLoc = Vector2.new(mouse.X, mouse.Y)
-        local Players_ = getTrackedPlayers()
-        for i = 1, #Players_ do
-            local plr = Players_[i]
-            if plr ~= Lp and plr.Character then
-                local char = plr.Character
-                local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+        for _, plr in ipairs(getTrackedPlayers()) do
+            if plr ~= Lp and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                local root = getRootUniversal(plr.Character)
                 if root then
-                    local pos, visible = cam:WorldToViewportPoint(root.Position)
+                    local pos, visible = workspace.CurrentCamera:WorldToViewportPoint(root.Position)
                     if visible then
                         local distance = (mouseLoc - Vector2.new(pos.X, pos.Y)).Magnitude
-                            if distance < closestDist and distance < 260 then
-                                closestDist = distance
-                                target = plr
-                            end
+                        if distance < closestDist then
+                            closestDist = distance
+                            target = plr
+                        end
                     end
                 end
             end
         end
     end
-
     if target then
         playerChosen = target
         _G.playerChosen = target
         watchChosenTarget(target)
-        setDropdownVisualTarget(target)
-        forceUpdateTargetStatusParagraph()
-        if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
-            _G.NOTHINGX_TrashPlayer.AttachTarget(target)
-        end
-        if viewing then
-            startView(target)
-        end
+        syncTargetUI()
     end
+end
+registerJoinLeave("remove", function(plr)
+    if playerChosen == plr then
+        clearChosenTarget()
+    end
+    task.defer(syncTargetUI)
+end)
+registerJoinLeave("add", function()
+    task.defer(syncTargetUI)
+end)
+local oldSyncCamlock = syncCamlockVisualTarget
+syncCamlockVisualTarget = function()
+    syncTargetUI()
 end
 Tabs.KEY:AddKeybind("MouseTargetSet", {
     Title = "Set Target (Mouse)",
@@ -2631,7 +2639,6 @@ Tabs.KEY:AddKeybind("MouseTargetSet", {
 })
 end
 initAttackTargeting()
-
 local function initDefenseAndUtilityUI()
 local LocalPlayer = Players.LocalPlayer
 local stayPos
@@ -3008,7 +3015,7 @@ Tabs.TOG:AddToggle("VisualFixToggle", {
     end
 })
 Tabs.TOG:AddDropdown("TpVariantAll", {
-    Title = "TP Variant All",
+    Title = "TP Variant",
     Values = {"Aggressive", "Direct", "Under", "Above", "Behind", "Ultra+"},
     Multi = false,
     Default = "Behind",
@@ -3419,469 +3426,186 @@ task.delay(1.5, function()
 end)
 end
 initUltEspUI()
-
-local function initPlayerTargetUI()
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local viewing = false
-local currentTarget = nil
-local viewDied = nil
-local viewChanged = nil
-dropdownMap = dropdownMap or {}
-local dropdownChosen = nil
-local flingOneOn = false
-local flingOneConnection = nil
-local autoTpOn = false
-local autoTpConnection = nil
-local TrashPlayerKeybind = nil
-RefreshToggle = nil
-local FLING_INF_POWER = 1e12
-local orbitStepXZ = 0
-local orbitStepY = 0
-local orbitMax = 1.3
-local orbitIncrement = 0.1
-local orbitSpeed = 999999999999999999999
-local function getRootUniversal(char)
-    return char and (
-        char:FindFirstChild("HumanoidRootPart") or
-        char:FindFirstChild("Torso") or
-        char:FindFirstChild("UpperTorso")
-    )
-end
-lastFullRefreshTime = lastFullRefreshTime or 0
-buildDropdownValues = function()
-    dropdownMap = {}
-    local values = { "None" }
-    local seen = { ["None"] = true }
-    local function pushPlayer(plr)
-        if not (plr and plr.Parent == Players) then return end
-        if plr == LocalPlayer then return end
-        local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
-        if seen[display] then return end
-        seen[display] = true
-        dropdownMap[display] = plr
-        table.insert(values, display)
-    end
-    if RefreshToggle and RefreshToggle.Value == true then
-        for _, plr in ipairs(getTrackedPlayers()) do
-            pushPlayer(plr)
+function initPlayerTargetUI()
+    local LocalPlayer = game.Players.LocalPlayer
+    dropdownMap = dropdownMap or {}
+    local lastDropdownValues = {}
+    buildDropdownValues = function()
+        dropdownMap = {}
+        local values = { "None" }
+        local seen = { ["None"] = true }
+        local function pushPlayer(plr)
+            if not (plr and plr.Parent == game.Players) or plr == LocalPlayer then return end
+            local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            if seen[display] then return end
+            seen[display] = true
+            dropdownMap[display] = plr
+            table.insert(values, display)
         end
-    else
-        pushPlayer(getPriorityTargetPlayer())
-        pushPlayer(dropdownChosen)
-    end
-    return values
-end
-startView = function(targetPlayer)
-    if viewDied then viewDied:Disconnect() end
-    if viewChanged then viewChanged:Disconnect() end
-    if not (targetPlayer and targetPlayer.Character) then return end
-    local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    currentTarget = targetPlayer
-    viewing = true
-    Camera.CameraType = Enum.CameraType.Custom
-    Camera.CameraSubject = hum
-    viewDied = targetPlayer.CharacterAdded:Connect(function(char)
-        repeat task.wait() until char:FindFirstChildOfClass("Humanoid")
-        if viewing and currentTarget == targetPlayer then
-            Camera.CameraSubject = char:FindFirstChildOfClass("Humanoid")
-        end
-    end)
-    viewChanged = Camera:GetPropertyChangedSignal("CameraSubject"):Connect(function()
-        if viewing and currentTarget == targetPlayer and targetPlayer.Character then
-            local h = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if h then Camera.CameraSubject = h end
-        end
-    end)
-end
-local function stopView()
-    viewing = false
-    currentTarget = nil
-    if viewDied then viewDied:Disconnect() viewDied = nil end
-    if viewChanged then viewChanged:Disconnect() viewChanged = nil end
-    if LocalPlayer.Character then
-        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then Camera.CameraSubject = hum end
-    end
-end
-local function startFlingOne()
-    if flingOneConnection then flingOneConnection:Disconnect() end
-    flingOneConnection = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function(dt)
-        if isSafeTeleportLocked() then
-            return
-        end
-        if not flingOneOn then return end
-        if not playerChosen then return end
-        if not playerChosen.Parent then
-            FlingOneToggle:SetValue(false)
-            return
-        end
-        local myChar = LocalPlayer.Character
-        local targetChar = playerChosen.Character
-        if not (myChar and targetChar) then
-            FlingOneToggle:SetValue(false)
-            return
-        end
-        local myRoot = getRootUniversal(myChar)
-        local targetRoot = getRootUniversal(targetChar)
-        if not (myRoot and targetRoot) then
-            FlingOneToggle:SetValue(false)
-            return
-        end
-        orbitStepXZ = orbitStepXZ + orbitIncrement
-        orbitStepY = orbitStepY + orbitIncrement
-        if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
-        if orbitStepY > orbitMax then orbitStepY = 0 end
-        local t = tick() * orbitSpeed
-        local offset = Vector3.new(
-            math.cos(t) * orbitStepXZ,
-            orbitStepY,
-            math.sin(t) * orbitStepXZ
-        )
-        myRoot.AssemblyLinearVelocity = Vector3.zero
-        myRoot.AssemblyAngularVelocity = Vector3.zero
-        myChar:PivotTo(targetRoot.CFrame + offset)
-        local p = FLING_INF_POWER
-        myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
-        myRoot.AssemblyLinearVelocity =
-            myRoot.CFrame.LookVector * p + Vector3.new(0, p/2, 0)
-    end)
-end
-local function startAutoTp()
-    if autoTpConnection then autoTpConnection:Disconnect() end
-    autoTpConnection = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function()
-        if isSafeTeleportLocked() then
-            return
-        end
-        if not autoTpOn then return end
-        if not playerChosen then return end
-        local myChar = LocalPlayer.Character
-        local targetChar = playerChosen.Character
-        if not (myChar and targetChar) then return end
-        local myRoot = getRootUniversal(myChar)
-        local targetRoot = getRootUniversal(targetChar)
-        if not (myRoot and targetRoot) then return end
-        local predictionScale = ZERO_DELAY_ALL_TP
-            and getTpVariantValue("autoPredictionFast", 0.45)
-            or getTpVariantValue("autoPrediction", 1)
-        local prediction, targetVel = getTeleportPrediction(targetRoot.AssemblyLinearVelocity or Vector3.zero, predictionScale)
-        local config = getTpVariantConfig()
-        local targetProxy = {
-            Position = targetRoot.Position + prediction,
-            CFrame = targetRoot.CFrame
-        }
-        strongPivotCharacter(
-            myChar,
-            myRoot,
-            getTeleportFollowCFrame(targetProxy, targetVel, config.autoBack, config.autoVertical),
-            getTpVariantPauseDuration()
-        )
-    end)
-end
-Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
-    Title = "Player",
-    Values = buildDropdownValues(),
-    Multi = false,
-    Default = "None",
-Callback = function(value)
-    dropdownChosen = dropdownMap[value]
-    playerChosen = dropdownChosen
-    _G.playerChosen = dropdownChosen
-    if playerChosen and playerChosen.Character then
-        watchChosenTarget(playerChosen)
-        forceUpdateTargetStatusParagraph()
-    end
-    if not playerChosen then
-        dropdownChosen = nil
-        forceUpdateTargetStatusParagraph()
-        if autoTpOn then AutoTpToggle:SetValue(false) end
-        if flingOneOn then FlingOneToggle:SetValue(false) end
-        if viewing then ViewToggle:SetValue(false) end
-        if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
-            _G.NOTHINGX_TrashPlayer.SetRunning(false)
-        end
-        return
-    end
-    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
-        _G.NOTHINGX_TrashPlayer.AttachTarget(playerChosen)
-    end
-    if viewing then
-        startView(playerChosen)
-    end
-end
-})
-refreshDropdown = function()
-    local oldTarget = dropdownChosen or playerChosen or getPriorityTargetPlayer()
-    local values = buildDropdownValues()
-    Dropdown:SetValues(values)
-    local restored = false
-    for display, plr in pairs(dropdownMap) do
-        if plr == oldTarget then
-            Dropdown:SetValue(display)
-            restored = true
-            break
-        end
-    end
-    if not restored then
-        dropdownChosen = nil
-        playerChosen = nil
-        _G.playerChosen = nil
-        Dropdown:SetValue("None")
-        forceUpdateTargetStatusParagraph()
-        if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
-            _G.NOTHINGX_TrashPlayer.SetRunning(false)
-        end
-    end
-end
-local function onDropdownPlayerAdded()
-    refreshDropdown()
-end
-local function onDropdownPlayerRemoving(plr)
-    if viewing and currentTarget == plr then
-        ViewToggle:SetValue(false)
-    end
-    if flingOneOn and playerChosen == plr then
-        FlingOneToggle:SetValue(false)
-    end
-    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() and playerChosen == plr then
-        _G.NOTHINGX_TrashPlayer.SetRunning(false)
-    end
-    refreshDropdown()
-end
-local function triggerFullRefresh()
-    lastFullRefreshTime = tick()
-    refreshDropdown()
-    task.delay(11.1, function()
-        refreshDropdown() 
-    end)
-end
-local nextRefresh = 0
-local function scheduleDropdownRefresh()
-    local thisRefresh = tick() + 0.15
-    nextRefresh = thisRefresh
-    task.delay(0.15, function()
-        if nextRefresh == thisRefresh then
-            refreshDropdown()
-        end
-    end)
-end
-registerJoinLeave("add", function()
-    scheduleDropdownRefresh()
-end)
-registerJoinLeave("remove", function(plr)
-    if viewing and currentTarget == plr then
-        ViewToggle:SetValue(false)
-    end
-    if flingOneOn and playerChosen == plr then
-        FlingOneToggle:SetValue(false)
-    end
-    if autoTpOn and playerChosen == plr then
-        AutoTpToggle:SetValue(false)
-    end
-    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() and playerChosen == plr then
-        _G.NOTHINGX_TrashPlayer.SetRunning(false)
-    end
-    scheduleDropdownRefresh()
-end)
-local lastManualRefresh = 0
-local refreshToggleLoopActive = false
-local refreshToggleCycleId = 0
-local refreshToggleInternalChange = false
-RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
-    Title = "List Player",
-    Default = false,
-    Callback = function(state)
-        if refreshToggleInternalChange then
-            return
-        end
-        if state then
-            if refreshToggleLoopActive then
-                return
+        if RefreshToggle and RefreshToggle.Value then
+            for _, plr in ipairs(getTrackedPlayers()) do
+                pushPlayer(plr)
             end
-            refreshToggleLoopActive = true
-            refreshToggleCycleId = refreshToggleCycleId + 1
-            local currentCycleId = refreshToggleCycleId
-            lastManualRefresh = tick()
-            triggerFullRefresh()
-            task.spawn(function()
-                local startedAt = tick()
-                while tick() - startedAt < 11.5 do
-                    if refreshToggleCycleId ~= currentCycleId then
-                        return
-                    end
-                    if RefreshToggle and RefreshToggle.Value ~= true then
-                        refreshToggleInternalChange = true
-                        RefreshToggle:SetValue(true)
-                        refreshToggleInternalChange = false
-                    end
-                    task.wait(0.1)
-                end
-                if refreshToggleCycleId ~= currentCycleId then
-                    return
-                end
-                refreshToggleLoopActive = false
-                if RefreshToggle and RefreshToggle.Value then
-                    refreshToggleInternalChange = true
-                    RefreshToggle:SetValue(false)
-                    refreshToggleInternalChange = false
-                end
-            end)
         else
-            if refreshToggleLoopActive then
-                refreshToggleInternalChange = true
-                RefreshToggle:SetValue(true)
-                refreshToggleInternalChange = false
-                return
-            end
-            refreshToggleLoopActive = false
-            lastFullRefreshTime = 0
-            refreshDropdown()
+            local cur = getPriorityTargetPlayer()
+            if cur then pushPlayer(cur) end
         end
+        return values
     end
-})
-Tabs.PLYR:AddButton({
-    Title = "TP Player",
-    Callback = function()
-        if not playerChosen then return end
-        local char = playerChosen.Character
-        local myChar = LocalPlayer.Character
-        if not (char and myChar) then return end
-        local hrp = getRootUniversal(char)
-        local myHrp = getRootUniversal(myChar)
-        if hrp and myHrp then
-            local config = getTpVariantConfig()
-            local prediction, targetVel = getTeleportPrediction(
-                hrp.AssemblyLinearVelocity or Vector3.zero,
-                getTpVariantValue("playerPrediction", 0.45)
-            )
-            local targetProxy = {
-                Position = hrp.Position + prediction,
-                CFrame = hrp.CFrame
-            }
-            strongPivotCharacter(
-                myChar,
-                myHrp,
-                getTeleportFollowCFrame(targetProxy, targetVel, config.playerBack, config.playerVertical),
-                getTpVariantPauseDuration()
-            )
+    syncTargetUI = function()
+        if isUIUpdating or not (Dropdown and Dropdown.SetValues) then return end
+        isUIUpdating = true
+        local target = getPriorityTargetPlayer()
+        local display = "None"
+        if target then display = target.DisplayName .. " (@" .. target.Name .. ")" end
+        local values = buildDropdownValues()
+        if display ~= "None" then
+            local found = false
+            for _, v in ipairs(values) do if v == display then found = true break end end
+            if not found then table.insert(values, display) end
         end
+        local changed = #values ~= #lastDropdownValues
+        if not changed then
+            for i = 1, #values do if values[i] ~= lastDropdownValues[i] then changed = true break end end
+        end
+        if changed then
+            lastDropdownValues = values
+            pcall(function() Dropdown:SetValues(values) end)
+        end
+        pcall(function() Dropdown:SetValue(display) end)
+        forceUpdateTargetStatusParagraph()
+        isUIUpdating = false
     end
-})
-AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
-    Title = "Auto TP Player",
-    Default = false,
-    Callback = function(state)
-        if state then
-            if not playerChosen then
-                AutoTpToggle:SetValue(false)
-                return
+    Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
+        Title = "Player",
+        Values = buildDropdownValues(),
+        Multi = false,
+        Default = "None",
+        Callback = function(v)
+            if isUIUpdating or not (Dropdown and Dropdown.SetValue) then return end
+            local target = dropdownMap[v]
+            if target then
+                playerChosen = target
+                _G.playerChosen = target
+                watchChosenTarget(target)
+                syncTargetUI()
+                if viewing then startView(playerChosen) end
+                if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
+                    _G.NOTHINGX_TrashPlayer.AttachTarget(playerChosen)
+                end
+            elseif v == "None" then
+                clearChosenTarget()
             end
-            if flingOneOn then
-                FlingOneToggle:SetValue(false)
+        end
+    })
+    RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
+        Title = "List Player",
+        Default = false,
+        Callback = function()
+            if syncTargetUI then syncTargetUI() end
+        end
+    })
+    Tabs.PLYR:AddButton({
+        Title = "TP Player",
+        Callback = function()
+            local targetPlr = getPriorityTargetPlayer()
+            if not (targetPlr and targetPlr.Character) then return end
+            local hrp = getRootUniversal(targetPlr.Character)
+            local lp = game.Players.LocalPlayer
+            local myHrp = lp.Character and getRootUniversal(lp.Character)
+            if hrp and myHrp then
+                myHrp.AssemblyLinearVelocity = Vector3.zero
+                myHrp.AssemblyAngularVelocity = Vector3.zero
+                lp.Character:PivotTo(hrp.CFrame * CFrame.new(0, 0, -5) * CFrame.Angles(0, math.pi, 0))
             end
-            autoTpOn = true
-            startAutoTp()
-        else
-            autoTpOn = false
-            if autoTpConnection then
+        end
+    })
+    AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
+        Title = "Auto TP Player",
+        Default = false,
+        Callback = function(state)
+            autoTpOn = state
+            if state then
+                if not getPriorityTargetPlayer() then AutoTpToggle:SetValue(false) return end
+                if flingOneOn then FlingOneToggle:SetValue(false) end
+                if autoTpConnection then autoTpConnection:Disconnect() end
+                autoTpConnection = (ZERO_DELAY_ALL_TP and game:GetService("RunService").RenderStepped or game:GetService("RunService").Heartbeat):Connect(function()
+                    if isSafeTeleportLocked() or not autoTpOn then return end
+                    local t = getPriorityTargetPlayer()
+                    if not (t and t.Character) then return end
+                    local hrp = getRootUniversal(t.Character)
+                    local lp = game.Players.LocalPlayer
+                    local myHrp = lp.Character and getRootUniversal(lp.Character)
+                    if hrp and myHrp then
+                        local config = getTpVariantConfig()
+                        local prediction, targetVel = getTeleportPrediction(hrp.AssemblyLinearVelocity or Vector3.zero, getTpVariantValue("autoPrediction", 1))
+                        local targetProxy = { Position = hrp.Position + prediction, CFrame = hrp.CFrame }
+                        strongPivotCharacter(lp.Character, myHrp, getTeleportFollowCFrame(targetProxy, targetVel, config.autoBack, config.autoVertical), getTpVariantPauseDuration())
+                    end
+                end)
+            elseif autoTpConnection then
                 autoTpConnection:Disconnect()
                 autoTpConnection = nil
             end
         end
-    end
-})
-local function createTrashPlayerKeybind()
-    if TrashPlayerKeybind then return end
-    TrashPlayerKeybind = Tabs.KEY:AddKeybind("TrashPlayerKeybind", {
-        Title = "Trash Player",
-        Mode = "Toggle",
-        Default = "V",
+    })
+        ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
+        Title = "View Player",
+        Default = false,
         Callback = function(state)
-            if _G.NOTHINGX_TrashPlayer then
-                local nextState = state
-                if nextState and not playerChosen then
-                    nextState = false
-                end
-                _G.NOTHINGX_TrashPlayer.SetRunning(nextState)
-            end
+            if not state then stopView() return end
+            local t = getPriorityTargetPlayer()
+            if not t then ViewToggle:SetValue(false) return end
+            startView(t)
         end
     })
-    if _G.NOTHINGX_TrashPlayer then
-        _G.NOTHINGX_TrashPlayer.EnsureStatus()
-    end
-end
-local function removeTrashPlayerKeybind()
-    if not TrashPlayerKeybind then return end
-    if _G.NOTHINGX_TrashPlayer then
-        _G.NOTHINGX_TrashPlayer.SetRunning(false)
-    end
-    pcall(function()
-        if TrashPlayerKeybind.SetValue then
-            TrashPlayerKeybind:SetValue(false)
-        end
-    end)
-    pcall(function()
-        if TrashPlayerKeybind.Destroy then
-            TrashPlayerKeybind:Destroy()
-        end
-    end)
-    TrashPlayerKeybind = nil
-end
-local function shouldCreateTrashPlayerKeybindOnce()
-    local map = workspace:FindFirstChild("Map")
-    local mainPart = map and map:FindFirstChild("MainPart")
-    if not mainPart then return false end
-    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.HasTrash then
-        return not _G.NOTHINGX_TrashPlayer.HasTrash()
-    end
-    return true
-end
-if shouldCreateTrashPlayerKeybindOnce() then
-    createTrashPlayerKeybind()
-else
-    removeTrashPlayerKeybind()
-end
-ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
-    Title = "View Player",
-    Default = false,
-    Callback = function(state)
-        if not state then
-            stopView()
-            return
-        end
-        if not playerChosen then
-            ViewToggle:SetValue(false)
-            return
-        end
-        startView(playerChosen)
-    end
-})
-FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
-    Title = "Fling Player",
-    Default = false,
-    Callback = function(state)
-        if state then
-            if not playerChosen then
-                FlingOneToggle:SetValue(false)
-                return
-            end
-            if autoTpOn then
-                AutoTpToggle:SetValue(false)
-            end
-            flingOneOn = true
-            startFlingOne()
-        else
-            flingOneOn = false
-            if flingOneConnection then
+    FlingOneToggle = Tabs.PLYR:AddToggle("FlingOneToggle", {
+        Title = "Fling Player",
+        Default = false,
+        Callback = function(state)
+            flingOneOn = state
+            if state then
+                if not getPriorityTargetPlayer() then FlingOneToggle:SetValue(false) return end
+                if autoTpOn then AutoTpToggle:SetValue(false) end
+                if flingOneConnection then flingOneConnection:Disconnect() end
+                flingOneConnection = (ZERO_DELAY_ALL_TP and game:GetService("RunService").RenderStepped or game:GetService("RunService").Heartbeat):Connect(function()
+                    if isSafeTeleportLocked() or not flingOneOn then return end
+                    local t = getPriorityTargetPlayer()
+                    if not (t and t.Character) then return end
+                    local hrp = getRootUniversal(t.Character)
+                    local lp = game.Players.LocalPlayer
+                    local myHrp = lp.Character and getRootUniversal(lp.Character)
+                    if not (hrp and myHrp) then return end
+                    orbitStepXZ = (orbitStepXZ + 0.1) % 1.3
+                    orbitStepY = (orbitStepY + 0.1) % 1.3
+                    local offset = Vector3.new(math.cos(tick()*999)*orbitStepXZ, orbitStepY, math.sin(tick()*999)*orbitStepXZ)
+                    myHrp.AssemblyLinearVelocity = Vector3.zero
+                    myHrp.AssemblyAngularVelocity = Vector3.zero
+                    lp.Character:PivotTo(hrp.CFrame + offset)
+                    myHrp.AssemblyAngularVelocity = Vector3.new(1e12, 1e12, 1e12)
+                    myHrp.AssemblyLinearVelocity = myHrp.CFrame.LookVector * 1e12 + Vector3.new(0, 5e11, 0)
+                end)
+            elseif flingOneConnection then
                 flingOneConnection:Disconnect()
                 flingOneConnection = nil
             end
         end
+    })
+    registerJoinLeave("remove", function(plr)
+        if playerChosen == plr then clearChosenTarget() end
+        queueSyncUI()
+    end)
+    registerJoinLeave("add", function()
+        queueSyncUI()
+    end)
+    if shouldCreateTrashPlayerKeybindOnce() then
+        createTrashPlayerKeybind()
+    else
+        removeTrashPlayerKeybind()
     end
-})
-task.wait(0.2)
-
+    task.defer(function() if syncTargetUI then syncTargetUI() end end)
+end
+initPlayerTargetUI()
 Tabs.TOG:AddButton({
     Title = "Lay",
     Callback = function()
@@ -3958,9 +3682,6 @@ if SaveManager then
         })
     end)
 end
-end
-initPlayerTargetUI()
-
 local function disableTeleportFeaturesForVoidProtection()
     VisualFix:Stop()
     if autoTpOn then
@@ -3989,24 +3710,20 @@ local function disableTeleportFeaturesForVoidProtection()
         _G.NOTHINGX_TrashPlayer.SetRunning(false)
     end
 end
-
 _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
 _G.NOTHINGX_Protection.defaultCFrame = CFrame.new(0, 0, 0)
 _G.NOTHINGX_Protection.boundarySize = Vector3.new(100000, 0, 100000)
 _G.NOTHINGX_Protection.lastSafePosition = nil
 _G.NOTHINGX_Protection.safePositionHistory = _G.NOTHINGX_Protection.safePositionHistory or {}
 _G.NOTHINGX_Protection.safeHistoryLimit = 5
-
 function _G.NOTHINGX_Protection.getMainPart()
     local map = workspace:FindFirstChild("Map")
     return map and map:FindFirstChild("MainPart")
 end
-
 function _G.NOTHINGX_Protection.getReferenceCFrame()
     local mainPart = _G.NOTHINGX_Protection.getMainPart()
     return (mainPart and mainPart.CFrame) or _G.NOTHINGX_Protection.defaultCFrame
 end
-
 function _G.NOTHINGX_Protection.isOutsideBoundary(position)
     local cf = _G.NOTHINGX_Protection.getReferenceCFrame()
     local localPos = cf:PointToObjectSpace(position)
@@ -4014,7 +3731,6 @@ function _G.NOTHINGX_Protection.isOutsideBoundary(position)
     return localPos.X < -halfSize.X or localPos.X > halfSize.X
         or localPos.Z < -halfSize.Z or localPos.Z > halfSize.Z
 end
-
 function _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
     if not hrp or not hrp.Parent then
         return nil
@@ -4024,7 +3740,6 @@ function _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
     params.FilterType = Enum.RaycastFilterType.Blacklist
     return workspace:Raycast(hrp.Position, Vector3.new(0, -8, 0), params)
 end
-
 function _G.NOTHINGX_Protection.getSupportResultAt(position, ignoreInstance)
     if not position then
         return nil
@@ -4034,7 +3749,6 @@ function _G.NOTHINGX_Protection.getSupportResultAt(position, ignoreInstance)
     params.FilterType = Enum.RaycastFilterType.Blacklist
     return workspace:Raycast(position + Vector3.new(0, 3, 0), Vector3.new(0, -14, 0), params)
 end
-
 function _G.NOTHINGX_Protection.pushSafeHistory(cf)
     if not cf then
         return
@@ -4050,7 +3764,6 @@ function _G.NOTHINGX_Protection.pushSafeHistory(cf)
         table.remove(history)
     end
 end
-
 function _G.NOTHINGX_Protection.isUsableRescueCFrame(cf, minY)
     if not cf then
         return false
@@ -4066,7 +3779,6 @@ function _G.NOTHINGX_Protection.isUsableRescueCFrame(cf, minY)
     local support = _G.NOTHINGX_Protection.getSupportResultAt(position, localCharacter)
     return support and support.Instance ~= nil
 end
-
 function _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minY)
     if not hrp or not hrp.Parent then
         return false
@@ -4085,7 +3797,6 @@ function _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minY)
     _G.NOTHINGX_Protection.pushSafeHistory(hrp.CFrame)
     return true
 end
-
 function _G.NOTHINGX_Protection.getRescueCFrame(preferredCFrame, minY)
     local history = _G.NOTHINGX_Protection.safePositionHistory or {}
     local candidates = {}
@@ -4107,7 +3818,6 @@ function _G.NOTHINGX_Protection.getRescueCFrame(preferredCFrame, minY)
     end
     return _G.NOTHINGX_Protection.getReferenceCFrame()
 end
-
 function _G.NOTHINGX_Protection.resetVelocity(hrp)
     if not hrp or not hrp.Parent then
         return
@@ -4115,7 +3825,6 @@ function _G.NOTHINGX_Protection.resetVelocity(hrp)
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
 end
-
 function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, minY)
     _G.SafeTeleportLock = true
     disableTeleportFeaturesForVoidProtection()
@@ -4126,13 +3835,12 @@ function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, 
     end
     for _ = 1, 15 do
         _G.NOTHINGX_Protection.resetVelocity(hrp)
-        character:PivotTo(rescueCFrame + Vector3.new(0, 5, 0))
+        character:PivotTo(rescueCFrame + Vector3.new(0, 2, 0))
         task.wait()
     end
     _G.SafeTeleportLock = false
     return true
 end
-
 local function initBoundaryProtection()
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -4165,21 +3873,29 @@ player.CharacterAdded:Connect(function(char)
 end)
 end
 initBoundaryProtection()
-
 local function initVoidProtection()
-
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
-local NPC_NAME = "X"
 local CREATE_POS = Vector3.new(0, -50, 0)
-local MAX_RETRIES = 10
+local MAX_RETRIES = 5
+local PROBE_COUNT = 3
+local PROBE_TIMEOUT = 3
+local NPC_NAME_PREFIX = "X-NOTHING_X_"
 local VOID_Y = nil
-local function spawnNPC()
-    local old = Workspace:FindFirstChild(NPC_NAME)
+local VOID_GROUP_TOLERANCE = 3
+local function clearVoidProbeModels()
+    for i = 0, PROBE_COUNT - 1 do
+        local old = Workspace:FindFirstChild(NPC_NAME_PREFIX .. i)
+        if old then old:Destroy() end
+    end
+end
+local function spawnNPC(index, onDetected)
+    local npcName = NPC_NAME_PREFIX .. index
+    local old = Workspace:FindFirstChild(npcName)
     if old then old:Destroy() end
     local model = Instance.new("Model")
-    model.Name = NPC_NAME
+    model.Name = npcName
     local root = Instance.new("Part")
     root.Name = "HumanoidRootPart"
     root.Size = Vector3.new(2,5,1)
@@ -4199,16 +3915,16 @@ root.Transparency = 0.5
     local function saveAndDestroy(reason)
         if saved then return end
         saved = true
-        if root then
-            VOID_Y = root.Position.Y
-			      print("VOID + + + | ", VOID_Y, " | NOTHING X ANTI VOID")
+        if onDetected then
+            onDetected(root and root.Position.Y or nil, npcName, reason)
         else
-            warn(" - :", reason)
+            if not root then
+                warn(" - :", reason)
+            end
         end
         if hbConnection then
             hbConnection:Disconnect()
         end
-
 pcall(function()
     if model then
         model:Destroy()
@@ -4226,18 +3942,121 @@ end)
             saveAndDestroy("Heartbeat fail")
         end
     end)
+    return model, root
 end
-for i = 1, MAX_RETRIES do
-    spawnNPC()
-    task.wait()
-    if VOID_Y then
-        break
+local function runVoidProbeBatch()
+    clearVoidProbeModels()
+    local measurements = {}
+    for i = 0, PROBE_COUNT - 1 do
+        clearVoidProbeModels()
+        local probeDone = false
+        local probeSuccess = false
+        local probeError = nil
+        local probeModel, probeRoot = spawnNPC(i, function(y, npcName, reason)
+            if y ~= nil then
+                measurements[#measurements + 1] = {
+                    y = y,
+                    name = npcName
+                }
+                probeSuccess = true
+            else
+                probeError = reason or "probe_failed"
+            end
+            probeDone = true
+        end)
+        local startedAt = tick()
+        while not probeDone and (tick() - startedAt) < PROBE_TIMEOUT do
+            task.wait()
+        end
+        if not probeDone then
+            if probeRoot and probeRoot.Parent then
+                measurements[#measurements + 1] = {
+                    y = probeRoot.Position.Y,
+                    name = NPC_NAME_PREFIX .. tostring(i)
+                }
+                pcall(function()
+                    if probeModel then
+                        probeModel:Destroy()
+                    end
+                end)
+                probeDone = true
+                probeSuccess = true
+            else
+                clearVoidProbeModels()
+                return false, nil, nil, "timeout_" .. NPC_NAME_PREFIX .. tostring(i)
+            end
+        end
+        pcall(function()
+            if probeModel and probeModel.Parent then
+                probeModel:Destroy()
+            end
+        end)
+        local waitStarted = tick()
+        while Workspace:FindFirstChild(NPC_NAME_PREFIX .. tostring(i)) and (tick() - waitStarted) < 1 do
+            task.wait()
+        end
+        if not probeSuccess then
+            clearVoidProbeModels()
+            return false, nil, nil, (probeError or ("probe_failed_" .. NPC_NAME_PREFIX .. tostring(i)))
+        end
+        task.wait()
     end
-    if i == MAX_RETRIES then
-        warn("---")
+    clearVoidProbeModels()
+    if #measurements == 0 then
+        return false, nil, nil, "no_measurements"
+    end
+    local groups = {}
+    for _, measurement in ipairs(measurements) do
+        local matchedGroup = nil
+        for _, group in ipairs(groups) do
+            if math.abs(group.anchor - measurement.y) <= VOID_GROUP_TOLERANCE then
+                matchedGroup = group
+                break
+            end
+        end
+        if not matchedGroup then
+            matchedGroup = {
+                anchor = measurement.y,
+                count = 0,
+                lastY = measurement.y,
+                lastName = measurement.name
+            }
+            groups[#groups + 1] = matchedGroup
+        end
+        matchedGroup.count = matchedGroup.count + 1
+        matchedGroup.lastY = measurement.y
+        matchedGroup.lastName = measurement.name
+    end
+    local bestGroup = groups[1]
+    for _, group in ipairs(groups) do
+        if group.count > bestGroup.count then
+            bestGroup = group
+        elseif group.count == bestGroup.count and math.abs(group.lastY) > math.abs(bestGroup.lastY) then
+            bestGroup = group
+        end
+    end
+    return true, bestGroup.lastY, bestGroup.lastName, nil
+end
+local initialOk, initialVoidY, initialProbeName, initialError = runVoidProbeBatch()
+if initialOk and initialVoidY ~= nil then
+    VOID_Y = initialVoidY
+    			      print("VOID + + + | ", VOID_Y, " | NOTHING X ANTI VOID")
+else
+    local foundVoidY = false
+    for retry = 1, MAX_RETRIES do
+        local batchOk, batchVoidY, batchProbeName, batchError = runVoidProbeBatch()
+        if batchOk and batchVoidY ~= nil then
+            VOID_Y = batchVoidY
+            foundVoidY = true
+            print("VOID + + + | ", VOID_Y, " | ", batchProbeName or "unknown", " | NOTHING X ANTI VOID")
+            break
+        end
+    end
+    if not foundVoidY then
+        warn(initialError or "
     end
 end
-local BUFFER = 210
+local BUFFER = 211
 local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     while character.Parent do
