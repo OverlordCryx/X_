@@ -4183,10 +4183,8 @@ initVoidProtection()
 local function Antibug()
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
-
     local player = Players.LocalPlayer
     local maxDist = 50
-
     RunService.Heartbeat:Connect(function()
         local char = player.Character
         if not char then return end
@@ -4194,17 +4192,18 @@ local function Antibug()
         if not hum or hum.Health <= 0 then return end
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
-
         for _, p in Players:GetPlayers() do
             if p ~= player and p.Character then
-                local oroot = p.Character:FindFirstChild("HumanoidRootPart")
-                if oroot and (root.Position - oroot.Position).Magnitude <= maxDist then
-                    hum.CameraOffset = Vector3.new(0, 0, 0)
-                    return
+                local ohum = p.Character:FindFirstChildOfClass("Humanoid")
+                if ohum and ohum.Health > 0 then  
+                    local oroot = p.Character:FindFirstChild("HumanoidRootPart")
+                    if oroot and (root.Position - oroot.Position).Magnitude <= maxDist then
+                        hum.CameraOffset = Vector3.new(0, 0, 0)
+                        return
+                    end
                 end
             end
         end
     end)
 end
-
 Antibug()
