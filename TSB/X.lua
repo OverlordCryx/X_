@@ -8,6 +8,7 @@ if coreGui:FindFirstChild("ScreenGui") then
     })
     return
 end
+
 local game = game
 local workspace = workspace
 local getService = game.GetService
@@ -123,6 +124,9 @@ function VisualFix:Stop()
         end
     end
 end
+
+
+
 local SaveManager = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/raw/refs/heads/master/Addons/SaveManager.lua"))()
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local Window = Fluent:CreateWindow({
@@ -166,6 +170,8 @@ Window:SelectTab()
 task.defer(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()end)
 task.defer(function() loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()end)
 local player = game.Players.LocalPlayer
+
+
 local proceed = false
 Window:Dialog({
     Title = "NOTHING X Load",
@@ -184,6 +190,7 @@ if not proceed then return end
 local player = game.Players.LocalPlayer
 local displayName = player.DisplayName
 local jobId = game.JobId
+
 Fluent:Notify({
     Title = "NOTHING X",
     Content = "| "..displayName.."\n| "..jobId,
@@ -191,6 +198,7 @@ Fluent:Notify({
     Duration = 6.6
 })
 local p=game:GetService("Players").LocalPlayer;if({[3808081382]=true,[10449761463]=true})[game.GameId] or ({[3808081382]=true,[10449761463]=true})[game.PlaceId] then local function a(c,i)local h=c:WaitForChild("Humanoid")local an=Instance.new("Animation")an.AnimationId="rbxassetid://"..i;h:LoadAnimation(an):Play()end;if p.Character then task.wait(0.1) a(p.Character,"17141153099") end;p.CharacterAdded:Connect(function(c) task.wait(0.1) a(c,"13497875049") end) end
+
 local LocalPlayer = Players.LocalPlayer
 local strongSkills = {
     ["Omni Directional Punch"] = true,
@@ -303,6 +311,7 @@ local function getTeleportPrediction(targetVel, scale)
     end
     return prediction, safeVel
 end
+
 local function queueSyncUI()
     if syncQueued then return end
     syncQueued = true
@@ -311,6 +320,7 @@ local function queueSyncUI()
         if syncTargetUI then syncTargetUI() end
     end)
 end
+
 local function createTrashPlayerKeybind()
     if TrashPlayerKeybind then return end
     TrashPlayerKeybind = Tabs.KEY:AddKeybind("TrashPlayerKeybind", {
@@ -332,6 +342,7 @@ local function createTrashPlayerKeybind()
         _G.NOTHINGX_TrashPlayer.EnsureStatus()
     end
 end
+
 local function removeTrashPlayerKeybind()
     if not TrashPlayerKeybind then return end
     if _G.NOTHINGX_TrashPlayer then
@@ -349,6 +360,7 @@ local function removeTrashPlayerKeybind()
     end)
     TrashPlayerKeybind = nil
 end
+
 local function shouldCreateTrashPlayerKeybindOnce()
     local map = workspace:FindFirstChild("Map")
     local mainPart = map and map:FindFirstChild("MainPart")
@@ -358,15 +370,18 @@ local function shouldCreateTrashPlayerKeybindOnce()
     end
     return true
 end
+
 local function getTpVariantValue(name, default)
     if _G.TpConfig and _G.TpConfig[name] then
         return _G.TpConfig[name]
     end
     return default
 end
+
 local function getTpVariantPauseDuration()
     return getTpVariantValue("tpPauseDuration", 0.05)
 end
+
 local function getTeleportFollowCFrame(proxy, vel, back, vert)
     if not proxy then return CFrame.new() end
     local base = proxy.CFrame
@@ -375,6 +390,7 @@ local function getTeleportFollowCFrame(proxy, vel, back, vert)
     end
     return base * CFrame.new(0, vert or 0, back or 0) * CFrame.Angles(0, math.pi, 0)
 end
+
 local function stopView()
     viewing = false
     local lp = game.Players.LocalPlayer
@@ -383,12 +399,15 @@ local function stopView()
         if hum then workspace.CurrentCamera.CameraSubject = hum end
     end
 end
+
 local function startView(plr)
     if not (plr and plr.Character) then stopView() return end
     local hum = plr.Character:FindFirstChildOfClass("Humanoid")
     if not hum then stopView() return end
     viewing = true
     workspace.CurrentCamera.CameraSubject = hum
+    
+    -- Auto-stop if player leaves or dies
     task.spawn(function()
         while viewing and plr and plr.Parent == game.Players and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character.Humanoid.Health > 0 do
             task.wait(0.5)
@@ -1458,6 +1477,8 @@ local function createTrashKeybind()
         end
     })
 end
+
+
 if trashFolder and not hasTrashFlag then
     createTrashKeybind()
 end
@@ -1505,6 +1526,7 @@ _G.NOTHINGX_TrashPlayer = {
         return trashPlayer.running
     end
 }
+
 local workspace = game:GetService("Workspace")
 local DropDownYKeybind = nil
 local dropDownLastUse = 0
@@ -2490,6 +2512,7 @@ getPlayerFromTargetRoot = function(targetRoot)
     if not hum or hum.Health <= 0 then return nil end
     return Players:GetPlayerFromCharacter(model)
 end
+
 getPriorityTargetPlayer = function()
     if CamlockEnabled then
         local camPlayer = getPlayerFromTargetRoot(CamlockTarget)
@@ -2500,69 +2523,87 @@ getPriorityTargetPlayer = function()
     end
     return nil
 end
+
 forceUpdateTargetStatusParagraph = function()
     local paragraph = (targetState and targetState.statusParagraph) or UIStatus.target
     if not paragraph then return end
+    
     local target = getPriorityTargetPlayer()
     local nextTitle = "Target : None"
     if target then
         nextTitle = "Target : " .. target.DisplayName
     end
+    
     if lastTargetStatusTitle ~= nextTitle then
         lastTargetStatusTitle = nextTitle
         paragraph:SetTitle(nextTitle)
     end
 end
+
 syncTargetUI = function()
     if isUIUpdating or not (Dropdown and Dropdown.SetValues) then return end
     isUIUpdating = true
+    
     local target = getPriorityTargetPlayer()
     local display = "None"
     if target then display = target.DisplayName .. " (@" .. target.Name .. ")" end
+    
     local values = buildDropdownValues()
     if display ~= "None" then
         local found = false
         for _, v in ipairs(values) do if v == display then found = true break end end
         if not found then table.insert(values, display) end
     end
+    
+    -- Lag fix
     local changed = #values ~= #lastDropdownValues
     if not changed then
         for i = 1, #values do
             if values[i] ~= lastDropdownValues[i] then changed = true break end
         end
     end
+    
     if changed then
         lastDropdownValues = values
         pcall(function() Dropdown:SetValues(values) end)
     end
+    
     pcall(function() Dropdown:SetValue(display) end)
     forceUpdateTargetStatusParagraph()
     isUIUpdating = false
 end
+
 setDropdownVisualTarget = function(plr)
     syncTargetUI()
 end
+
 refreshDropdown = function()
     syncTargetUI()
 end
+
 local chosenTargetHumConn = nil
 local chosenTargetHeartbeatConn = nil
+
 disconnectChosenTargetWatch = function()
     if chosenTargetHumConn then chosenTargetHumConn:Disconnect() chosenTargetHumConn = nil end
     if chosenTargetHeartbeatConn then chosenTargetHeartbeatConn:Disconnect() chosenTargetHeartbeatConn = nil end
 end
+
 clearChosenTarget = function()
     disconnectChosenTargetWatch()
     playerChosen = nil
     _G.playerChosen = nil
+    
     if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
         _G.NOTHINGX_TrashPlayer.SetRunning(false)
     end
     if autoTpOn then pcall(function() AutoTpToggle:SetValue(false) end) end
     if flingOneOn then pcall(function() FlingOneToggle:SetValue(false) end) end
     if viewing then pcall(function() ViewToggle:SetValue(false) end) end
+    
     syncTargetUI()
 end
+
 watchChosenTarget = function(plr)
     disconnectChosenTargetWatch()
     if not (plr and plr.Parent == game.Players) then return end
@@ -2572,16 +2613,20 @@ watchChosenTarget = function(plr)
         end
     end)
 end
+
 triggerMouseTargetSet = function()
     local Lp = game.Players.LocalPlayer
     if CamlockEnabled or not Lp then return end
+
     if playerChosen then
         clearChosenTarget()
         return
     end
+
     local mouse = Lp:GetMouse()
     local target = nil
     local mouseTarget = mouse.Target
+    
     if mouseTarget then
         local model = mouseTarget:FindFirstAncestorOfClass("Model")
         local p = model and game.Players:GetPlayerFromCharacter(model)
@@ -2589,6 +2634,7 @@ triggerMouseTargetSet = function()
             target = p
         end
     end
+
     if not target then
         local closestDist = 260
         local mouseLoc = Vector2.new(mouse.X, mouse.Y)
@@ -2608,6 +2654,7 @@ triggerMouseTargetSet = function()
             end
         end
     end
+
     if target then
         playerChosen = target
         _G.playerChosen = target
@@ -2615,19 +2662,23 @@ triggerMouseTargetSet = function()
         syncTargetUI()
     end
 end
+
 registerJoinLeave("remove", function(plr)
     if playerChosen == plr then
         clearChosenTarget()
     end
     task.defer(syncTargetUI)
 end)
+
 registerJoinLeave("add", function()
     task.defer(syncTargetUI)
 end)
+
 local oldSyncCamlock = syncCamlockVisualTarget
 syncCamlockVisualTarget = function()
     syncTargetUI()
 end
+
 Tabs.KEY:AddKeybind("MouseTargetSet", {
     Title = "Set Target (Mouse)",
     Default = "C",
@@ -2639,6 +2690,7 @@ Tabs.KEY:AddKeybind("MouseTargetSet", {
 })
 end
 initAttackTargeting()
+
 local function initDefenseAndUtilityUI()
 local LocalPlayer = Players.LocalPlayer
 local stayPos
@@ -3426,14 +3478,17 @@ task.delay(1.5, function()
 end)
 end
 initUltEspUI()
+
 function initPlayerTargetUI()
     local LocalPlayer = game.Players.LocalPlayer
     dropdownMap = dropdownMap or {}
     local lastDropdownValues = {}
+
     buildDropdownValues = function()
         dropdownMap = {}
         local values = { "None" }
         local seen = { ["None"] = true }
+        
         local function pushPlayer(plr)
             if not (plr and plr.Parent == game.Players) or plr == LocalPlayer then return end
             local display = plr.DisplayName .. " (@" .. plr.Name .. ")"
@@ -3442,6 +3497,7 @@ function initPlayerTargetUI()
             dropdownMap[display] = plr
             table.insert(values, display)
         end
+        
         if RefreshToggle and RefreshToggle.Value then
             for _, plr in ipairs(getTrackedPlayers()) do
                 pushPlayer(plr)
@@ -3452,30 +3508,37 @@ function initPlayerTargetUI()
         end
         return values
     end
+
     syncTargetUI = function()
         if isUIUpdating or not (Dropdown and Dropdown.SetValues) then return end
         isUIUpdating = true
+        
         local target = getPriorityTargetPlayer()
         local display = "None"
         if target then display = target.DisplayName .. " (@" .. target.Name .. ")" end
+        
         local values = buildDropdownValues()
         if display ~= "None" then
             local found = false
             for _, v in ipairs(values) do if v == display then found = true break end end
             if not found then table.insert(values, display) end
         end
+        
         local changed = #values ~= #lastDropdownValues
         if not changed then
             for i = 1, #values do if values[i] ~= lastDropdownValues[i] then changed = true break end end
         end
+        
         if changed then
             lastDropdownValues = values
             pcall(function() Dropdown:SetValues(values) end)
         end
+        
         pcall(function() Dropdown:SetValue(display) end)
         forceUpdateTargetStatusParagraph()
         isUIUpdating = false
     end
+
     Dropdown = Tabs.PLYR:AddDropdown("Dropdown_player", {
         Title = "Player",
         Values = buildDropdownValues(),
@@ -3483,12 +3546,14 @@ function initPlayerTargetUI()
         Default = "None",
         Callback = function(v)
             if isUIUpdating or not (Dropdown and Dropdown.SetValue) then return end
+            
             local target = dropdownMap[v]
             if target then
                 playerChosen = target
                 _G.playerChosen = target
                 watchChosenTarget(target)
                 syncTargetUI()
+                
                 if viewing then startView(playerChosen) end
                 if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning() then
                     _G.NOTHINGX_TrashPlayer.AttachTarget(playerChosen)
@@ -3498,6 +3563,7 @@ function initPlayerTargetUI()
             end
         end
     })
+
     RefreshToggle = Tabs.PLYR:AddToggle("RefreshToggle", {
         Title = "List Player",
         Default = false,
@@ -3505,6 +3571,7 @@ function initPlayerTargetUI()
             if syncTargetUI then syncTargetUI() end
         end
     })
+
     Tabs.PLYR:AddButton({
         Title = "TP Player",
         Callback = function()
@@ -3520,6 +3587,7 @@ function initPlayerTargetUI()
             end
         end
     })
+
     AutoTpToggle = Tabs.PLYR:AddToggle("AutoTpToggle", {
         Title = "Auto TP Player",
         Default = false,
@@ -3549,6 +3617,7 @@ function initPlayerTargetUI()
             end
         end
     })
+
         ViewToggle = Tabs.PLYR:AddToggle("Viewtog", {
         Title = "View Player",
         Default = false,
@@ -3591,6 +3660,9 @@ function initPlayerTargetUI()
             end
         end
     })
+
+
+
     registerJoinLeave("remove", function(plr)
         if playerChosen == plr then clearChosenTarget() end
         queueSyncUI()
@@ -3598,13 +3670,16 @@ function initPlayerTargetUI()
     registerJoinLeave("add", function()
         queueSyncUI()
     end)
+    
     if shouldCreateTrashPlayerKeybindOnce() then
         createTrashPlayerKeybind()
     else
         removeTrashPlayerKeybind()
     end
+
     task.defer(function() if syncTargetUI then syncTargetUI() end end)
 end
+
 initPlayerTargetUI()
 Tabs.TOG:AddButton({
     Title = "Lay",
@@ -3682,6 +3757,8 @@ if SaveManager then
         })
     end)
 end
+
+
 local function disableTeleportFeaturesForVoidProtection()
     VisualFix:Stop()
     if autoTpOn then
@@ -3710,20 +3787,24 @@ local function disableTeleportFeaturesForVoidProtection()
         _G.NOTHINGX_TrashPlayer.SetRunning(false)
     end
 end
+
 _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
 _G.NOTHINGX_Protection.defaultCFrame = CFrame.new(0, 0, 0)
 _G.NOTHINGX_Protection.boundarySize = Vector3.new(100000, 0, 100000)
 _G.NOTHINGX_Protection.lastSafePosition = nil
 _G.NOTHINGX_Protection.safePositionHistory = _G.NOTHINGX_Protection.safePositionHistory or {}
 _G.NOTHINGX_Protection.safeHistoryLimit = 5
+
 function _G.NOTHINGX_Protection.getMainPart()
     local map = workspace:FindFirstChild("Map")
     return map and map:FindFirstChild("MainPart")
 end
+
 function _G.NOTHINGX_Protection.getReferenceCFrame()
     local mainPart = _G.NOTHINGX_Protection.getMainPart()
     return (mainPart and mainPart.CFrame) or _G.NOTHINGX_Protection.defaultCFrame
 end
+
 function _G.NOTHINGX_Protection.isOutsideBoundary(position)
     local cf = _G.NOTHINGX_Protection.getReferenceCFrame()
     local localPos = cf:PointToObjectSpace(position)
@@ -3731,6 +3812,7 @@ function _G.NOTHINGX_Protection.isOutsideBoundary(position)
     return localPos.X < -halfSize.X or localPos.X > halfSize.X
         or localPos.Z < -halfSize.Z or localPos.Z > halfSize.Z
 end
+
 function _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
     if not hrp or not hrp.Parent then
         return nil
@@ -3740,6 +3822,7 @@ function _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
     params.FilterType = Enum.RaycastFilterType.Blacklist
     return workspace:Raycast(hrp.Position, Vector3.new(0, -8, 0), params)
 end
+
 function _G.NOTHINGX_Protection.getSupportResultAt(position, ignoreInstance)
     if not position then
         return nil
@@ -3749,6 +3832,7 @@ function _G.NOTHINGX_Protection.getSupportResultAt(position, ignoreInstance)
     params.FilterType = Enum.RaycastFilterType.Blacklist
     return workspace:Raycast(position + Vector3.new(0, 3, 0), Vector3.new(0, -14, 0), params)
 end
+
 function _G.NOTHINGX_Protection.pushSafeHistory(cf)
     if not cf then
         return
@@ -3764,6 +3848,7 @@ function _G.NOTHINGX_Protection.pushSafeHistory(cf)
         table.remove(history)
     end
 end
+
 function _G.NOTHINGX_Protection.isUsableRescueCFrame(cf, minY)
     if not cf then
         return false
@@ -3779,6 +3864,7 @@ function _G.NOTHINGX_Protection.isUsableRescueCFrame(cf, minY)
     local support = _G.NOTHINGX_Protection.getSupportResultAt(position, localCharacter)
     return support and support.Instance ~= nil
 end
+
 function _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minY)
     if not hrp or not hrp.Parent then
         return false
@@ -3797,6 +3883,7 @@ function _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minY)
     _G.NOTHINGX_Protection.pushSafeHistory(hrp.CFrame)
     return true
 end
+
 function _G.NOTHINGX_Protection.getRescueCFrame(preferredCFrame, minY)
     local history = _G.NOTHINGX_Protection.safePositionHistory or {}
     local candidates = {}
@@ -3818,6 +3905,7 @@ function _G.NOTHINGX_Protection.getRescueCFrame(preferredCFrame, minY)
     end
     return _G.NOTHINGX_Protection.getReferenceCFrame()
 end
+
 function _G.NOTHINGX_Protection.resetVelocity(hrp)
     if not hrp or not hrp.Parent then
         return
@@ -3825,6 +3913,7 @@ function _G.NOTHINGX_Protection.resetVelocity(hrp)
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
 end
+
 function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, minY)
     _G.SafeTeleportLock = true
     disableTeleportFeaturesForVoidProtection()
@@ -3841,6 +3930,7 @@ function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, 
     _G.SafeTeleportLock = false
     return true
 end
+
 local function initBoundaryProtection()
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -3873,6 +3963,7 @@ player.CharacterAdded:Connect(function(char)
 end)
 end
 initBoundaryProtection()
+
 local function initVoidProtection()
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
@@ -3925,6 +4016,7 @@ root.Transparency = 0.5
         if hbConnection then
             hbConnection:Disconnect()
         end
+
 pcall(function()
     if model then
         model:Destroy()
@@ -4005,6 +4097,7 @@ local function runVoidProbeBatch()
     if #measurements == 0 then
         return false, nil, nil, "no_measurements"
     end
+
     local groups = {}
     for _, measurement in ipairs(measurements) do
         local matchedGroup = nil
@@ -4027,6 +4120,7 @@ local function runVoidProbeBatch()
         matchedGroup.lastY = measurement.y
         matchedGroup.lastName = measurement.name
     end
+
     local bestGroup = groups[1]
     for _, group in ipairs(groups) do
         if group.count > bestGroup.count then
@@ -4035,6 +4129,7 @@ local function runVoidProbeBatch()
             bestGroup = group
         end
     end
+
     return true, bestGroup.lastY, bestGroup.lastName, nil
 end
 local initialOk, initialVoidY, initialProbeName, initialError = runVoidProbeBatch()
@@ -4053,7 +4148,7 @@ else
         end
     end
     if not foundVoidY then
-        warn(initialError or "
+        warn(initialError or "---")
     end
 end
 local BUFFER = 211
@@ -4085,3 +4180,31 @@ player.CharacterAdded:Connect(function(char)
 end)
 end
 initVoidProtection()
+local function Antibug()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+
+    local player = Players.LocalPlayer
+    local maxDist = 50
+
+    RunService.Heartbeat:Connect(function()
+        local char = player.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        for _, p in Players:GetPlayers() do
+            if p ~= player and p.Character then
+                local oroot = p.Character:FindFirstChild("HumanoidRootPart")
+                if oroot and (root.Position - oroot.Position).Magnitude <= maxDist then
+                    hum.CameraOffset = Vector3.new(0, 0, 0)
+                    return
+                end
+            end
+        end
+    end)
+end
+
+Antibug()
