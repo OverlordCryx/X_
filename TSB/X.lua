@@ -4195,7 +4195,7 @@ local function Antibug()
         for _, p in Players:GetPlayers() do
             if p ~= player and p.Character then
                 local ohum = p.Character:FindFirstChildOfClass("Humanoid")
-                if ohum and ohum.Health > 0 then  
+                if ohum and ohum.Health <= 0 then  
                     local oroot = p.Character:FindFirstChild("HumanoidRootPart")
                     if oroot and (root.Position - oroot.Position).Magnitude <= maxDist then
                         hum.CameraOffset = Vector3.new(0, 0, 0)
