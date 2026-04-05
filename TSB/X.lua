@@ -160,6 +160,7 @@ local dropdownMap
 local syncTargetUI
 local disconnectChosenTargetWatch
 local lastDropdownValues = {}
+local lastDropdownSelectedValue = nil
 local syncCamlockVisualTarget
 local isUIUpdating = false
 local viewing = false
@@ -1813,6 +1814,9 @@ Tabs.KEY:AddKeybind("camKeybind", {
                 camlockConn:Disconnect()
                 camlockConn = nil
             end
+            if playerChosen then
+                clearChosenTarget()
+            end
         end
     end
 })
@@ -2384,6 +2388,26 @@ local function getAttackTarget()
     end
     return getClosestTarget()
 end
+
+local function isAttackTargetStillValid(target)
+    if not (target and target.Parent and target:IsDescendantOf(workspace)) then
+        return false
+    end
+    local model = target:FindFirstAncestorOfClass("Model")
+    if not model then
+        return false
+    end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then
+        return false
+    end
+    local plr = Players:GetPlayerFromCharacter(model)
+    if plr and not isSelectablePlayerTarget(plr) then
+        return false
+    end
+    return true
+end
+
 local holdingMouse = false
 local attackLoopRunning = false
 local lastAttackTime = 0
@@ -2400,7 +2424,14 @@ local function performAttackTeleport()
         return
     end
     local target = getAttackTarget()
-    if not target then
+    if not target or not isAttackTargetStillValid(target) then
+        if playerChosen and not isSelectablePlayerTarget(playerChosen) then
+            clearChosenTarget()
+        end
+        if CamlockEnabled and CamlockTarget and not isAttackTargetStillValid(CamlockTarget) then
+            CamlockTarget = nil
+            syncCamlockVisualTarget()
+        end
         VisualFix:Stop()
         return
     end
@@ -2536,12 +2567,21 @@ getPlayerFromTargetRoot = function(targetRoot)
     return Players:GetPlayerFromCharacter(model)
 end
 
+isSelectablePlayerTarget = function(plr)
+    if not (plr and plr.Parent == Players) then return false end
+    local char = plr.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    return getRootUniversal(char) ~= nil
+end
+
 getPriorityTargetPlayer = function()
     if CamlockEnabled then
         local camPlayer = getPlayerFromTargetRoot(CamlockTarget)
-        if camPlayer then return camPlayer end
+        if isSelectablePlayerTarget(camPlayer) then return camPlayer end
     end
-    if playerChosen and playerChosen.Parent == game.Players then
+    if isSelectablePlayerTarget(playerChosen) then
         return playerChosen
     end
     return nil
@@ -2591,7 +2631,10 @@ syncTargetUI = function()
         pcall(function() Dropdown:SetValues(values) end)
     end
     
-    pcall(function() Dropdown:SetValue(display) end)
+    if lastDropdownSelectedValue ~= display then
+        lastDropdownSelectedValue = display
+        pcall(function() Dropdown:SetValue(display) end)
+    end
     forceUpdateTargetStatusParagraph()
     isUIUpdating = false
 end
@@ -2630,8 +2673,28 @@ end
 watchChosenTarget = function(plr)
     disconnectChosenTargetWatch()
     if not (plr and plr.Parent == game.Players) then return end
-    chosenTargetHeartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
-        if playerChosen ~= plr or not plr.Parent then
+    local function bindHumanoidWatch(char)
+        if chosenTargetHumConn then
+            chosenTargetHumConn:Disconnect()
+            chosenTargetHumConn = nil
+        end
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            chosenTargetHumConn = hum.Died:Connect(function()
+                if playerChosen == plr then
+                    clearChosenTarget()
+                end
+            end)
+        end
+    end
+    bindHumanoidWatch(plr.Character)
+    chosenTargetHeartbeatConn = plr.CharacterAdded:Connect(function(char)
+        if playerChosen ~= plr then return end
+        bindHumanoidWatch(char)
+        queueSyncUI()
+    end)
+    task.defer(function()
+        if playerChosen == plr and not isSelectablePlayerTarget(plr) then
             clearChosenTarget()
         end
     end)
@@ -2639,7 +2702,26 @@ end
 
 triggerMouseTargetSet = function()
     local Lp = game.Players.LocalPlayer
-    if CamlockEnabled or not Lp then return end
+    if not Lp then return end
+
+    if CamlockEnabled then
+        CamlockEnabled = false
+        CamlockTarget = nil
+        lastCamlockVisualPlayer = false
+        if camlockState and camlockState.statusParagraph then
+            camlockState.statusParagraph:SetTitle("CamLock : OFF")
+        end
+        if camlockConn then
+            camlockConn:Disconnect()
+            camlockConn = nil
+        end
+        if playerChosen then
+            clearChosenTarget()
+        else
+            syncTargetUI()
+        end
+        return
+    end
 
     if playerChosen then
         clearChosenTarget()
@@ -2699,7 +2781,11 @@ end)
 
 local oldSyncCamlock = syncCamlockVisualTarget
 syncCamlockVisualTarget = function()
-    syncTargetUI()
+    if oldSyncCamlock then
+        oldSyncCamlock()
+    else
+        syncTargetUI()
+    end
 end
 
 Tabs.KEY:AddKeybind("MouseTargetSet", {
@@ -3514,7 +3600,13 @@ function initPlayerTargetUI()
             end
             if not flingOneOn then return end
             local targetPlr = getPriorityTargetPlayer()
-            if not targetPlr then return end
+            if not targetPlr then
+                if playerChosen and not isSelectablePlayerTarget(playerChosen) then
+                    FlingOneToggle:SetValue(false)
+                    clearChosenTarget()
+                end
+                return
+            end
             if not targetPlr.Parent then
                 FlingOneToggle:SetValue(false)
                 return
@@ -3558,7 +3650,13 @@ function initPlayerTargetUI()
             end
             if not autoTpOn then return end
             local targetPlr = getPriorityTargetPlayer()
-            if not targetPlr then return end
+            if not targetPlr then
+                if playerChosen and not isSelectablePlayerTarget(playerChosen) then
+                    AutoTpToggle:SetValue(false)
+                    clearChosenTarget()
+                end
+                return
+            end
             local myChar = LocalPlayer.Character
             local targetChar = targetPlr.Character
             if not (myChar and targetChar) then return end
@@ -3633,7 +3731,10 @@ function initPlayerTargetUI()
             pcall(function() Dropdown:SetValues(values) end)
         end
         
-        pcall(function() Dropdown:SetValue(display) end)
+        if lastDropdownSelectedValue ~= display then
+            lastDropdownSelectedValue = display
+            pcall(function() Dropdown:SetValue(display) end)
+        end
         forceUpdateTargetStatusParagraph()
         isUIUpdating = false
     end
@@ -3867,32 +3968,9 @@ end
 
 
 local function disableTeleportFeaturesForVoidProtection()
+    -- Protection should only pause teleport behaviour through SafeTeleportLock.
+    -- Do not flip UI toggles/keybind state here.
     VisualFix:Stop()
-    if autoTpOn then
-        if AutoTpToggle and AutoTpToggle.SetValue then
-            AutoTpToggle:SetValue(false)
-        else
-            autoTpOn = false
-            if autoTpConnection then
-                autoTpConnection:Disconnect()
-                autoTpConnection = nil
-            end
-        end
-    end
-    if flingOneOn then
-        if FlingOneToggle and FlingOneToggle.SetValue then
-            FlingOneToggle:SetValue(false)
-        else
-            flingOneOn = false
-            if flingOneConnection then
-                flingOneConnection:Disconnect()
-                flingOneConnection = nil
-            end
-        end
-    end
-    if _G.NOTHINGX_TrashPlayer and _G.NOTHINGX_TrashPlayer.IsRunning and _G.NOTHINGX_TrashPlayer.IsRunning() then
-        _G.NOTHINGX_TrashPlayer.SetRunning(false)
-    end
 end
 
 _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
