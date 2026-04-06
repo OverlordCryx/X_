@@ -204,7 +204,11 @@ local AttackTargeting = {
 Window:SelectTab()
 task.defer(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()end)
 task.defer(function() loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()end)
-local player = game.Players.LocalPlayer
+       local player = game.Players.LocalPlayer
+
+                Window:Minimize()
+                task.wait(0.01)
+                Window:Minimize()
 
 
 local proceed = false
@@ -220,6 +224,7 @@ Window:Dialog({
         }
     }
 })
+
 while not proceed do task.wait(0.05) end
 if not proceed then return end
 local player = game.Players.LocalPlayer
@@ -4637,3 +4642,9 @@ local function Antibug()
     end)
 end
 Antibug()
+    Fluent:Notify({
+        Title = "NOTHING X",
+        Content = "_X",
+        SubContent = "", 
+        Duration = 1.6
+    })
