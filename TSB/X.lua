@@ -167,6 +167,40 @@ local viewing = false
 local lastTargetStatusTitle = ""
 local syncQueued = false
 local TrashPlayerKeybind
+local attackState = {
+    active = false,
+    statusParagraph = nil
+}
+local ZERO_DELAY_ALL_TP = true
+local ATTACK_RATE = 0
+local AttackTargeting = {
+    localPlayer = nil,
+    attackMouse = nil,
+    modelScanRate = 0,
+    maxTargetDistance = 90000,
+    trashDistance = 12,
+    mapFolder = nil,
+    trashFolder = nil,
+    liveFolder = nil,
+    character = nil,
+    humanoid = nil,
+    root = nil,
+    hasTrash = false,
+    trashNearby = false,
+    trashLoopRunning = false,
+    trashLoopThread = nil,
+    targetCache = {},
+    scanLoopRunning = false,
+    scanLoopThread = nil,
+    lastScanTime = 0,
+    holdingMouse = false,
+    attackLoopRunning = false,
+    lastAttackTime = 0,
+    attackLoopThread = nil,
+    chosenTargetHumConn = nil,
+    chosenTargetHeartbeatConn = nil,
+    oldSyncCamlock = nil
+}
 Window:SelectTab()
 task.defer(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()end)
 task.defer(function() loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()end)
@@ -268,8 +302,28 @@ end
 local TELEPORT_MAX_HORIZONTAL_SPEED = 420
 local TELEPORT_MAX_VERTICAL_SPEED = 260
 local TELEPORT_MAX_PREDICTION = 18
+local TELEPORT_MAX_AIR_PREDICTION = 26
 local TELEPORT_MOMENTUM_GRACE = 0.14
+local TELEPORT_AIR_Y_THRESHOLD = 7
+local TELEPORT_FAST_HORIZONTAL_SPEED = 95
+local TELEPORT_STICKY_DURATION = 0.05
+local TELEPORT_STICKY_AIR_DURATION = 0.18
+local TELEPORT_STICKY_LOCAL_AIR_DURATION = 0.12
+local TELEPORT_AIR_STATE_NAMES = {
+    Freefall = true,
+    Jumping = true,
+    FallingDown = true,
+    PlatformStanding = true,
+    Physics = true,
+    Ragdoll = true
+}
 local teleportMomentumPauseUntil = 0
+local stickyTeleportState = {
+    character = nil,
+    root = nil,
+    targetCFrame = nil,
+    expiresAt = 0
+}
 local function getTeleportMomentumPauseRemaining()
     local remaining = teleportMomentumPauseUntil - tick()
     return (remaining > 0 and remaining) or 0
@@ -299,18 +353,191 @@ local function sanitizeTeleportVelocity(rawVel)
         horizontal.Z
     )
 end
-local function getTeleportPrediction(targetVel, scale)
+local function getTeleportSupportResult(position, ignoreInstance)
+    if not position then
+        return nil
+    end
+    if not (_G.NOTHINGX_Protection and _G.NOTHINGX_Protection.getSupportResultAt) then
+        return nil
+    end
+    return _G.NOTHINGX_Protection.getSupportResultAt(position, ignoreInstance)
+end
+local function getTeleportMotionProfile(characterModel, rootPart, rawVel)
+    local safeVel = sanitizeTeleportVelocity(rawVel)
+    local horizontal = Vector3.new(safeVel.X, 0, safeVel.Z).Magnitude
+    local humanoid = characterModel and characterModel:FindFirstChildOfClass("Humanoid")
+    local stateName = nil
+    if humanoid then
+        local ok, state = pcall(humanoid.GetState, humanoid)
+        if ok and state then
+            stateName = state.Name
+        end
+    end
+    local support = rootPart and rootPart.Parent and getTeleportSupportResult(rootPart.Position, characterModel) or nil
+    local noSupport = not (support and support.Instance)
+    local airborne = TELEPORT_AIR_STATE_NAMES[stateName]
+        or math.abs(safeVel.Y) > TELEPORT_AIR_Y_THRESHOLD
+        or (noSupport and horizontal > 14)
+    return {
+        velocity = safeVel,
+        airborne = airborne,
+        falling = safeVel.Y < -TELEPORT_AIR_Y_THRESHOLD,
+        rising = safeVel.Y > TELEPORT_AIR_Y_THRESHOLD,
+        fast = horizontal > TELEPORT_FAST_HORIZONTAL_SPEED,
+        noSupport = noSupport,
+        stateName = stateName
+    }
+end
+local function syncRootControllers(rootPart, targetCFrame)
+    if not (rootPart and rootPart.Parent and targetCFrame) then return end
+    local bodyPosition = rootPart:FindFirstChildOfClass("BodyPosition")
+    if bodyPosition then
+        bodyPosition.Position = targetCFrame.Position
+    end
+    local bodyGyro = rootPart:FindFirstChildOfClass("BodyGyro")
+    if bodyGyro then
+        bodyGyro.CFrame = targetCFrame
+    end
+    for _, child in ipairs(rootPart:GetChildren()) do
+        if child:IsA("BodyVelocity") then
+            child.Velocity = Vector3.zero
+        elseif child:IsA("LinearVelocity") then
+            child.VectorVelocity = Vector3.zero
+        elseif child:IsA("AlignPosition") then
+            pcall(function()
+                child.Position = targetCFrame.Position
+            end)
+        elseif child:IsA("AlignOrientation") then
+            pcall(function()
+                child.CFrame = targetCFrame
+            end)
+        end
+    end
+end
+local function setStickyTeleport(characterModel, rootPart, targetCFrame, duration)
+    stickyTeleportState.character = characterModel
+    stickyTeleportState.root = rootPart
+    stickyTeleportState.targetCFrame = targetCFrame
+    stickyTeleportState.expiresAt = (duration and duration > 0) and (tick() + duration) or 0
+end
+RunService.Heartbeat:Connect(function()
+    if stickyTeleportState.expiresAt <= 0 then
+        return
+    end
+    if isSafeTeleportLocked() or tick() >= stickyTeleportState.expiresAt then
+        setStickyTeleport(nil, nil, nil, 0)
+        return
+    end
+    local characterModel = stickyTeleportState.character
+    local rootPart = stickyTeleportState.root
+    local targetCFrame = stickyTeleportState.targetCFrame
+    if not (characterModel and characterModel.Parent and rootPart and rootPart.Parent and targetCFrame) then
+        setStickyTeleport(nil, nil, nil, 0)
+        return
+    end
+    rootPart.AssemblyLinearVelocity = Vector3.zero
+    rootPart.AssemblyAngularVelocity = Vector3.zero
+    syncRootControllers(rootPart, targetCFrame)
+    characterModel:PivotTo(targetCFrame)
+end)
+local function getTeleportStickyDuration(targetMotion, localMotion)
+    local duration = TELEPORT_STICKY_DURATION
+    if targetMotion and targetMotion.airborne then
+        duration = TELEPORT_STICKY_AIR_DURATION
+    end
+    if targetMotion and targetMotion.fast then
+        duration = math.max(duration, 0.1)
+    end
+    if localMotion and localMotion.airborne then
+        duration = math.max(duration, TELEPORT_STICKY_LOCAL_AIR_DURATION)
+    end
+    return duration
+end
+local function resolveAirTeleportOffsets(backOffset, verticalOffset, targetMotion, localMotion, mode)
+    local back = backOffset or 0
+    local vertical = verticalOffset or 0
+    local airborneTarget = targetMotion and targetMotion.airborne
+    local airborneLocal = localMotion and localMotion.airborne
+    if not airborneTarget and not airborneLocal then
+        return back, vertical
+    end
+
+    local isTrashMode = (mode == "trash")
+    local backCap = isTrashMode and 0.08 or 0.02
+    if back > backCap then
+        back = backCap
+    end
+
+    if isTrashMode then
+        if airborneTarget and targetMotion.falling then
+            vertical = -0.55
+        elseif airborneTarget and targetMotion.rising then
+            vertical = -0.3
+        else
+            vertical = -0.4
+        end
+    else
+        if airborneTarget and targetMotion.falling then
+            vertical = 0.02
+        elseif airborneTarget and targetMotion.rising then
+            vertical = 0.08
+        else
+            vertical = 0.04
+        end
+        if airborneLocal and vertical < 0.02 then
+            vertical = 0.02
+        end
+    end
+
+    return back, vertical
+end
+local function getTeleportPrediction(targetVel, scale, targetRoot, localRoot)
     local safeVel = sanitizeTeleportVelocity(targetVel)
+    local targetMotion = nil
+    if targetRoot and targetRoot.Parent then
+        targetMotion = getTeleportMotionProfile(targetRoot.Parent, targetRoot, safeVel)
+        safeVel = targetMotion.velocity
+    end
+    local localMotion = nil
+    if localRoot and localRoot.Parent then
+        localMotion = getTeleportMotionProfile(localRoot.Parent, localRoot, localRoot.AssemblyLinearVelocity or Vector3.zero)
+    end
     local ping = 0
     local plr = Players.LocalPlayer
     if plr and plr.GetNetworkPing then
         ping = plr:GetNetworkPing() or 0
     end
-    local prediction = safeVel * math.max(ping, 0) * (scale or 1)
-    if prediction.Magnitude > TELEPORT_MAX_PREDICTION then
-        prediction = prediction.Unit * TELEPORT_MAX_PREDICTION
+    local dynamicScale = scale or 1
+    if targetMotion then
+        if targetMotion.airborne then
+            dynamicScale = dynamicScale * 1.18
+        end
+        if targetMotion.falling then
+            dynamicScale = dynamicScale * 1.08
+        elseif targetMotion.rising then
+            dynamicScale = dynamicScale * 1.04
+        end
+        if targetMotion.fast then
+            dynamicScale = dynamicScale * 1.06
+        end
     end
-    return prediction, safeVel
+    if localMotion and localMotion.airborne then
+        dynamicScale = dynamicScale * 1.05
+    end
+    local prediction = safeVel * math.max(ping, 0) * dynamicScale
+    if targetMotion and targetMotion.airborne then
+        prediction = prediction + (safeVel * (targetMotion.falling and 0.04 or 0.028))
+        if targetMotion.falling then
+            prediction = prediction + Vector3.new(0, math.clamp(safeVel.Y * 0.028, -4.5, 0), 0)
+        elseif targetMotion.rising then
+            prediction = prediction + Vector3.new(0, math.clamp(safeVel.Y * 0.015, 0, 2.2), 0)
+        end
+    end
+    local predictionCap = (targetMotion and targetMotion.airborne) and TELEPORT_MAX_AIR_PREDICTION or TELEPORT_MAX_PREDICTION
+    if prediction.Magnitude > predictionCap then
+        prediction = prediction.Unit * predictionCap
+    end
+    return prediction, safeVel, targetMotion, localMotion
 end
 
 local function queueSyncUI()
@@ -439,26 +666,20 @@ local function startView(targetPlayer)
         end
     end)
 end
-local function strongPivotCharacter(characterModel, rootPart, targetCFrame, pauseDuration)
+local function strongPivotCharacter(characterModel, rootPart, targetCFrame, pauseDuration, stickyDuration)
     if not (characterModel and targetCFrame) then return end
     markTeleportMomentumPause(pauseDuration)
     if rootPart and rootPart.Parent then
         rootPart.AssemblyLinearVelocity = Vector3.zero
         rootPart.AssemblyAngularVelocity = Vector3.zero
-        local bodyPosition = rootPart:FindFirstChildOfClass("BodyPosition")
-        if bodyPosition then
-            bodyPosition.Position = targetCFrame.Position
-        end
-        local bodyGyro = rootPart:FindFirstChildOfClass("BodyGyro")
-        if bodyGyro then
-            bodyGyro.CFrame = targetCFrame
-        end
+        syncRootControllers(rootPart, targetCFrame)
     end
     local humanoid = characterModel:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid:Move(Vector3.zero, true)
     end
     characterModel:PivotTo(targetCFrame)
+    setStickyTeleport(characterModel, rootPart, targetCFrame, stickyDuration or 0)
 end
 local function getTeleportFollowCFrame(targetRoot, targetVel, backOffset, verticalOffset)
     targetVel = sanitizeTeleportVelocity(targetVel)
@@ -482,7 +703,11 @@ local function getTeleportFollowCFrame(targetRoot, targetVel, backOffset, vertic
     if verticalOffset and verticalOffset ~= 0 then
         followPos = followPos + Vector3.new(0, verticalOffset, 0)
     end
-    return CFrame.lookAt(followPos, basePos)
+    local lookAtPos = basePos
+    if targetVel.Magnitude > 1 then
+        lookAtPos = basePos + (targetVel * 0.03)
+    end
+    return CFrame.lookAt(followPos, lookAtPos)
 end
 local TPVariantMode = "Aggressive"
 local TPVariantSettings = {
@@ -1392,13 +1617,22 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
     if not targetRoot then return end
     local prediction
     local targetVel
-    prediction, targetVel = getTeleportPrediction(
+    local targetMotion
+    local localMotion
+    prediction, targetVel, targetMotion, localMotion = getTeleportPrediction(
         targetRoot.AssemblyLinearVelocity or Vector3.zero,
-        getTpVariantValue("trashPrediction", 0.55)
+        getTpVariantValue("trashPrediction", 0.55),
+        targetRoot,
+        hrp
     )
     local config = getTpVariantConfig()
-    local offset = behindDist or config.trashBack or 0.7
-    local verticalOffset = config.trashVertical or -2.46
+    local offset, verticalOffset = resolveAirTeleportOffsets(
+        behindDist or config.trashBack or 0.7,
+        config.trashVertical or -2.46,
+        targetMotion,
+        localMotion,
+        "trash"
+    )
     VisualFix:Start(targetRoot)
     local targetProxy = {
         Position = targetRoot.Position + prediction,
@@ -1408,7 +1642,8 @@ local function deliverTrashToPlayer(targetPlayer, behindDist)
         character,
         hrp,
         getTeleportFollowCFrame(targetProxy, targetVel, offset, verticalOffset),
-        getTpVariantPauseDuration()
+        getTpVariantPauseDuration(),
+        getTeleportStickyDuration(targetMotion, localMotion)
     )
     click()
 end
@@ -1820,24 +2055,26 @@ Tabs.KEY:AddKeybind("camKeybind", {
         end
     end
 })
-local LocalPlayer = Players.LocalPlayer
-local speaker = LocalPlayer
-local power = 1000
-local flingAllPower = 1000
-local flingOn = false
-local auraFlingOn = false
-local clickFlingOn = false
-local auraRange = 20
-local orbitStepXZ = 0
-local orbitStepY = 0
-local orbitMax = 1.3
-local orbitIncrement = 0.1
-local orbitSpeed = 999999999999999
-local walkflinging = false
-local walkFlingMode = "Normal"
-local zero = Vector3.zero
-local walkFlingState = {
-    statusParagraph = UIStatus.walkfling
+local flingState = {
+    localPlayer = Players.LocalPlayer,
+    power = 1000,
+    flingAllPower = 1000,
+    flingOn = false,
+    auraFlingOn = false,
+    clickFlingOn = false,
+    auraRange = 20,
+    orbitStepXZ = 0,
+    orbitStepY = 0,
+    orbitMax = 1.3,
+    orbitIncrement = 0.1,
+    orbitSpeed = 999999999999999,
+    walkflinging = false,
+    walkFlingMode = "Normal",
+    walkStatusParagraph = UIStatus.walkfling,
+    clickFlingConnection = nil,
+    clickFlingBusy = false,
+    flingAllConn = nil,
+    flingTargetIndex = 1
 }
 local function getRootUniversal(char)
     return char and (
@@ -1848,20 +2085,20 @@ local function getRootUniversal(char)
 end
 local function WalkFlingLoop()
     local movel = 0.1
-    while walkflinging do
+    while flingState.walkflinging do
         RunService.Heartbeat:Wait()
-        local char = speaker.Character
+        local char = flingState.localPlayer.Character
         local root = getRootUniversal(char)
 if char and root then
-    if walkFlingMode == "Forward" then
+    if flingState.walkFlingMode == "Forward" then
         local vel = root.Velocity
         local lookVector = char.HumanoidRootPart.CFrame.LookVector
-        root.Velocity = lookVector * power
+        root.Velocity = lookVector * flingState.power
         RunService.RenderStepped:Wait()
         root.Velocity = vel
     else 
         local vel = root.Velocity
-        root.Velocity = vel * power + Vector3.new(0, power, 0)
+        root.Velocity = vel * flingState.power + Vector3.new(0, flingState.power, 0)
         RunService.RenderStepped:Wait()
         root.Velocity = vel
         RunService.Stepped:Wait()
@@ -1876,35 +2113,35 @@ Tabs.KEY:AddKeybind("WalkFlingKey", {
     Mode = "Toggle",
     Default = "X",
     Callback = function()
-        walkflinging = not walkflinging
-        if not walkFlingState.statusParagraph then
-            walkFlingState.statusParagraph = UIStatus.walkfling
+        flingState.walkflinging = not flingState.walkflinging
+        if not flingState.walkStatusParagraph then
+            flingState.walkStatusParagraph = UIStatus.walkfling
         end
-        if walkFlingState.statusParagraph then
-            walkFlingState.statusParagraph:SetTitle(
-                walkflinging and "Walk Fling : ON" or "Walk Fling : OFF"
+        if flingState.walkStatusParagraph then
+            flingState.walkStatusParagraph:SetTitle(
+                flingState.walkflinging and "Walk Fling : ON" or "Walk Fling : OFF"
             )
         end
         Fluent:Notify({
             Title = "NOTHING X",
-            Content = "Walk Fling: " .. (walkflinging and "ON" or "OFF"),
+            Content = "Walk Fling: " .. (flingState.walkflinging and "ON" or "OFF"),
             Duration = 1.4
         })
-        if walkflinging then
+        if flingState.walkflinging then
             task.spawn(WalkFlingLoop)
         end
     end
 })
 Tabs.TOG:AddInput("WalkPowerInput", {
     Title = "Walk Fling Power",
-    Default = tostring(power),
+    Default = tostring(flingState.power),
     Placeholder = "Enter Power or inf",
     Numeric = false,
     Callback = function(Value)
         if Value:lower() == "inf" then
-            power = 1e12
+            flingState.power = 1e12
         else
-            power = tonumber(Value) or power
+            flingState.power = tonumber(Value) or flingState.power
         end
     end
 })
@@ -1914,19 +2151,19 @@ Tabs.TOG:AddDropdown("Dropdown_F_N", {
     Multi = false,
     Default = "Normal",
     Callback = function(value)
-        walkFlingMode = value
+        flingState.walkFlingMode = value
     end
 })
 Tabs.TOG:AddInput("FlingAllPowerInput", {
     Title = "Fling / Aura Power",
-    Default = tostring(flingAllPower),
+    Default = tostring(flingState.flingAllPower),
     Placeholder = "Enter Power or inf",
     Numeric = false,
     Callback = function(Value)
         if Value:lower() == "inf" then
-            flingAllPower = 1e12
+            flingState.flingAllPower = 1e12
         else
-            flingAllPower = tonumber(Value) or flingAllPower
+            flingState.flingAllPower = tonumber(Value) or flingState.flingAllPower
         end
     end
 })
@@ -1940,25 +2177,25 @@ local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
     Multi = false,
     Default = "20",
     Callback = function(value)
-        auraRange = tonumber(value) or auraRange
+        flingState.auraRange = tonumber(value) or flingState.auraRange
     end
 })
 local function auraFling()
     task.spawn(function()
-        while auraFlingOn do
-            local myChar = LocalPlayer.Character
+        while flingState.auraFlingOn do
+            local myChar = flingState.localPlayer.Character
             local myRoot = getRootUniversal(myChar)
             if myRoot then
                 local originalCFrame = myRoot.CFrame
-                local p = flingAllPower
+                local p = flingState.flingAllPower
                 local myPos = myRoot.Position
                 local hitAny = false
                 for _,player in pairs(getTrackedPlayers()) do
-                    if player ~= LocalPlayer and player.Character then
+                    if player ~= flingState.localPlayer and player.Character then
                         local targetRoot = getRootUniversal(player.Character)
                         if targetRoot then
                             local dist = (targetRoot.Position - myPos).Magnitude
-                            if dist <= auraRange then
+                            if dist <= flingState.auraRange then
                                 hitAny = true
                                 VisualFix:Start(targetRoot)
                                 myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -1988,18 +2225,16 @@ Tabs.TOG:AddToggle("AuraFlingToggle", {
     Title = "Aura Fling",
     Default = false,
     Callback = function(state)
-        auraFlingOn = state
+        flingState.auraFlingOn = state
         if state then auraFling() end
     end
 })
-local clickFlingConnection
-local clickFlingBusy = false
 local function getPlayerFromClickedPart(part)
     local current = part
     while current do
         if current:IsA("Model") then
             local plr = Players:GetPlayerFromCharacter(current)
-            if plr and plr ~= LocalPlayer then
+            if plr and plr ~= flingState.localPlayer then
                 return plr
             end
         end
@@ -2008,32 +2243,32 @@ local function getPlayerFromClickedPart(part)
     return nil
 end
 local function clickFlingTarget(targetPlayer)
-    if clickFlingBusy then return end
-    clickFlingBusy = true
+    if flingState.clickFlingBusy then return end
+    flingState.clickFlingBusy = true
     task.spawn(function()
-        local myChar = LocalPlayer.Character
+        local myChar = flingState.localPlayer.Character
         local targetChar = targetPlayer and targetPlayer.Character
         local myRoot = getRootUniversal(myChar)
         local targetRoot = getRootUniversal(targetChar)
         if myRoot and targetRoot then
             local savedCFrame = myRoot.CFrame
             VisualFix:Start(targetRoot)
-            local p = flingAllPower
+            local p = flingState.flingAllPower
             local t = 0
             local startTime = tick()
             while tick() - startTime < 8 do
-                if not clickFlingOn then break end
+                if not flingState.clickFlingOn then break end
                 targetChar = targetPlayer and targetPlayer.Character
                 targetRoot = getRootUniversal(targetChar)
                 if not targetRoot or not targetRoot.Parent then break end
                 local dt = RunService.Heartbeat:Wait()
-                t = t + dt * orbitSpeed
-                local orbitDistanceXZ = orbitStepXZ
-                local orbitDistanceY = orbitStepY
-                orbitStepXZ = orbitStepXZ + orbitIncrement
-                orbitStepY = orbitStepY + orbitIncrement
-                if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
-                if orbitStepY > orbitMax then orbitStepY = 0 end
+                t = t + dt * flingState.orbitSpeed
+                local orbitDistanceXZ = flingState.orbitStepXZ
+                local orbitDistanceY = flingState.orbitStepY
+                flingState.orbitStepXZ = flingState.orbitStepXZ + flingState.orbitIncrement
+                flingState.orbitStepY = flingState.orbitStepY + flingState.orbitIncrement
+                if flingState.orbitStepXZ > flingState.orbitMax then flingState.orbitStepXZ = 0 end
+                if flingState.orbitStepY > flingState.orbitMax then flingState.orbitStepY = 0 end
                 local offset = Vector3.new(
                     math.cos(t) * orbitDistanceXZ,
                     orbitDistanceY,
@@ -2044,29 +2279,29 @@ local function clickFlingTarget(targetPlayer)
                 myRoot.AssemblyLinearVelocity =
                     targetRoot.CFrame.LookVector * p + Vector3.new(0, p * 0.5, 0)
             end
-            myRoot.AssemblyAngularVelocity = zero
-            myRoot.AssemblyLinearVelocity = zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
+            myRoot.AssemblyLinearVelocity = Vector3.zero
             if myRoot.Parent then
                 myRoot.CFrame = savedCFrame
             end
             VisualFix:Stop()
         end
-        clickFlingBusy = false
+        flingState.clickFlingBusy = false
     end)
 end
 Tabs.TOG:AddToggle("ClickFlingToggle", {
     Title = "Click Fling",
     Default = false,
     Callback = function(state)
-        clickFlingOn = state
-        if clickFlingConnection then
-            clickFlingConnection:Disconnect()
-            clickFlingConnection = nil
+        flingState.clickFlingOn = state
+        if flingState.clickFlingConnection then
+            flingState.clickFlingConnection:Disconnect()
+            flingState.clickFlingConnection = nil
         end
         if state then
-            local mouse = LocalPlayer:GetMouse()
-            clickFlingConnection = mouse.Button1Down:Connect(function()
-                if not clickFlingOn then return end
+            local mouse = flingState.localPlayer:GetMouse()
+            flingState.clickFlingConnection = mouse.Button1Down:Connect(function()
+                if not flingState.clickFlingOn then return end
                 local hitPart = mouse.Target
                 local targetPlayer = hitPart and getPlayerFromClickedPart(hitPart)
                 if targetPlayer then
@@ -2076,67 +2311,65 @@ Tabs.TOG:AddToggle("ClickFlingToggle", {
         end
     end
 })
-local flingAllConn = nil
-local flingTargetIndex = 1
 local function flingAll()
-    if flingAllConn then flingAllConn:Disconnect() end
-    flingTargetIndex = 1
+    if flingState.flingAllConn then flingState.flingAllConn:Disconnect() end
+    flingState.flingTargetIndex = 1
     local t = 0
     VisualFix:Start(nil) 
-    flingAllConn = RunService.Heartbeat:Connect(function(dt)
-        if not flingOn then
-            if flingAllConn then
-                flingAllConn:Disconnect()
-                flingAllConn = nil
+    flingState.flingAllConn = RunService.Heartbeat:Connect(function(dt)
+        if not flingState.flingOn then
+            if flingState.flingAllConn then
+                flingState.flingAllConn:Disconnect()
+                flingState.flingAllConn = nil
             end
-            local myChar = LocalPlayer.Character
+            local myChar = flingState.localPlayer.Character
             local myRoot = myChar and getRootUniversal(myChar)
             if myRoot then
-                myRoot.AssemblyAngularVelocity = zero
-                myRoot.AssemblyLinearVelocity = zero
+                myRoot.AssemblyAngularVelocity = Vector3.zero
+                myRoot.AssemblyLinearVelocity = Vector3.zero
             end
             VisualFix:Stop()
             return
         end
-        local myChar = LocalPlayer.Character
+        local myChar = flingState.localPlayer.Character
         local myRoot = myChar and getRootUniversal(myChar)
         if not myRoot then return end
-        local p = flingAllPower
+        local p = flingState.flingAllPower
         local players = getTrackedPlayers()
         local targets = {}
         for i = 1, #players do
             local plr = players[i]
-            if plr ~= LocalPlayer and plr.Character then
+            if plr ~= flingState.localPlayer and plr.Character then
                 local targetRoot = getRootUniversal(plr.Character)
                 if targetRoot then table.insert(targets, targetRoot) end
             end
         end
         if #targets == 0 then return end
-        if flingTargetIndex > #targets then flingTargetIndex = 1 end
-        local targetRoot = targets[flingTargetIndex]
-        t = t + dt * orbitSpeed
-        orbitStepXZ = orbitStepXZ + orbitIncrement
-        orbitStepY = orbitStepY + orbitIncrement
-        if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
-        if orbitStepY > orbitMax then orbitStepY = 0 end
+        if flingState.flingTargetIndex > #targets then flingState.flingTargetIndex = 1 end
+        local targetRoot = targets[flingState.flingTargetIndex]
+        t = t + dt * flingState.orbitSpeed
+        flingState.orbitStepXZ = flingState.orbitStepXZ + flingState.orbitIncrement
+        flingState.orbitStepY = flingState.orbitStepY + flingState.orbitIncrement
+        if flingState.orbitStepXZ > flingState.orbitMax then flingState.orbitStepXZ = 0 end
+        if flingState.orbitStepY > flingState.orbitMax then flingState.orbitStepY = 0 end
         local offset = Vector3.new(
-            math.cos(t) * orbitStepXZ,
-            orbitStepY,
-            math.sin(t) * orbitStepXZ
+            math.cos(t) * flingState.orbitStepXZ,
+            flingState.orbitStepY,
+            math.sin(t) * flingState.orbitStepXZ
         )
         myRoot.CFrame = targetRoot.CFrame + offset
         myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
         myRoot.AssemblyLinearVelocity =
             targetRoot.CFrame.LookVector * p +
             Vector3.new(0, p * 0.5, 0)
-        flingTargetIndex = flingTargetIndex + 1
+        flingState.flingTargetIndex = flingState.flingTargetIndex + 1
     end)
 end
 Tabs.TOG:AddToggle("FlingAllToggle", {
     Title = "Fling All",
     Default = false,
     Callback = function(state)
-        flingOn = state
+        flingState.flingOn = state
         if state then
             flingAll()
         end
@@ -2154,7 +2387,7 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
             end
             antifling = RunService.Stepped:Connect(function()
                 for _, player in pairs(getTrackedPlayers()) do
-                    if player ~= speaker and player.Character then
+                    if player ~= flingState.localPlayer and player.Character then
                         for _, v in pairs(player.Character:GetDescendants()) do
                             if v:IsA("BasePart") then
                                 v.CanCollide = false
@@ -2172,78 +2405,64 @@ local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
     end
 })
 local function initAttackTargeting()
-local LocalPlayer = Players.LocalPlayer
-local AttackMouse = LocalPlayer:GetMouse()
-local attackState = {
-    active = false,
-    statusParagraph = UIStatus.attack
-}
-local ZERO_DELAY_ALL_TP = true
-local ATTACK_RATE = 0
-local MODEL_SCAN_RATE = 0
-local MAX_TARGET_DISTANCE = 90000
-local TRASH_DISTANCE = 12
-local BACK_OFFSET = 0.97
-local MapFolder
-local TrashFolder
-local LiveFolder
+local ctx = AttackTargeting
+ctx.localPlayer = Players.LocalPlayer
+ctx.attackMouse = ctx.localPlayer:GetMouse()
+attackState.statusParagraph = UIStatus.attack
 local function refreshFolders()
-    MapFolder = workspace:FindFirstChild("Map")
-    TrashFolder = MapFolder and MapFolder:FindFirstChild("Trash")
-    LiveFolder = workspace:FindFirstChild("Live")
+    ctx.mapFolder = workspace:FindFirstChild("Map")
+    ctx.trashFolder = ctx.mapFolder and ctx.mapFolder:FindFirstChild("Trash")
+    ctx.liveFolder = workspace:FindFirstChild("Live")
 end
 refreshFolders()
-local Character
-local Humanoid
-local Root
 local function refreshCharacter()
-    Character = LocalPlayer.Character
-    if not Character then return end
-    Humanoid = Character:FindFirstChildOfClass("Humanoid")
-    Root =
-        Character:FindFirstChild("HumanoidRootPart")
-        or Character:FindFirstChild("UpperTorso")
-        or Character:FindFirstChild("Torso")
-        or Character.PrimaryPart
-        or Character:FindFirstChildWhichIsA("BasePart")
+    ctx.character = ctx.localPlayer.Character
+    if not ctx.character then
+        ctx.humanoid = nil
+        ctx.root = nil
+        return
+    end
+    ctx.humanoid = ctx.character:FindFirstChildOfClass("Humanoid")
+    ctx.root =
+        ctx.character:FindFirstChild("HumanoidRootPart")
+        or ctx.character:FindFirstChild("UpperTorso")
+        or ctx.character:FindFirstChild("Torso")
+        or ctx.character.PrimaryPart
+        or ctx.character:FindFirstChildWhichIsA("BasePart")
 end
-LocalPlayer.CharacterAdded:Connect(function()
+ctx.localPlayer.CharacterAdded:Connect(function()
     task.defer(refreshCharacter)
 end)
 refreshCharacter()
-local HasTrash = false
-local TrashNearby = false
-local trashLoopRunning = false
-local trashLoopThread
 local function startTrashLoop()
-    if trashLoopRunning then return end
-    trashLoopRunning = true
-    trashLoopThread = RunService.Heartbeat:Connect(function()
-        if not trashLoopRunning then
-            if trashLoopThread then trashLoopThread:Disconnect() trashLoopThread = nil end
+    if ctx.trashLoopRunning then return end
+    ctx.trashLoopRunning = true
+    ctx.trashLoopThread = RunService.Heartbeat:Connect(function()
+        if not ctx.trashLoopRunning then
+            if ctx.trashLoopThread then ctx.trashLoopThread:Disconnect() ctx.trashLoopThread = nil end
             return
         end
         if not isSafeTeleportLocked() then
-        if LiveFolder then
-            local model = LiveFolder:FindFirstChild(LocalPlayer.Name)
+        if ctx.liveFolder then
+            local model = ctx.liveFolder:FindFirstChild(ctx.localPlayer.Name)
             if model then
                 local val = model:GetAttribute("HasTrashcan")
-                HasTrash = val and val ~= "" or false
+                ctx.hasTrash = val and val ~= "" or false
             else
-                HasTrash = false
+                ctx.hasTrash = false
             end
         else
-            HasTrash = false
+            ctx.hasTrash = false
         end
-        TrashNearby = false
-        if Root and TrashFolder then
-            local rootPos = Root.Position
-            for _, m in ipairs(TrashFolder:GetChildren()) do
+        ctx.trashNearby = false
+        if ctx.root and ctx.trashFolder then
+            local rootPos = ctx.root.Position
+            for _, m in ipairs(ctx.trashFolder:GetChildren()) do
                 if m.Name == "Trashcan" and not m:GetAttribute("Broken") then
                     local part = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
                     if part then
-                        if (rootPos - part.Position).Magnitude < TRASH_DISTANCE then
-                            TrashNearby = true
+                        if (rootPos - part.Position).Magnitude < ctx.trashDistance then
+                            ctx.trashNearby = true
                             break
                         end
                     end
@@ -2254,34 +2473,30 @@ local function startTrashLoop()
     end)
 end
 local function stopTrashLoop()
-    trashLoopRunning = false
+    ctx.trashLoopRunning = false
 end
-local TargetCache = {}
-local scanLoopRunning = false
-local scanLoopThread
 local function isAlive(model)
     local hum = model and model:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
 end
-local lastScanTime = 0
 local function startScanLoop()
-    if scanLoopRunning then return end
-    scanLoopRunning = true
-    scanLoopThread = RunService.Heartbeat:Connect(function()
-        if not scanLoopRunning then
-            if scanLoopThread then scanLoopThread:Disconnect() scanLoopThread = nil end
+    if ctx.scanLoopRunning then return end
+    ctx.scanLoopRunning = true
+    ctx.scanLoopThread = RunService.Heartbeat:Connect(function()
+        if not ctx.scanLoopRunning then
+            if ctx.scanLoopThread then ctx.scanLoopThread:Disconnect() ctx.scanLoopThread = nil end
             return
         end
         local now = tick()
-        if now - lastScanTime < MODEL_SCAN_RATE then return end
-        lastScanTime = now
+        if now - ctx.lastScanTime < ctx.modelScanRate then return end
+        ctx.lastScanTime = now
         if not isSafeTeleportLocked() then
-            table.clear(TargetCache)
-            if Root then
-                local rootPos = Root.Position
-                local localChar = Character
-                if LiveFolder then
-                    for _, model in ipairs(LiveFolder:GetChildren()) do
+            table.clear(ctx.targetCache)
+            if ctx.root then
+                local rootPos = ctx.root.Position
+                local localChar = ctx.character
+                if ctx.liveFolder then
+                    for _, model in ipairs(ctx.liveFolder:GetChildren()) do
                         if model ~= localChar and isAlive(model) and not Players:GetPlayerFromCharacter(model) then
                             local part =
                                 model:FindFirstChild("HumanoidRootPart")
@@ -2289,23 +2504,23 @@ local function startScanLoop()
                                 or model:FindFirstChildWhichIsA("BasePart")
                             if part then
                                 local dist = (rootPos - part.Position).Magnitude
-                                if dist < MAX_TARGET_DISTANCE then
-                                    table.insert(TargetCache, {part = part, dist = dist})
+                                if dist < ctx.maxTargetDistance then
+                                    table.insert(ctx.targetCache, {part = part, dist = dist})
                                 end
                             end
                         end
                     end
                 end
                 for _, plr in ipairs(getTrackedPlayers()) do
-                    if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
+                    if plr ~= ctx.localPlayer and plr.Character and isAlive(plr.Character) then
                         local char = plr.Character
                         local part =
                             char:FindFirstChild("HumanoidRootPart")
                             or char.PrimaryPart
                         if part then
                             local dist = (rootPos - part.Position).Magnitude
-                            if dist < MAX_TARGET_DISTANCE then
-                                table.insert(TargetCache, {part = part, dist = dist})
+                            if dist < ctx.maxTargetDistance then
+                                table.insert(ctx.targetCache, {part = part, dist = dist})
                             end
                         end
                     end
@@ -2315,17 +2530,17 @@ local function startScanLoop()
     end)
 end
 local function stopScanLoop()
-    scanLoopRunning = false
-    table.clear(TargetCache)
+    ctx.scanLoopRunning = false
+    table.clear(ctx.targetCache)
 end
 local function getClosestTarget()
-    if ZERO_DELAY_ALL_TP and Root then
+    if ZERO_DELAY_ALL_TP and ctx.root then
         local closest
         local shortest = math.huge
-        local rootPos = Root.Position
-        local localChar = Character
-        if LiveFolder then
-            for _, model in ipairs(LiveFolder:GetChildren()) do
+        local rootPos = ctx.root.Position
+        local localChar = ctx.character
+        if ctx.liveFolder then
+            for _, model in ipairs(ctx.liveFolder:GetChildren()) do
                 if model ~= localChar and isAlive(model) and not Players:GetPlayerFromCharacter(model) then
                     local part =
                         model:FindFirstChild("HumanoidRootPart")
@@ -2333,7 +2548,7 @@ local function getClosestTarget()
                         or model:FindFirstChildWhichIsA("BasePart")
                     if part then
                         local dist = (rootPos - part.Position).Magnitude
-                        if dist < MAX_TARGET_DISTANCE and dist < shortest then
+                        if dist < ctx.maxTargetDistance and dist < shortest then
                             shortest = dist
                             closest = part
                         end
@@ -2342,14 +2557,14 @@ local function getClosestTarget()
             end
         end
         for _, plr in ipairs(getTrackedPlayers()) do
-            if plr ~= LocalPlayer and plr.Character and isAlive(plr.Character) then
+            if plr ~= ctx.localPlayer and plr.Character and isAlive(plr.Character) then
                 local char = plr.Character
                 local part =
                     char:FindFirstChild("HumanoidRootPart")
                     or char.PrimaryPart
                 if part then
                     local dist = (rootPos - part.Position).Magnitude
-                    if dist < MAX_TARGET_DISTANCE and dist < shortest then
+                    if dist < ctx.maxTargetDistance and dist < shortest then
                         shortest = dist
                         closest = part
                     end
@@ -2360,8 +2575,8 @@ local function getClosestTarget()
     end
     local closest
     local shortest = math.huge
-    for i = 1, #TargetCache do
-        local entry = TargetCache[i]
+    for i = 1, #ctx.targetCache do
+        local entry = ctx.targetCache[i]
         if entry.part and entry.part.Parent then
             if entry.dist < shortest then
                 shortest = entry.dist
@@ -2408,18 +2623,14 @@ local function isAttackTargetStillValid(target)
     return true
 end
 
-local holdingMouse = false
-local attackLoopRunning = false
-local lastAttackTime = 0
-local attackLoopThread = nil
 local function isAttackHoldActive()
-    return holdingMouse or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+    return ctx.holdingMouse or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
 end
 local function performAttackTeleport()
     if isSafeTeleportLocked() then
         return
     end
-    if not (attackState.active and isAttackHoldActive() and Root and not HasTrash and not TrashNearby) then
+    if not (attackState.active and isAttackHoldActive() and ctx.root and not ctx.hasTrash and not ctx.trashNearby) then
         VisualFix:Stop()
         return
     end
@@ -2436,67 +2647,80 @@ local function performAttackTeleport()
         return
     end
     VisualFix:Start(target)
-    if Humanoid then
-        Humanoid.AutoRotate = false
+    if ctx.humanoid then
+        ctx.humanoid.AutoRotate = false
     end
     local predictionScale = ZERO_DELAY_ALL_TP
         and getTpVariantValue("attackPredictionFast", 0.55)
         or getTpVariantValue("attackPrediction", 1.05)
-    local prediction, targetVel = getTeleportPrediction(target.AssemblyLinearVelocity or Vector3.zero, predictionScale)
+    local prediction, targetVel, targetMotion, localMotion = getTeleportPrediction(
+        target.AssemblyLinearVelocity or Vector3.zero,
+        predictionScale,
+        target,
+        ctx.root
+    )
     local isAirTarget = math.abs(targetVel.Y) > 8
     local tpVelocity = (targetVel.Magnitude > 300) and (targetVel.Unit * 180) or (targetVel * 1.35)
-    local directPush = (target.Position + prediction) - Root.Position
+    local directPush = (target.Position + prediction) - ctx.root.Position
     if directPush.Magnitude > 0.001 then
         tpVelocity = tpVelocity + (directPush.Unit * (isAirTarget and 340 or 220))
     end
     local attackBackOffset, attackVerticalOffset = getAttackTeleportOffsets(targetVel)
+    attackBackOffset, attackVerticalOffset = resolveAirTeleportOffsets(
+        attackBackOffset,
+        attackVerticalOffset,
+        targetMotion,
+        localMotion,
+        "attack"
+    )
     local targetProxy = {
         Position = target.Position + prediction,
         CFrame = target.CFrame
     }
     strongPivotCharacter(
-        Character,
-        Root,
+        ctx.character,
+        ctx.root,
         getTeleportFollowCFrame(targetProxy, targetVel, attackBackOffset, attackVerticalOffset),
-        getTpVariantPauseDuration()
+        getTpVariantPauseDuration(),
+        getTeleportStickyDuration(targetMotion, localMotion)
     )
 end
 local function startAttackLoop()
-    if attackLoopRunning then return end
-    attackLoopRunning = true
-    attackLoopThread = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function()
-        if not attackLoopRunning then
-            if attackLoopThread then attackLoopThread:Disconnect() attackLoopThread = nil end
+    if ctx.attackLoopRunning then return end
+    ctx.attackLoopRunning = true
+    ctx.attackLoopThread = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function()
+        if not ctx.attackLoopRunning then
+            if ctx.attackLoopThread then ctx.attackLoopThread:Disconnect() ctx.attackLoopThread = nil end
             VisualFix:Stop()
             return
         end
         if not ZERO_DELAY_ALL_TP then
             local now = tick()
-            if now - lastAttackTime < ATTACK_RATE then return end
-            lastAttackTime = now
+            if now - ctx.lastAttackTime < ATTACK_RATE then return end
+            ctx.lastAttackTime = now
         end
         performAttackTeleport()
     end)
 end
 local function stopAttackLoop()
-    attackLoopRunning = false
-    holdingMouse = false
-    if Humanoid then
-        Humanoid.AutoRotate = true
+    ctx.attackLoopRunning = false
+    ctx.holdingMouse = false
+    if ctx.humanoid then
+        ctx.humanoid.AutoRotate = true
     end
 end
-AttackMouse.Button1Down:Connect(function()
-    holdingMouse = true
+ctx.attackMouse.Button1Down:Connect(function()
+    ctx.holdingMouse = true
     if not attackState.active then return end
     refreshCharacter()
     performAttackTeleport()
 end)
-AttackMouse.Button1Up:Connect(function()
-    holdingMouse = false
+ctx.attackMouse.Button1Up:Connect(function()
+    ctx.holdingMouse = false
 end)
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        holdingMouse = true
+        ctx.holdingMouse = true
         if attackState.active then
             refreshCharacter()
             performAttackTeleport()
@@ -2505,7 +2729,7 @@ UserInputService.InputBegan:Connect(function(input)
 end)
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        holdingMouse = false
+        ctx.holdingMouse = false
     end
 end)
 local function setAttackState(enabled)
@@ -2545,7 +2769,6 @@ Tabs.KEY:AddKeybind("AttackTPKeybind", {
 targetState = {
     statusParagraph = UIStatus.target
 }
-local lastTargetStatusTitle = nil
 local function getTargetDisplayNameFromRoot(targetRoot)
     if not (targetRoot and targetRoot.Parent) then return nil end
     local model = targetRoot:FindFirstAncestorOfClass("Model")
@@ -2647,12 +2870,9 @@ refreshDropdown = function()
     syncTargetUI()
 end
 
-local chosenTargetHumConn = nil
-local chosenTargetHeartbeatConn = nil
-
 disconnectChosenTargetWatch = function()
-    if chosenTargetHumConn then chosenTargetHumConn:Disconnect() chosenTargetHumConn = nil end
-    if chosenTargetHeartbeatConn then chosenTargetHeartbeatConn:Disconnect() chosenTargetHeartbeatConn = nil end
+    if ctx.chosenTargetHumConn then ctx.chosenTargetHumConn:Disconnect() ctx.chosenTargetHumConn = nil end
+    if ctx.chosenTargetHeartbeatConn then ctx.chosenTargetHeartbeatConn:Disconnect() ctx.chosenTargetHeartbeatConn = nil end
 end
 
 clearChosenTarget = function()
@@ -2672,15 +2892,15 @@ end
 
 watchChosenTarget = function(plr)
     disconnectChosenTargetWatch()
-    if not (plr and plr.Parent == game.Players) then return end
+    if not (plr and plr.Parent == Players) then return end
     local function bindHumanoidWatch(char)
-        if chosenTargetHumConn then
-            chosenTargetHumConn:Disconnect()
-            chosenTargetHumConn = nil
+        if ctx.chosenTargetHumConn then
+            ctx.chosenTargetHumConn:Disconnect()
+            ctx.chosenTargetHumConn = nil
         end
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if hum then
-            chosenTargetHumConn = hum.Died:Connect(function()
+            ctx.chosenTargetHumConn = hum.Died:Connect(function()
                 if playerChosen == plr then
                     clearChosenTarget()
                 end
@@ -2688,7 +2908,7 @@ watchChosenTarget = function(plr)
         end
     end
     bindHumanoidWatch(plr.Character)
-    chosenTargetHeartbeatConn = plr.CharacterAdded:Connect(function(char)
+    ctx.chosenTargetHeartbeatConn = plr.CharacterAdded:Connect(function(char)
         if playerChosen ~= plr then return end
         bindHumanoidWatch(char)
         queueSyncUI()
@@ -2701,7 +2921,7 @@ watchChosenTarget = function(plr)
 end
 
 triggerMouseTargetSet = function()
-    local Lp = game.Players.LocalPlayer
+    local Lp = ctx.localPlayer
     if not Lp then return end
 
     if CamlockEnabled then
@@ -2779,10 +2999,10 @@ registerJoinLeave("add", function()
     task.defer(syncTargetUI)
 end)
 
-local oldSyncCamlock = syncCamlockVisualTarget
+ctx.oldSyncCamlock = syncCamlockVisualTarget
 syncCamlockVisualTarget = function()
-    if oldSyncCamlock then
-        oldSyncCamlock()
+    if ctx.oldSyncCamlock then
+        ctx.oldSyncCamlock()
     else
         syncTargetUI()
     end
@@ -3623,15 +3843,15 @@ function initPlayerTargetUI()
                 FlingOneToggle:SetValue(false)
                 return
             end
-            orbitStepXZ = orbitStepXZ + orbitIncrement
-            orbitStepY = orbitStepY + orbitIncrement
-            if orbitStepXZ > orbitMax then orbitStepXZ = 0 end
-            if orbitStepY > orbitMax then orbitStepY = 0 end
-            local t = tick() * orbitSpeed
+            flingState.orbitStepXZ = flingState.orbitStepXZ + flingState.orbitIncrement
+            flingState.orbitStepY = flingState.orbitStepY + flingState.orbitIncrement
+            if flingState.orbitStepXZ > flingState.orbitMax then flingState.orbitStepXZ = 0 end
+            if flingState.orbitStepY > flingState.orbitMax then flingState.orbitStepY = 0 end
+            local t = tick() * flingState.orbitSpeed
             local offset = Vector3.new(
-                math.cos(t) * orbitStepXZ,
-                orbitStepY,
-                math.sin(t) * orbitStepXZ
+                math.cos(t) * flingState.orbitStepXZ,
+                flingState.orbitStepY,
+                math.sin(t) * flingState.orbitStepXZ
             )
             myRoot.AssemblyLinearVelocity = Vector3.zero
             myRoot.AssemblyAngularVelocity = Vector3.zero
@@ -3666,8 +3886,20 @@ function initPlayerTargetUI()
             local predictionScale = ZERO_DELAY_ALL_TP
                 and getTpVariantValue("autoPredictionFast", 0.45)
                 or getTpVariantValue("autoPrediction", 1)
-            local prediction, targetVel = getTeleportPrediction(targetRoot.AssemblyLinearVelocity or Vector3.zero, predictionScale)
+            local prediction, targetVel, targetMotion, localMotion = getTeleportPrediction(
+                targetRoot.AssemblyLinearVelocity or Vector3.zero,
+                predictionScale,
+                targetRoot,
+                myRoot
+            )
             local config = getTpVariantConfig()
+            local autoBackOffset, autoVerticalOffset = resolveAirTeleportOffsets(
+                config.autoBack,
+                config.autoVertical,
+                targetMotion,
+                localMotion,
+                "auto"
+            )
             local targetProxy = {
                 Position = targetRoot.Position + prediction,
                 CFrame = targetRoot.CFrame
@@ -3675,8 +3907,9 @@ function initPlayerTargetUI()
             strongPivotCharacter(
                 myChar,
                 myRoot,
-                getTeleportFollowCFrame(targetProxy, targetVel, config.autoBack, config.autoVertical),
-                getTpVariantPauseDuration()
+                getTeleportFollowCFrame(targetProxy, targetVel, autoBackOffset, autoVerticalOffset),
+                getTpVariantPauseDuration(),
+                getTeleportStickyDuration(targetMotion, localMotion)
             )
         end)
     end
@@ -3784,9 +4017,18 @@ function initPlayerTargetUI()
             local myHrp = getRootUniversal(myChar)
             if hrp and myHrp then
                 local config = getTpVariantConfig()
-                local prediction, targetVel = getTeleportPrediction(
+                local prediction, targetVel, targetMotion, localMotion = getTeleportPrediction(
                     hrp.AssemblyLinearVelocity or Vector3.zero,
-                    getTpVariantValue("playerPrediction", 0.45)
+                    getTpVariantValue("playerPrediction", 0.45),
+                    hrp,
+                    myHrp
+                )
+                local playerBackOffset, playerVerticalOffset = resolveAirTeleportOffsets(
+                    config.playerBack,
+                    config.playerVertical,
+                    targetMotion,
+                    localMotion,
+                    "player"
                 )
                 local targetProxy = {
                     Position = hrp.Position + prediction,
@@ -3795,8 +4037,9 @@ function initPlayerTargetUI()
                 strongPivotCharacter(
                     myChar,
                     myHrp,
-                    getTeleportFollowCFrame(targetProxy, targetVel, config.playerBack, config.playerVertical),
-                    getTpVariantPauseDuration()
+                    getTeleportFollowCFrame(targetProxy, targetVel, playerBackOffset, playerVerticalOffset),
+                    getTpVariantPauseDuration(),
+                    getTeleportStickyDuration(targetMotion, localMotion)
                 )
             end
         end
@@ -4109,7 +4352,9 @@ function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, 
     end
     for _ = 1, 15 do
         _G.NOTHINGX_Protection.resetVelocity(hrp)
-        character:PivotTo(rescueCFrame + Vector3.new(0, 2, 0))
+        local finalRescue = rescueCFrame + Vector3.new(0, 2, 0)
+        syncRootControllers(hrp, finalRescue)
+        character:PivotTo(finalRescue)
         task.wait()
     end
     _G.SafeTeleportLock = false
