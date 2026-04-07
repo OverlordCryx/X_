@@ -4447,7 +4447,7 @@ function initPlayerTargetUI()
         FlingPlayerKeybind = Tabs.KEY:AddKeybind("FlingPlayerKeybind", {
             Title = "Fling Player",
             Mode = "Toggle",
-            Default = "G",
+            Default = "Y",
             Callback = function(state)
                 if syncingFlingPlayerKeybind then return end
                 if state and not getPriorityTargetPlayer() then
