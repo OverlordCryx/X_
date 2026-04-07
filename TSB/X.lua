@@ -167,6 +167,7 @@ local viewing = false
 local lastTargetStatusTitle = ""
 local syncQueued = false
 local TrashPlayerKeybind
+local FlingPlayerKeybind
 local attackState = {
     active = false,
     statusParagraph = nil
@@ -3165,12 +3166,36 @@ local inSafe = false
 local monitorConnection
 local antiMoveConnection
 local positions = {}
-for i = 1, 700 do
-	table.insert(positions, CFrame.new(0, i * 1000000000000, 0))
-end
+local safeZoneRandom = Random.new()
 local currentIndex = 1
 local positionAccumulator = 0
 local positionInterval = 0
+local function buildRandomSafeZoneCFrame(distance)
+	local x = safeZoneRandom:NextNumber(-1, 1)
+	local y = safeZoneRandom:NextNumber(0.2, 1)
+	local z = safeZoneRandom:NextNumber(-1, 1)
+	local direction = Vector3.new(x, y, z)
+	if Vector3.new(x, 0, z).Magnitude < 0.001 then
+		x = 1
+		z = 1
+		direction = Vector3.new(x, y, z)
+	end
+	if direction.Magnitude < 0.001 then
+		direction = Vector3.new(1, 1, 1)
+	end
+	direction = direction.Unit
+	return CFrame.new(direction * distance)
+end
+local function getNextSafeZoneCFrame()
+	currentIndex = currentIndex + 1
+	if currentIndex > #positions then
+		currentIndex = 1
+	end
+	return positions[currentIndex]
+end
+for i = 1, 700 do
+	table.insert(positions, buildRandomSafeZoneCFrame(i * 1000000000000))
+end
 local function returnBack(character)
 	if not character then return end
 	local hrp = character:FindFirstChild("HumanoidRootPart")
@@ -3200,18 +3225,27 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 					_G.SafeTeleportLock = true
 					savedPosition = hrp.CFrame
 					inSafe = true
+                    _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
+                    _G.NOTHINGX_Protection.suspendBoundary = true
                     VisualFix:Start("SafeZone")
-					currentIndex = 1
+					currentIndex = safeZoneRandom:NextInteger(1, #positions)
 					positionAccumulator = 0
+					local instantSafeCFrame = positions[currentIndex]
+					for _ = 1, 4 do
+						hrp.AssemblyLinearVelocity = Vector3.zero
+						hrp.AssemblyAngularVelocity = Vector3.zero
+						hrp.CFrame = instantSafeCFrame
+						task.wait()
+					end
 					antiMoveConnection = RunService.Heartbeat:Connect(function(dt2)
 						if not inSafe then return end
 						positionAccumulator = positionAccumulator + dt2
 						if positionAccumulator >= positionInterval then
 							positionAccumulator = 0
-							currentIndex = currentIndex + 1
-							if currentIndex > #positions then
-								currentIndex = 1
-							end
+							hrp.AssemblyLinearVelocity = Vector3.zero
+							hrp.AssemblyAngularVelocity = Vector3.zero
+							hrp.CFrame = getNextSafeZoneCFrame()
+							return
 						end
 						hrp.CFrame = positions[currentIndex]
 					end)
@@ -3219,6 +3253,8 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 				if inSafe and humanoid.Health > humanoid.MaxHealth * 0.39 then
 					inSafe = false
 					_G.SafeTeleportLock = false
+                    _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
+                    _G.NOTHINGX_Protection.suspendBoundary = false
                     VisualFix:Stop()
 					if antiMoveConnection then
 						antiMoveConnection:Disconnect()
@@ -3242,6 +3278,8 @@ Lowhp = Tabs.TOG:AddToggle("lowhp", {
 			end
 			inSafe = false
 			_G.SafeTeleportLock = false
+            _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
+            _G.NOTHINGX_Protection.suspendBoundary = false
             VisualFix:Stop()
 		end
 	end
@@ -3412,27 +3450,74 @@ Tabs.TOG:AddDropdown("TpVariantAll", {
 local ToggleUlt
 local ToggleClass
 local ToggleDetectUlt
+local ToggleUltTime
+BILLBOARD_SIZE = Vector2.new(116, 56)
 local function initUltEspUI()
 local LocalPlayer = Players.LocalPlayer
 local hasUltimate = LocalPlayer:GetAttribute("Ultimate") ~= nil
 local hasCharacter = LocalPlayer:GetAttribute("Character") ~= nil
-if hasUltimate then
-    ToggleUlt = Tabs.TOG:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
-    ToggleDetectUlt = Tabs.TOG:AddToggle("detectult", { Title = "Detect Use Ult (ESP Yellow)", Default = false })
-end
 if hasCharacter then
     ToggleClass = Tabs.TOG:AddToggle("classtog", { Title = "Show Character Name", Default = false })
 end
-local ULT_USE_DURATION = 50.3
+if hasUltimate then
+    ToggleUlt = Tabs.TOG:AddToggle("ulttog", { Title = "Show Ultimate %", Default = false })
+    ToggleUltTime = Tabs.TOG:AddToggle("ulttime", { Title = "Show Ult Time Left", Default = false })
+    ToggleDetectUlt = Tabs.TOG:AddToggle("detectult", { Title = "Detect Use Ult (ESP Yellow)", Default = false })
+end
+
 local UltEspState = {
     esp = {},
     timer = {},
     conns = {},
     lastUlt = {},
+    lastUltTime = {},
+    ultEndAt = {},
     active = {},
     allowDestroy = {},
-    protectConnections = {}
+    protectConnections = {},
+    overlayGui = nil,
+    billboards = {}
 }
+local function readUltimateTimeDuration(plr)
+    local char = plr and plr.Character
+    if not char then
+        return nil
+    end
+    local raw = char:GetAttribute("UltimateTime")
+    local duration = tonumber(raw)
+    if duration and duration > 0 then
+        UltEspState.lastUltTime[plr] = duration
+        return duration
+    end
+    return nil
+end
+local function getUltimateTimeDuration(plr, retryCount)
+    local duration = readUltimateTimeDuration(plr)
+    if duration then
+        return duration
+    end
+    local tries = retryCount or 0
+    while tries < 5 do
+        tries = tries + 1
+        task.wait(0.1)
+        duration = readUltimateTimeDuration(plr)
+        if duration then
+            return duration
+        end
+    end
+    return UltEspState.lastUltTime[plr]
+end
+local function getUltTimeLeft(plr)
+    local endAt = UltEspState.ultEndAt[plr]
+    if not endAt then
+        return nil
+    end
+    local left = endAt - tick()
+    if left <= 0 then
+        return nil
+    end
+    return left
+end
 local function safeDestroyUltEsp(plr)
     UltEspState.allowDestroy[plr] = true
     local hl = UltEspState.esp[plr]
@@ -3454,6 +3539,7 @@ end
 local function finishUltEsp(plr)
     UltEspState.active[plr] = false
     UltEspState.timer[plr] = nil
+    UltEspState.ultEndAt[plr] = nil
     hideUltEsp(plr)
 end
 local function createUltEsp(plr)
@@ -3487,13 +3573,16 @@ local function createUltEsp(plr)
         end
     end)
 end
-local function startUltTimer(plr)
+local function startUltTimer(plr, duration)
     local id = tick()
+    duration = duration 
     UltEspState.timer[plr] = id
-    task.delay(ULT_USE_DURATION, function()
+    UltEspState.ultEndAt[plr] = tick() + duration
+    task.delay(duration, function()
         if UltEspState.timer[plr] ~= id then return end
         UltEspState.active[plr] = false
         UltEspState.timer[plr] = nil
+        UltEspState.ultEndAt[plr] = nil
         if ToggleDetectUlt and ToggleDetectUlt.Value then
             hideUltEsp(plr)
         end
@@ -3511,13 +3600,17 @@ local function onUltimateChanged(plr)
             end
             return
         end
-        if prev and prev >= 100 and val < prev then
+        if prev and prev >= 100 and val == 0 then
+            local duration = getUltimateTimeDuration(plr)
+            if not duration then
+                return
+            end
             UltEspState.active[plr] = true
-            startUltTimer(plr)
+            startUltTimer(plr, duration)
             createUltEsp(plr)
             return
         end
-        if val > 0 and val < 100 and not UltEspState.timer[plr] then
+        if val > 0 and val < 100 then
             finishUltEsp(plr)
         end
     end
@@ -3536,6 +3629,7 @@ local function setupDetectPlayer(plr)
     UltEspState.conns[plr] = {}
     local c = UltEspState.conns[plr]
     UltEspState.lastUlt[plr] = tonumber(plr:GetAttribute("Ultimate") or 0) or 0
+    UltEspState.lastUltTime[plr] = getUltimateTimeDuration(plr, 1)
     c.ult = plr:GetAttributeChangedSignal("Ultimate"):Connect(function()
         onUltimateChanged(plr)
     end)
@@ -3547,6 +3641,15 @@ local function setupDetectPlayer(plr)
     c.charAdded = plr.CharacterAdded:Connect(function(char)
         hideUltEsp(plr)
         task.wait(0.1)
+        UltEspState.lastUltTime[plr] = getUltimateTimeDuration(plr, 1)
+        if c.ultTime then
+            c.ultTime:Disconnect()
+            c.ultTime = nil
+        end
+        c.ultTime = char:GetAttributeChangedSignal("UltimateTime"):Connect(function()
+            UltEspState.lastUltTime[plr] = getUltimateTimeDuration(plr, 1)
+            UpdateBillboard(plr)
+        end)
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             if c.died then c.died:Disconnect() end
@@ -3559,6 +3662,10 @@ local function setupDetectPlayer(plr)
         end
     end)
     if plr.Character then
+        c.ultTime = plr.Character:GetAttributeChangedSignal("UltimateTime"):Connect(function()
+            UltEspState.lastUltTime[plr] = getUltimateTimeDuration(plr, 1)
+            UpdateBillboard(plr)
+        end)
         local hum = plr.Character:FindFirstChildOfClass("Humanoid")
         if hum then
             c.died = hum.Died:Connect(function()
@@ -3572,6 +3679,133 @@ local function hideAllUltEsp()
         hideUltEsp(plr)
     end
 end
+local function ensureBillboardOverlay()
+    if UltEspState.overlayGui and UltEspState.overlayGui.Parent then
+        return UltEspState.overlayGui
+    end
+    local oldOverlay = coreGui:FindFirstChild("NOTHINGX_BillboardOverlay")
+    if oldOverlay then
+        oldOverlay:Destroy()
+    end
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "NOTHINGX_BillboardOverlay"
+    gui.IgnoreGuiInset = true
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = coreGui
+    UltEspState.overlayGui = gui
+    return gui
+end
+local function removePlayerBillboard(player)
+    local frame = UltEspState.billboards[player]
+    if frame then
+        frame:Destroy()
+        UltEspState.billboards[player] = nil
+    end
+    if player and player.Character then
+        local oldBillboard = player.Character:FindFirstChild("CombinedInfoBB")
+        if oldBillboard then
+            oldBillboard:Destroy()
+        end
+        local head = player.Character:FindFirstChild("Head")
+        if head then
+            local headBillboard = head:FindFirstChild("CombinedInfoBB")
+            if headBillboard then
+                headBillboard:Destroy()
+            end
+        end
+    end
+end
+local function ensurePlayerBillboard(player)
+    local frame = UltEspState.billboards[player]
+    if frame and frame.Parent then
+        return frame
+    end
+    local overlay = ensureBillboardOverlay()
+    frame = Instance.new("Frame")
+    frame.Name = "CombinedInfoBB_" .. player.UserId
+    frame.Size = UDim2.fromOffset(BILLBOARD_SIZE.X, BILLBOARD_SIZE.Y)
+    frame.BackgroundColor3 = Color3.new(0, 0, 0)
+    frame.BackgroundTransparency = 0.8
+    frame.BorderSizePixel = 0
+    frame.Visible = false
+    frame.ZIndex = 50
+    frame.Parent = overlay
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 140, 0)
+    stroke.Thickness = 1.6
+    stroke.Parent = frame
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 7)
+    padding.PaddingRight = UDim.new(0, 7)
+    padding.PaddingTop = UDim.new(0, 7)
+    padding.PaddingBottom = UDim.new(0, 7)
+    padding.Parent = frame
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.AnchorPoint = Vector2.new(0.5, 0.5)
+    content.Position = UDim2.new(0.5, 0, 0.5, 0)
+    content.Size = UDim2.new(1, -14, 0, 54)
+    content.BackgroundTransparency = 1
+    content.Parent = frame
+    local ultLabel = Instance.new("TextLabel")
+    ultLabel.Name = "UltLabel"
+    ultLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    ultLabel.Size = UDim2.new(1, 0, 0, 18)
+    ultLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ultLabel.BackgroundTransparency = 1
+    ultLabel.Font = Enum.Font.GothamBold
+    ultLabel.TextSize = 20
+    ultLabel.TextScaled = false
+    ultLabel.TextWrapped = false
+    ultLabel.TextXAlignment = Enum.TextXAlignment.Center
+    ultLabel.TextYAlignment = Enum.TextYAlignment.Center
+    ultLabel.TextStrokeTransparency = 0.6
+    ultLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    ultLabel.TextTransparency = 0
+    ultLabel.ZIndex = 51
+    ultLabel.Parent = content
+    local ultTimeLabel = Instance.new("TextLabel")
+    ultTimeLabel.Name = "UltTimeLabel"
+    ultTimeLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    ultTimeLabel.Size = UDim2.new(1, 0, 0, 18)
+    ultTimeLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ultTimeLabel.BackgroundTransparency = 1
+    ultTimeLabel.Font = Enum.Font.GothamBold
+    ultTimeLabel.TextSize = 20
+    ultTimeLabel.TextScaled = false
+    ultTimeLabel.TextWrapped = false
+    ultTimeLabel.TextXAlignment = Enum.TextXAlignment.Center
+    ultTimeLabel.TextYAlignment = Enum.TextYAlignment.Center
+    ultTimeLabel.TextStrokeTransparency = 0.6
+    ultTimeLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    ultTimeLabel.TextTransparency = 0
+    ultTimeLabel.ZIndex = 51
+    ultTimeLabel.Parent = content
+    local classLabel = Instance.new("TextLabel")
+    classLabel.Name = "ClassLabel"
+    classLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    classLabel.Size = UDim2.new(1, 0, 0, 18)
+    classLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    classLabel.BackgroundTransparency = 1
+    classLabel.Font = Enum.Font.GothamSemibold
+    classLabel.TextSize = 20
+    classLabel.TextScaled = false
+    classLabel.TextWrapped = false
+    classLabel.TextXAlignment = Enum.TextXAlignment.Center
+    classLabel.TextYAlignment = Enum.TextYAlignment.Center
+    classLabel.TextStrokeTransparency = 0.6
+    classLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    classLabel.TextTransparency = 0
+    classLabel.ZIndex = 51
+    classLabel.Parent = content
+    UltEspState.billboards[player] = frame
+    return frame
+end
+local UpdateBillboard
 local ClassColors = {
     ["Bald"]     = Color3.fromRGB(220, 220, 220),
     ["Hunter"]   = Color3.fromRGB( 60, 170, 255),
@@ -3588,93 +3822,139 @@ local ClassColors = {
 local function GetClassColor(name)
     return ClassColors[name] or Color3.fromRGB(200, 200, 200)
 end
-local function UpdateBillboard(player)
+local function fitBillboardText(text, maxLen)
+    local value = tostring(text or "")
+    local limit = maxLen or 18
+    if #value <= limit then
+        return value
+    end
+    if limit <= 3 then
+        return value:sub(1, limit)
+    end
+    return value:sub(1, limit - 3) .. "..."
+end
+UpdateBillboard = function(player)
     if player == LocalPlayer then return end
     local head = player.Character and player.Character:FindFirstChild("Head")
-    if not head then return end
-    local bb = head:FindFirstChild("CombinedInfoBB")
-    local showUlt = ToggleUlt and ToggleUlt.Value
-    local showClass = ToggleClass and ToggleClass.Value
-    if not showUlt and not showClass then
-        if bb then bb:Destroy() end
+    if not head then
+        removePlayerBillboard(player)
         return
     end
-    if not bb then
-        bb = Instance.new("BillboardGui")
-        bb.Name = "CombinedInfoBB"
-        bb.Adornee = head
-        bb.AlwaysOnTop = true
-        bb.MaxDistance = 140
-        bb.StudsOffset = Vector3.new(0, 4.2, 0)
-        bb.Size = UDim2.new(5, 0, 1.2, 0)
-        bb.LightInfluence = 0
-        bb.ResetOnSpawn = false
-        bb.Parent = head
-        local ultLabel = Instance.new("TextLabel")
-        ultLabel.Name = "UltLabel"
-        ultLabel.Size = UDim2.new(1, 0, 0.5, 0)
-        ultLabel.Position = UDim2.new(0, 0, 0, 0)
-        ultLabel.BackgroundTransparency = 1
-        ultLabel.Font = Enum.Font.GothamBold
-        ultLabel.TextSize = 22
-        ultLabel.TextXAlignment = Enum.TextXAlignment.Center
-        ultLabel.TextStrokeTransparency = 0.6
-        ultLabel.TextStrokeColor3 = Color3.new(0,0,0)
-        ultLabel.Visible = false
-        ultLabel.Parent = bb
-        local classLabel = Instance.new("TextLabel")
-        classLabel.Name = "ClassLabel"
-        classLabel.Size = UDim2.new(1, 0, 0.5, 0)
-        classLabel.Position = UDim2.new(0, 0, 0.52, 0)
-        classLabel.BackgroundTransparency = 1
-        classLabel.Font = Enum.Font.GothamSemibold
-        classLabel.TextSize = 22
-        classLabel.TextXAlignment = Enum.TextXAlignment.Center
-        classLabel.TextStrokeTransparency = 0.6
-        classLabel.TextStrokeColor3 = Color3.new(0,0,0)
-        classLabel.Visible = false
-        classLabel.Parent = bb
+    local oldBillboard = head:FindFirstChild("CombinedInfoBB")
+    if oldBillboard then
+        oldBillboard:Destroy()
     end
-    local ultLabel   = bb:FindFirstChild("UltLabel")
-    local classLabel = bb:FindFirstChild("ClassLabel")
-    local visibleLines = 0
-if ultLabel then
-    if showUlt then
-        local ult = player:GetAttribute("Ultimate") or 0
-        local val = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
-        ultLabel.Text = val .. "%"
-        ultLabel.TextColor3 = (val > 0) and Color3.fromRGB(255, 210, 90) or Color3.fromRGB(220, 220, 130)
-        ultLabel.Visible = true
-        visibleLines = visibleLines + 1
-    else
-        ultLabel.Visible = false
+    local showUlt = ToggleUlt and ToggleUlt.Value
+    local showUltTime = ToggleUltTime and ToggleUltTime.Value
+    local showClass = ToggleClass and ToggleClass.Value
+    local hideUltPercent = false
+    if not showUlt and not showUltTime and not showClass then
+        removePlayerBillboard(player)
+        return
     end
-end
-if classLabel then
-    if showClass then
-        local name = player:GetAttribute("Character") or "???"
-        classLabel.Text = name
-        classLabel.TextColor3 = GetClassColor(name)
-        classLabel.Visible = true 
-        visibleLines = visibleLines + 1
-    else
-        classLabel.Visible = false
+    local camera = workspace.CurrentCamera
+    if not camera then
+        removePlayerBillboard(player)
+        return
     end
-end
-    if visibleLines == 1 then
-        bb.Size = UDim2.new(5, 0, 0.6, 0)
-        if ultLabel.Visible then
-            ultLabel.Position = UDim2.new(0, 0, 0.25, 0)
-        elseif classLabel.Visible then
-            classLabel.Position = UDim2.new(0, 0, 0.25, 0)
+    local headOffset = (head.Size.Y * 0.5) + 2
+    local worldPos = head.Position + Vector3.new(0, headOffset, 0)
+    local screenPos, onScreen = camera:WorldToViewportPoint(worldPos)
+    local root = player.Character and getRootUniversal(player.Character)
+    local myRoot = LocalPlayer.Character and getRootUniversal(LocalPlayer.Character)
+    if not onScreen or screenPos.Z <= 0 or not root or not myRoot or (myRoot.Position - root.Position).Magnitude > 140 then
+        local hiddenFrame = UltEspState.billboards[player]
+        if hiddenFrame then
+            hiddenFrame.Visible = false
         end
-    elseif visibleLines == 2 then
-        bb.Size = UDim2.new(5, 0, 1.2, 0)
-        ultLabel.Position = UDim2.new(0, 0, 0, 0)
-        classLabel.Position = UDim2.new(0, 0, 0.52, 0)
-    else
-        bb.Size = UDim2.new(5, 0, 0.6, 0)
+        return
     end
+    local bb = ensurePlayerBillboard(player)
+    local content = bb:FindFirstChild("Content")
+    local ultLabel = content and content:FindFirstChild("UltLabel")
+    local ultTimeLabel = content and content:FindFirstChild("UltTimeLabel")
+    local classLabel = content and content:FindFirstChild("ClassLabel")
+    local visibleLines = 0
+    local activeLabels = {}
+    if ultLabel then
+        if showUlt then
+            local ult = player:GetAttribute("Ultimate") or 0
+            local val = math.clamp(math.round(tonumber(ult) or 0), 0, 100)
+            ultLabel.Text = fitBillboardText(val .. "%", 18)
+            ultLabel.TextColor3 = (val > 0) and Color3.fromRGB(255, 210, 90) or Color3.fromRGB(220, 220, 130)
+            ultLabel.Visible = true
+            visibleLines = visibleLines + 1
+            table.insert(activeLabels, ultLabel)
+        else
+            ultLabel.Visible = false
+        end
+    end
+    if ultTimeLabel then
+        if showUltTime then
+            local remaining = getUltTimeLeft(player)
+            local hasDuration = UltEspState.lastUltTime[player] ~= nil or getUltimateTimeDuration(player, 1) ~= nil
+            if remaining and hasDuration then
+                hideUltPercent = true
+                ultTimeLabel.Text = fitBillboardText(string.format("ULT %.1fs", remaining), 18)
+                ultTimeLabel.TextColor3 = Color3.fromRGB(255, 245, 120)
+                ultTimeLabel.Visible = true
+                visibleLines = visibleLines + 1
+                table.insert(activeLabels, ultTimeLabel)
+            else
+                ultTimeLabel.Visible = false
+            end
+        else
+            ultTimeLabel.Visible = false
+        end
+    end
+    if hideUltPercent and ultLabel and ultLabel.Visible then
+        ultLabel.Visible = false
+        visibleLines = math.max(visibleLines - 1, 0)
+        for i = #activeLabels, 1, -1 do
+            if activeLabels[i] == ultLabel then
+                table.remove(activeLabels, i)
+                break
+            end
+        end
+    end
+    if classLabel then
+        if showClass then
+            local name = player:GetAttribute("Character") or "???"
+            classLabel.Text = fitBillboardText(name, 20)
+            classLabel.TextColor3 = GetClassColor(name)
+            classLabel.Visible = true
+            visibleLines = visibleLines + 1
+            table.insert(activeLabels, classLabel)
+        else
+            classLabel.Visible = false
+        end
+    end
+    bb.Size = UDim2.fromOffset(BILLBOARD_SIZE.X, BILLBOARD_SIZE.Y)
+    if content then
+        if visibleLines <= 1 then
+            content.Size = UDim2.new(1, -14, 0, 18)
+        elseif visibleLines == 2 then
+            content.Size = UDim2.new(1, -14, 0, 34)
+        else
+            content.Size = UDim2.new(1, -14, 0, 50)
+        end
+        content.Position = UDim2.new(0.5, 0, 0.5, 0)
+    end
+    if visibleLines == 1 then
+        activeLabels[1].Position = UDim2.new(0.5, 0, 0.5, 0)
+    elseif visibleLines == 2 then
+        activeLabels[1].Position = UDim2.new(0.5, 0, 0.28, 0)
+        activeLabels[2].Position = UDim2.new(0.5, 0, 0.72, 0)
+    elseif visibleLines >= 3 then
+        activeLabels[1].Position = UDim2.new(0.5, 0, 0.18, 0)
+        activeLabels[2].Position = UDim2.new(0.5, 0, 0.5, 0)
+        activeLabels[3].Position = UDim2.new(0.5, 0, 0.82, 0)
+    end
+    bb.Position = UDim2.fromOffset(
+        math.floor(screenPos.X - (BILLBOARD_SIZE.X * 0.5)),
+        math.floor(screenPos.Y - BILLBOARD_SIZE.Y)
+    )
+    bb.Visible = visibleLines > 0
 end
 local function UpdateAll()
     for _, plr in ipairs(getTrackedPlayers()) do
@@ -3684,16 +3964,27 @@ local function UpdateAll()
     end
 end
 local conn
-local billboardInterval = 0.4
+local billboardInterval = 0
 local billboardTimer = 0
 local function ManageHeartbeat()
     local showUlt = ToggleUlt and ToggleUlt.Value
+    local showUltTime = ToggleUltTime and ToggleUltTime.Value
     local showClass = ToggleClass and ToggleClass.Value
-    if showUlt or showClass then
+    if showUlt or showUltTime or showClass then
         if not conn then
             billboardTimer = 0
             conn = RunService.Heartbeat:Connect(function(dt)
                 if isSafeTeleportLocked() then
+                    return
+                end
+                local liveShowUlt = ToggleUlt and ToggleUlt.Value
+                local liveShowUltTime = ToggleUltTime and ToggleUltTime.Value
+                local liveShowClass = ToggleClass and ToggleClass.Value
+                if not liveShowUlt and not liveShowUltTime and not liveShowClass then
+                    return
+                end
+                if liveShowUltTime then
+                    UpdateAll()
                     return
                 end
                 billboardTimer = billboardTimer + dt
@@ -3711,6 +4002,12 @@ local function ManageHeartbeat()
 end
 if ToggleUlt then
     ToggleUlt:OnChanged(function()
+        UpdateAll()
+        ManageHeartbeat()
+    end)
+end
+if ToggleUltTime then
+    ToggleUltTime:OnChanged(function()
         UpdateAll()
         ManageHeartbeat()
     end)
@@ -3745,6 +4042,11 @@ local function onBillboardPlayerAdded(plr)
             if ToggleUlt.Value then UpdateBillboard(plr) end
         end)
     end
+    if ToggleUltTime then
+        plr:GetAttributeChangedSignal("Ultimate"):Connect(function()
+            if ToggleUltTime.Value then UpdateBillboard(plr) end
+        end)
+    end
     if ToggleClass then
         plr:GetAttributeChangedSignal("Character"):Connect(function()
             if ToggleClass.Value then UpdateBillboard(plr) end
@@ -3755,9 +4057,12 @@ local function onBillboardPlayerAdded(plr)
     end
 end
 local function onBillboardPlayerRemoving(plr)
+    removePlayerBillboard(plr)
     finishUltEsp(plr)
     clearDetectConns(plr)
     UltEspState.lastUlt[plr] = nil
+    UltEspState.lastUltTime[plr] = nil
+    UltEspState.ultEndAt[plr] = nil
     UltEspState.active[plr] = nil
     UltEspState.allowDestroy[plr] = nil
     UltEspState.protectConnections[plr] = nil
@@ -3817,10 +4122,39 @@ function initPlayerTargetUI()
     local LocalPlayer = game.Players.LocalPlayer
     dropdownMap = dropdownMap or {}
     local lastDropdownValues = {}
+    local syncingFlingPlayerKeybind = false
+    local function setFlingPlayerKeybindState(state)
+        if syncingFlingPlayerKeybind then return end
+        if FlingPlayerKeybind and FlingPlayerKeybind.SetValue then
+            syncingFlingPlayerKeybind = true
+            pcall(function()
+                FlingPlayerKeybind:SetValue(state)
+            end)
+            syncingFlingPlayerKeybind = false
+        end
+    end
+    local flingOneSavedCFrame = nil
+    local function stopFlingOne()
+        if flingOneConnection then
+            flingOneConnection:Disconnect()
+            flingOneConnection = nil
+        end
+        local myChar = LocalPlayer.Character
+        local myRoot = getRootUniversal(myChar)
+        if myRoot then
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
+            if flingOneSavedCFrame and myRoot.Parent then
+                myRoot.CFrame = flingOneSavedCFrame
+            end
+        end
+        flingOneSavedCFrame = nil
+        VisualFix:Stop()
+    end
     local function startFlingOne()
-        if flingOneConnection then flingOneConnection:Disconnect() end
+        stopFlingOne()
         flingOneConnection = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function(dt)
-            if isSafeTeleportLocked() then
+            if isSafeTeleportLocked() and not isProtectionExemptModeActive() then
                 return
             end
             if not flingOneOn then return end
@@ -3848,6 +4182,10 @@ function initPlayerTargetUI()
                 FlingOneToggle:SetValue(false)
                 return
             end
+            if not flingOneSavedCFrame then
+                flingOneSavedCFrame = myRoot.CFrame
+            end
+            VisualFix:Start(targetRoot)
             flingState.orbitStepXZ = flingState.orbitStepXZ + flingState.orbitIncrement
             flingState.orbitStepY = flingState.orbitStepY + flingState.orbitIncrement
             if flingState.orbitStepXZ > flingState.orbitMax then flingState.orbitStepXZ = 0 end
@@ -3858,13 +4196,11 @@ function initPlayerTargetUI()
                 flingState.orbitStepY,
                 math.sin(t) * flingState.orbitStepXZ
             )
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-            myChar:PivotTo(targetRoot.CFrame + offset)
             local p = FLING_INF_POWER
+            myRoot.CFrame = targetRoot.CFrame + offset
             myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
             myRoot.AssemblyLinearVelocity =
-                myRoot.CFrame.LookVector * p + Vector3.new(0, p / 2, 0)
+                targetRoot.CFrame.LookVector * p + Vector3.new(0, p / 2, 0)
         end)
     end
     local function startAutoTp()
@@ -4090,6 +4426,7 @@ function initPlayerTargetUI()
         Callback = function(state)
             if state then
                 if not getPriorityTargetPlayer() then
+                    setFlingPlayerKeybindState(false)
                     FlingOneToggle:SetValue(false)
                     return
                 end
@@ -4098,15 +4435,32 @@ function initPlayerTargetUI()
                 end
                 flingOneOn = true
                 startFlingOne()
+                setFlingPlayerKeybindState(true)
             else
                 flingOneOn = false
-                if flingOneConnection then
-                    flingOneConnection:Disconnect()
-                    flingOneConnection = nil
-                end
+                stopFlingOne()
+                setFlingPlayerKeybindState(false)
             end
         end
     })
+
+    if not FlingPlayerKeybind then
+        FlingPlayerKeybind = Tabs.KEY:AddKeybind("FlingPlayerKeybind", {
+            Title = "Fling Player",
+            Mode = "Toggle",
+            Default = "G",
+            Callback = function(state)
+                if syncingFlingPlayerKeybind then return end
+                if state and not getPriorityTargetPlayer() then
+                    setFlingPlayerKeybindState(false)
+                    return
+                end
+                if FlingOneToggle and FlingOneToggle.SetValue then
+                    FlingOneToggle:SetValue(state)
+                end
+            end
+        })
+    end
 
 
 
@@ -4366,6 +4720,17 @@ function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, 
     return true
 end
 
+local function isProtectionExemptModeActive()
+    return inSafe
+        or flingOneOn
+        or (flingState and (
+            flingState.clickFlingOn
+            or flingState.flingOn
+            or flingState.auraFlingOn
+            or flingState.walkflinging
+        ))
+end
+
 local function initBoundaryProtection()
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -4373,7 +4738,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 local checkTime = 0
 local interval = 0
 RunService.Heartbeat:Connect(function(dt)
-	if _G.SafeTeleportLock then
+	if (_G.NOTHINGX_Protection and _G.NOTHINGX_Protection.suspendBoundary) or _G.SafeTeleportLock or isProtectionExemptModeActive() then
 		return
 	end
 	checkTime += dt
@@ -4591,6 +4956,9 @@ local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     while character.Parent do
         task.wait()
+        if isProtectionExemptModeActive() then
+            continue
+        end
         _G.NOTHINGX_Protection.updateLastSafePosition(hrp, VOID_Y and (VOID_Y + BUFFER) or nil)
         if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
             local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame(nil, VOID_Y and (VOID_Y + BUFFER) or nil)
@@ -4615,7 +4983,7 @@ player.CharacterAdded:Connect(function(char)
 end)
 end
 initVoidProtection()
-local function Antibug()
+function Antibug()
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local player = Players.LocalPlayer
