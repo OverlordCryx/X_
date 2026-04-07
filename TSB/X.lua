@@ -3482,6 +3482,7 @@ local UltEspState = {
     overlayGui = nil,
     billboards = {}
 }
+local ULT_DURATION_EXTRA = 1.1
 local function readUltimateTimeDuration(plr)
     local char = plr and plr.Character
     if not char then
@@ -3579,7 +3580,7 @@ local function createUltEsp(plr)
 end
 local function startUltTimer(plr, duration)
     local id = tick()
-    duration = duration 
+    duration = (tonumber(duration) or 0) + ULT_DURATION_EXTRA
     UltEspState.timer[plr] = id
     UltEspState.ultEndAt[plr] = tick() + duration
     task.delay(duration, function()
