@@ -3482,7 +3482,7 @@ local UltEspState = {
     overlayGui = nil,
     billboards = {}
 }
-local ULT_DURATION_EXTRA = 1.1
+local ULT_DURATION_EXTRA = 6
 local function readUltimateTimeDuration(plr)
     local char = plr and plr.Character
     if not char then
