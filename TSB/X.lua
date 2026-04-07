@@ -2268,22 +2268,7 @@ local function clickFlingTarget(targetPlayer)
                 targetRoot = getRootUniversal(targetChar)
                 if not targetRoot or not targetRoot.Parent then break end
                 local dt = RunService.Heartbeat:Wait()
-                t = t + dt * flingState.orbitSpeed
-                local orbitDistanceXZ = flingState.orbitStepXZ
-                local orbitDistanceY = flingState.orbitStepY
-                flingState.orbitStepXZ = flingState.orbitStepXZ + flingState.orbitIncrement
-                flingState.orbitStepY = flingState.orbitStepY + flingState.orbitIncrement
-                if flingState.orbitStepXZ > flingState.orbitMax then flingState.orbitStepXZ = 0 end
-                if flingState.orbitStepY > flingState.orbitMax then flingState.orbitStepY = 0 end
-                local offset = Vector3.new(
-                    math.cos(t) * orbitDistanceXZ,
-                    orbitDistanceY,
-                    math.sin(t) * orbitDistanceXZ
-                )
-                myRoot.CFrame = targetRoot.CFrame + offset
-                myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
-                myRoot.AssemblyLinearVelocity =
-                    targetRoot.CFrame.LookVector * p + Vector3.new(0, p * 0.5, 0)
+                t = applyTargetFlingStep(myRoot, targetRoot, dt, p, t)
             end
             myRoot.AssemblyAngularVelocity = Vector3.zero
             myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -2294,6 +2279,25 @@ local function clickFlingTarget(targetPlayer)
         end
         flingState.clickFlingBusy = false
     end)
+end
+local function applyTargetFlingStep(myRoot, targetRoot, dt, power, currentT)
+    local t = currentT + (dt * flingState.orbitSpeed)
+    local orbitDistanceXZ = flingState.orbitStepXZ
+    local orbitDistanceY = flingState.orbitStepY
+    flingState.orbitStepXZ = flingState.orbitStepXZ + flingState.orbitIncrement
+    flingState.orbitStepY = flingState.orbitStepY + flingState.orbitIncrement
+    if flingState.orbitStepXZ > flingState.orbitMax then flingState.orbitStepXZ = 0 end
+    if flingState.orbitStepY > flingState.orbitMax then flingState.orbitStepY = 0 end
+    local offset = Vector3.new(
+        math.cos(t) * orbitDistanceXZ,
+        orbitDistanceY,
+        math.sin(t) * orbitDistanceXZ
+    )
+    myRoot.CFrame = targetRoot.CFrame + offset
+    myRoot.AssemblyAngularVelocity = Vector3.new(power, power, power)
+    myRoot.AssemblyLinearVelocity =
+        targetRoot.CFrame.LookVector * power + Vector3.new(0, power * 0.5, 0)
+    return t
 end
 Tabs.TOG:AddToggle("ClickFlingToggle", {
     Title = "Click Fling",
@@ -4123,6 +4127,7 @@ function initPlayerTargetUI()
     dropdownMap = dropdownMap or {}
     local lastDropdownValues = {}
     local syncingFlingPlayerKeybind = false
+    local flingOneLoopId = 0
     local function setFlingPlayerKeybindState(state)
         if syncingFlingPlayerKeybind then return end
         if FlingPlayerKeybind and FlingPlayerKeybind.SetValue then
@@ -4134,7 +4139,9 @@ function initPlayerTargetUI()
         end
     end
     local flingOneSavedCFrame = nil
+    local flingOneT = 0
     local function stopFlingOne()
+        flingOneLoopId = flingOneLoopId + 1
         if flingOneConnection then
             flingOneConnection:Disconnect()
             flingOneConnection = nil
@@ -4149,58 +4156,50 @@ function initPlayerTargetUI()
             end
         end
         flingOneSavedCFrame = nil
+        flingOneT = 0
         VisualFix:Stop()
     end
     local function startFlingOne()
         stopFlingOne()
-        flingOneConnection = (ZERO_DELAY_ALL_TP and RunService.RenderStepped or RunService.Heartbeat):Connect(function(dt)
-            if isSafeTeleportLocked() and not isProtectionExemptModeActive() then
-                return
-            end
-            if not flingOneOn then return end
-            local targetPlr = getPriorityTargetPlayer()
-            if not targetPlr then
-                if playerChosen and not isSelectablePlayerTarget(playerChosen) then
-                    FlingOneToggle:SetValue(false)
-                    clearChosenTarget()
+        local loopId = flingOneLoopId + 1
+        flingOneLoopId = loopId
+        task.spawn(function()
+            while flingOneOn and flingOneLoopId == loopId do
+                if isSafeTeleportLocked() and not isProtectionExemptModeActive() then
+                    task.wait()
+                    continue
                 end
-                return
+                local targetPlr = getPriorityTargetPlayer()
+                if not targetPlr then
+                    if playerChosen and not isSelectablePlayerTarget(playerChosen) then
+                        FlingOneToggle:SetValue(false)
+                        clearChosenTarget()
+                    end
+                    break
+                end
+                if not targetPlr.Parent then
+                    FlingOneToggle:SetValue(false)
+                    break
+                end
+                local myChar = LocalPlayer.Character
+                local targetChar = targetPlr.Character
+                if not (myChar and targetChar) then
+                    FlingOneToggle:SetValue(false)
+                    break
+                end
+                local myRoot = getRootUniversal(myChar)
+                local targetRoot = getRootUniversal(targetChar)
+                if not (myRoot and targetRoot) then
+                    FlingOneToggle:SetValue(false)
+                    break
+                end
+                if not flingOneSavedCFrame then
+                    flingOneSavedCFrame = myRoot.CFrame
+                end
+                VisualFix:Start(targetRoot)
+                local dt = RunService.Heartbeat:Wait()
+                flingOneT = applyTargetFlingStep(myRoot, targetRoot, dt, FLING_INF_POWER, flingOneT)
             end
-            if not targetPlr.Parent then
-                FlingOneToggle:SetValue(false)
-                return
-            end
-            local myChar = LocalPlayer.Character
-            local targetChar = targetPlr.Character
-            if not (myChar and targetChar) then
-                FlingOneToggle:SetValue(false)
-                return
-            end
-            local myRoot = getRootUniversal(myChar)
-            local targetRoot = getRootUniversal(targetChar)
-            if not (myRoot and targetRoot) then
-                FlingOneToggle:SetValue(false)
-                return
-            end
-            if not flingOneSavedCFrame then
-                flingOneSavedCFrame = myRoot.CFrame
-            end
-            VisualFix:Start(targetRoot)
-            flingState.orbitStepXZ = flingState.orbitStepXZ + flingState.orbitIncrement
-            flingState.orbitStepY = flingState.orbitStepY + flingState.orbitIncrement
-            if flingState.orbitStepXZ > flingState.orbitMax then flingState.orbitStepXZ = 0 end
-            if flingState.orbitStepY > flingState.orbitMax then flingState.orbitStepY = 0 end
-            local t = tick() * flingState.orbitSpeed
-            local offset = Vector3.new(
-                math.cos(t) * flingState.orbitStepXZ,
-                flingState.orbitStepY,
-                math.sin(t) * flingState.orbitStepXZ
-            )
-            local p = FLING_INF_POWER
-            myRoot.CFrame = targetRoot.CFrame + offset
-            myRoot.AssemblyAngularVelocity = Vector3.new(p, p, p)
-            myRoot.AssemblyLinearVelocity =
-                targetRoot.CFrame.LookVector * p + Vector3.new(0, p / 2, 0)
         end)
     end
     local function startAutoTp()
@@ -4569,7 +4568,7 @@ if SaveManager then
 end
 
 
-local function disableTeleportFeaturesForVoidProtection()
+function disableTeleportFeaturesForVoidProtection()
     -- Protection should only pause teleport behaviour through SafeTeleportLock.
     -- Do not flip UI toggles/keybind state here.
     VisualFix:Stop()
@@ -4720,7 +4719,7 @@ function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, 
     return true
 end
 
-local function isProtectionExemptModeActive()
+function isProtectionExemptModeActive()
     return inSafe
         or flingOneOn
         or (flingState and (
@@ -4731,7 +4730,7 @@ local function isProtectionExemptModeActive()
         ))
 end
 
-local function initBoundaryProtection()
+function initBoundaryProtection()
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -4764,7 +4763,7 @@ end)
 end
 initBoundaryProtection()
 
-local function initVoidProtection()
+function initVoidProtection()
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
