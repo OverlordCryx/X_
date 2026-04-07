@@ -3482,10 +3482,18 @@ local UltEspState = {
     overlayGui = nil,
     billboards = {}
 }
-local ULT_DURATION_EXTRA = 6
+local ULT_DURATION_EXTRA = 6.5
+local function isBaldCharacter(plr)
+    return plr and plr:GetAttribute("Character") == "Bald"
+end
 local function readUltimateTimeDuration(plr)
+    if isBaldCharacter(plr) then
+        UltEspState.lastUltTime[plr] = nil
+        return nil
+    end
     local char = plr and plr.Character
     if not char then
+        UltEspState.lastUltTime[plr] = nil
         return nil
     end
     local raw = char:GetAttribute("UltimateTime")
@@ -3494,6 +3502,7 @@ local function readUltimateTimeDuration(plr)
         UltEspState.lastUltTime[plr] = duration
         return duration
     end
+    UltEspState.lastUltTime[plr] = nil
     return nil
 end
 local function getUltimateTimeDuration(plr, retryCount)
@@ -3510,9 +3519,12 @@ local function getUltimateTimeDuration(plr, retryCount)
             return duration
         end
     end
-    return UltEspState.lastUltTime[plr]
+    return nil
 end
 local function getUltTimeLeft(plr)
+    if isBaldCharacter(plr) or not UltEspState.lastUltTime[plr] then
+        return nil
+    end
     local endAt = UltEspState.ultEndAt[plr]
     if not endAt then
         return nil
@@ -3597,6 +3609,10 @@ local function onUltimateChanged(plr)
     local val = tonumber(plr:GetAttribute("Ultimate") or 0) or 0
     local prev = UltEspState.lastUlt[plr]
     UltEspState.lastUlt[plr] = val
+    if isBaldCharacter(plr) then
+        finishUltEsp(plr)
+        return
+    end
     if ToggleDetectUlt and ToggleDetectUlt.Value then
         if val >= 100 then
             if UltEspState.active[plr] and not UltEspState.timer[plr] then
@@ -3608,6 +3624,7 @@ local function onUltimateChanged(plr)
         if prev and prev >= 100 and val == 0 then
             local duration = getUltimateTimeDuration(plr)
             if not duration then
+                finishUltEsp(plr)
                 return
             end
             UltEspState.active[plr] = true
@@ -3640,8 +3657,12 @@ local function setupDetectPlayer(plr)
     end)
     c.charAttr = plr:GetAttributeChangedSignal("Character"):Connect(function()
         if plr:GetAttribute("Character") == "Bald" then
+            UltEspState.lastUltTime[plr] = nil
             finishUltEsp(plr)
+        else
+            UltEspState.lastUltTime[plr] = getUltimateTimeDuration(plr, 1)
         end
+        UpdateBillboard(plr)
     end)
     c.charAdded = plr.CharacterAdded:Connect(function(char)
         hideUltEsp(plr)
@@ -3653,6 +3674,9 @@ local function setupDetectPlayer(plr)
         end
         c.ultTime = char:GetAttributeChangedSignal("UltimateTime"):Connect(function()
             UltEspState.lastUltTime[plr] = getUltimateTimeDuration(plr, 1)
+            if not UltEspState.lastUltTime[plr] then
+                finishUltEsp(plr)
+            end
             UpdateBillboard(plr)
         end)
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -3669,6 +3693,9 @@ local function setupDetectPlayer(plr)
     if plr.Character then
         c.ultTime = plr.Character:GetAttributeChangedSignal("UltimateTime"):Connect(function()
             UltEspState.lastUltTime[plr] = getUltimateTimeDuration(plr, 1)
+            if not UltEspState.lastUltTime[plr] then
+                finishUltEsp(plr)
+            end
             UpdateBillboard(plr)
         end)
         local hum = plr.Character:FindFirstChildOfClass("Humanoid")
@@ -3862,7 +3889,7 @@ UpdateBillboard = function(player)
         removePlayerBillboard(player)
         return
     end
-    local headOffset = (head.Size.Y * 0.5) + 2
+    local headOffset = (head.Size.Y * 0.5) + 2.3
     local worldPos = head.Position + Vector3.new(0, headOffset, 0)
     local screenPos, onScreen = camera:WorldToViewportPoint(worldPos)
     local root = player.Character and getRootUniversal(player.Character)
@@ -3897,8 +3924,7 @@ UpdateBillboard = function(player)
     if ultTimeLabel then
         if showUltTime then
             local remaining = getUltTimeLeft(player)
-            local hasDuration = UltEspState.lastUltTime[player] ~= nil or getUltimateTimeDuration(player, 1) ~= nil
-            if remaining and hasDuration then
+            if remaining then
                 hideUltPercent = true
                 ultTimeLabel.Text = fitBillboardText(string.format("ULT %.1fs", remaining), 18)
                 ultTimeLabel.TextColor3 = Color3.fromRGB(255, 245, 120)
@@ -3969,7 +3995,7 @@ local function UpdateAll()
     end
 end
 local conn
-local billboardInterval = 0
+local billboardInterval = 1 / 30
 local billboardTimer = 0
 local function ManageHeartbeat()
     local showUlt = ToggleUlt and ToggleUlt.Value
@@ -3978,7 +4004,7 @@ local function ManageHeartbeat()
     if showUlt or showUltTime or showClass then
         if not conn then
             billboardTimer = 0
-            conn = RunService.Heartbeat:Connect(function(dt)
+            conn = RunService.RenderStepped:Connect(function(dt)
                 if isSafeTeleportLocked() then
                     return
                 end
@@ -3988,12 +4014,12 @@ local function ManageHeartbeat()
                 if not liveShowUlt and not liveShowUltTime and not liveShowClass then
                     return
                 end
+                billboardTimer = billboardTimer + dt
                 if liveShowUltTime then
-                    UpdateAll()
+                    if billboardTimer < (1 / 60) then return end
+                elseif billboardTimer < billboardInterval then
                     return
                 end
-                billboardTimer = billboardTimer + dt
-                if billboardTimer < billboardInterval then return end
                 billboardTimer = 0
                 UpdateAll()
             end)
@@ -4004,6 +4030,24 @@ local function ManageHeartbeat()
             conn = nil
         end
     end
+end
+local function queueBillboardRefresh(plr)
+    task.spawn(function()
+        local deadline = tick() + 1.2
+        while plr and plr.Parent == Players do
+            local char = plr.Character
+            local head = char and char:FindFirstChild("Head")
+            if head then
+                UpdateBillboard(plr)
+                return
+            end
+            if tick() >= deadline then
+                UpdateBillboard(plr)
+                return
+            end
+            RunService.RenderStepped:Wait()
+        end
+    end)
 end
 if ToggleUlt then
     ToggleUlt:OnChanged(function()
@@ -4039,9 +4083,9 @@ if ToggleDetectUlt then
 end
 local function onBillboardPlayerAdded(plr)
     plr.CharacterAdded:Connect(function()
-        task.wait(0.7)
-        UpdateBillboard(plr)
+        queueBillboardRefresh(plr)
     end)
+    queueBillboardRefresh(plr)
     if ToggleUlt then
         plr:GetAttributeChangedSignal("Ultimate"):Connect(function()
             if ToggleUlt.Value then UpdateBillboard(plr) end
@@ -4103,7 +4147,7 @@ end
 local function scheduleBillboardPending()
     if bbProcessing then return end
     bbProcessing = true
-    task.delay(0.1, processBillboardPending)
+    task.delay(getBillboardDelay(), processBillboardPending)
 end
 registerJoinLeave("add", function(plr)
     bbPendingAdd[plr] = true
