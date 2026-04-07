@@ -2177,7 +2177,7 @@ local rangeValues = {}
 for i = 5, 450, 5 do
     table.insert(rangeValues, tostring(i))
 end
-local XXDropdown = Tabs.TOG:AddDropdown("Dropdown_D_F", {
+Tabs.TOG:AddDropdown("Dropdown_D_F", {
     Title = "Aura Range",
     Values = rangeValues,
     Multi = false,
@@ -2386,7 +2386,7 @@ Tabs.TOG:AddToggle("FlingAllToggle", {
     end
 })
 local antifling
-local AntiFlingToggle = Tabs.TOG:AddToggle("AntiFling", {
+Tabs.TOG:AddToggle("AntiFling", {
     Title = "Anti Fling",
     Default = false,
     Callback = function(state)
@@ -4554,7 +4554,7 @@ Tabs.TOG:AddButton({
         end
     end
 })
-local FixCam = Tabs.TOG:AddButton({
+Tabs.TOG:AddButton({
     Title = "Fix Camera",
     Callback = function()
 	local player = Players.LocalPlayer
@@ -4568,23 +4568,243 @@ local FixCam = Tabs.TOG:AddButton({
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if map and mainPart then
-    local ButtonDummy = Tabs.TOG:AddButton({
+    local function getAliveWeakestDummy()
+        local live = workspace:FindFirstChild("Live")
+        local dummy = live and live:FindFirstChild("Weakest Dummy")
+        if not dummy then return nil end
+        local dummyHumanoid = dummy:FindFirstChildOfClass("Humanoid")
+        local dummyRoot = dummy:FindFirstChild("HumanoidRootPart")
+        if not dummyHumanoid or dummyHumanoid.Health <= 0 or not dummyRoot then
+            return nil
+        end
+        return dummy, dummyRoot, dummyHumanoid
+    end
+    Tabs.TOG:AddButton({
         Title = "Teleport to Weakest Dummy",
         Callback = function()
-            local live = workspace:FindFirstChild("Live")
-            local dummy = live and live:FindFirstChild("Weakest Dummy")
-            if dummy
-            and dummy:FindFirstChild("HumanoidRootPart")
+            local _, dummyRoot = getAliveWeakestDummy()
+            if dummyRoot
             and LocalPlayer.Character
             and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 LocalPlayer.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
                 LocalPlayer.Character.HumanoidRootPart.AssemblyAngularVelocity = Vector3.zero
                 LocalPlayer.Character.HumanoidRootPart.CFrame =
-                    dummy.HumanoidRootPart.CFrame
+                    dummyRoot.CFrame
             end
         end
     })
 end
+local backpackHotbar = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("Hotbar"):WaitForChild("Backpack"):WaitForChild("Hotbar")
+local function hasCooldownOnSlot4()
+    local slot = backpackHotbar:FindFirstChild("4")
+    if not slot then return false end
+    local base = slot:FindFirstChild("Base")
+    if not base then return false end
+    local cooldownFrame = base:FindFirstChild("Cooldown")
+    if not cooldownFrame then return false end
+    return cooldownFrame.Visible == true
+end
+local function tryUseAndUnequipBindingCloth(character, humanoid)
+    local currentTool = character:FindFirstChildWhichIsA("Tool")
+    if currentTool then
+        local name = currentTool.Name
+        if name:find("Binding") or name:find("Cloth") then
+            currentTool:Activate()
+            task.wait()
+            currentTool.Parent = LocalPlayer.Backpack
+            return true
+        end
+    end
+    local clothTool = LocalPlayer.Backpack:FindFirstChild("Binding Cloth")
+    if not clothTool or not clothTool:IsA("Tool") then
+        return false
+    end
+    humanoid:EquipTool(clothTool)
+    task.wait() 
+    if clothTool.Parent == character then
+        clothTool:Activate()
+        task.wait()
+        clothTool.Parent = LocalPlayer.Backpack
+        return true
+    end
+    return false
+end
+function getGroundedBehindData(hrp, dummyRoot, distance)
+    local behindPos = dummyRoot.Position - dummyRoot.CFrame.LookVector * distance
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, dummyRoot.Parent}
+    local groundResult = workspace:Raycast(dummyRoot.Position + Vector3.new(0, 4, 0), Vector3.new(0, -25, 0), rayParams)
+    local groundY = groundResult and groundResult.Position.Y or (dummyRoot.Position.Y - (dummyRoot.Size.Y * 0.5))
+    local groundedBehindPos = Vector3.new(behindPos.X, groundY + (hrp.Size.Y * 0.5), behindPos.Z)
+    local lookTarget = Vector3.new(dummyRoot.Position.X, groundedBehindPos.Y, dummyRoot.Position.Z)
+    return groundedBehindPos, lookTarget
+end
+function isDummyStanding(dummyRoot, dummyHumanoid)
+    if not dummyRoot or not dummyHumanoid or dummyHumanoid.Health <= 0 then
+        return false
+    end
+    local state = dummyHumanoid:GetState()
+    if state == Enum.HumanoidStateType.FallingDown
+    or state == Enum.HumanoidStateType.Freefall
+    or state == Enum.HumanoidStateType.Jumping
+    or state == Enum.HumanoidStateType.Physics
+    or dummyHumanoid.PlatformStand then
+        return false
+    end
+    if dummyHumanoid.FloorMaterial == Enum.Material.Air then
+        return false
+    end
+    if dummyRoot.AssemblyLinearVelocity.Magnitude > 2 or dummyRoot.AssemblyAngularVelocity.Magnitude > 2 then
+        return false
+    end
+    local upDot = dummyRoot.CFrame.UpVector:Dot(Vector3.yAxis)
+    return upDot > 0.7
+end
+function isLocalPlayerGrounded(humanoid, hrp)
+    if not humanoid or not hrp or humanoid.Health <= 0 then
+        return false
+    end
+    local state = humanoid:GetState()
+    if state == Enum.HumanoidStateType.FallingDown
+    or state == Enum.HumanoidStateType.Freefall
+    or state == Enum.HumanoidStateType.Jumping
+    or state == Enum.HumanoidStateType.Physics
+    or humanoid.PlatformStand then
+        return false
+    end
+    if humanoid.FloorMaterial == Enum.Material.Air then
+        return false
+    end
+    local upDot = hrp.CFrame.UpVector:Dot(Vector3.yAxis)
+    return upDot > 0.7
+end
+function flingDummyFromBehind(hrp, dummyRoot, dummyHumanoid)
+    if not dummyHumanoid or dummyHumanoid.Health <= 0 then
+        return
+    end
+    local groundedBehindPos, lookTarget = getGroundedBehindData(hrp, dummyRoot, 2)
+    hrp.CFrame = CFrame.lookAt(groundedBehindPos, lookTarget)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    local flingPower = 300
+    local offsets = {
+        Vector3.new(0, 0, 1.15),
+        Vector3.new(0.9, 0, 0.55),
+        Vector3.new(-0.9, 0, 0.55),
+        Vector3.new(0, 0, -0.25)
+    }
+    local startTime = tick()
+    local i = 1
+    while tick() - startTime < 3.5 do
+        if not hrp.Parent or not dummyRoot.Parent or not dummyHumanoid.Parent or dummyHumanoid.Health <= 0 then
+            break
+        end
+        local offset = offsets[((i - 1) % #offsets) + 1]
+        local groundedPos = select(1, getGroundedBehindData(hrp, dummyRoot, 1.25))
+        local targetPos = groundedPos + dummyRoot.CFrame.RightVector * offset.X + dummyRoot.CFrame.LookVector * offset.Z
+        local groundedTargetPos = Vector3.new(targetPos.X, groundedPos.Y, targetPos.Z)
+        local groundedLookTarget = Vector3.new(dummyRoot.Position.X, groundedPos.Y, dummyRoot.Position.Z)
+        hrp.CFrame = CFrame.lookAt(groundedTargetPos, groundedLookTarget)
+        hrp.AssemblyAngularVelocity = Vector3.new(flingPower, flingPower, flingPower)
+        hrp.AssemblyLinearVelocity =
+            hrp.CFrame.LookVector * flingPower + Vector3.new(0, 80, 0)
+        RunService.Heartbeat:Wait()
+        i = i + 1
+    end
+    groundedBehindPos, lookTarget = getGroundedBehindData(hrp, dummyRoot, 2)
+    hrp.CFrame = CFrame.lookAt(groundedBehindPos, lookTarget)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+end
+function waitForDummyToStay(dummyRoot, dummyHumanoid, timeoutSeconds)
+    local startTime = tick()
+    while tick() - startTime < timeoutSeconds do
+        if not dummyRoot.Parent or not dummyHumanoid.Parent or dummyHumanoid.Health <= 0 then
+            return false
+        end
+        if isDummyStanding(dummyRoot, dummyHumanoid) then
+            return true
+        end
+        RunService.Heartbeat:Wait()
+    end
+    return false
+end
+function startDummyTpLoop(hrp, humanoid, dummyRoot, dummyHumanoid)
+    local active = true
+    local conn
+    conn = RunService.Heartbeat:Connect(function()
+        if not active then
+            return
+        end
+        if not hrp.Parent or not dummyRoot.Parent or not isDummyStanding(dummyRoot, dummyHumanoid) or not isLocalPlayerGrounded(humanoid, hrp) then
+            active = false
+            if conn then
+                conn:Disconnect()
+            end
+            return
+        end
+        local groundedBehindPos, lookTarget = getGroundedBehindData(hrp, dummyRoot, 2)
+        hrp.CFrame = CFrame.lookAt(groundedBehindPos, lookTarget)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end)
+    return function()
+        active = false
+        if conn then
+            conn:Disconnect()
+            conn = nil
+        end
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+Tabs.TOG:AddButton({
+    Title = "Bring Weakest Dummy (MONSTER)",
+    Callback = function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not humanoid then return end
+        if hasCooldownOnSlot4() then
+		return 
+        end
+        local savedCFrame = hrp.CFrame
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        local live = workspace:FindFirstChild("Live")
+        local dummy = live and live:FindFirstChild("Weakest Dummy")
+        if not dummy then return end
+        local dummyHumanoid = dummy:FindFirstChildOfClass("Humanoid")
+        local dummyRoot = dummy:FindFirstChild("HumanoidRootPart")
+        if not dummyHumanoid or dummyHumanoid.Health <= 0 or not dummyRoot then return end
+        if not isLocalPlayerGrounded(humanoid, hrp) then return end
+        local groundedBehindPos, lookTarget = getGroundedBehindData(hrp, dummyRoot, 2)
+        hrp.CFrame = CFrame.lookAt(groundedBehindPos, lookTarget)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        flingDummyFromBehind(hrp, dummyRoot, dummyHumanoid)
+        if not waitForDummyToStay(dummyRoot, dummyHumanoid, 5) then
+            hrp.CFrame = savedCFrame
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            return
+        end
+        local stopTpLoop = startDummyTpLoop(hrp, humanoid, dummyRoot, dummyHumanoid)
+        task.wait(0.1)
+        stopTpLoop()
+        local success = tryUseAndUnequipBindingCloth(char, humanoid)
+        task.wait(0.55)
+        hrp.CFrame = savedCFrame
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        if success then
+        else
+        end
+    end
+})
+
 Tabs.TOG:AddButton({
     Title = "Save All Settings",
     Description = "Manually save your current config",
