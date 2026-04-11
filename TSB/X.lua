@@ -1219,8 +1219,10 @@ do
     local flyState = {
         statusParagraph = nil
     }
+    _G.NOTHINGX_FlyActive = false
     local function toggleFly()
         flying = not flying
+        _G.NOTHINGX_FlyActive = flying
         if flyState.statusParagraph then
             flyState.statusParagraph:SetTitle(flying and "Fly : ON" or "Fly : OFF")
         end
@@ -1255,6 +1257,7 @@ do
         root = newChar:WaitForChild("HumanoidRootPart")
         if flying then
             flying = false
+            _G.NOTHINGX_FlyActive = false
             task.wait(0.1)
             toggleFly()
         end
@@ -3451,6 +3454,64 @@ Tabs.TOG:AddDropdown("TpVariantAll", {
         TPVariantMode = value or "Behind"
     end
 })
+function _G.NOTHINGX_Protection.setVoidRescueMode(mode)
+    _G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
+    _G.NOTHINGX_Protection.normalVoidRescue = mode == "normal"
+    _G.NOTHINGX_Protection.ultraSafeVoidRescue = mode == "ultra"
+    if _G.NOTHINGX_Protection.syncingVoidRescueToggles then
+        return
+    end
+    _G.NOTHINGX_Protection.syncingVoidRescueToggles = true
+    local normalToggle = _G.NOTHINGX_Protection.normalVoidRescueToggle
+    local ultraToggle = _G.NOTHINGX_Protection.ultraVoidRescueToggle
+    if normalToggle and normalToggle.SetValue then
+        pcall(function()
+            normalToggle:SetValue(mode == "normal")
+        end)
+    end
+    if ultraToggle and ultraToggle.SetValue then
+        pcall(function()
+            ultraToggle:SetValue(mode == "ultra")
+        end)
+    end
+    _G.NOTHINGX_Protection.syncingVoidRescueToggles = false
+end
+_G.NOTHINGX_Protection.normalVoidRescueToggle = Tabs.TOG:AddToggle("NormalVoidRescue", {
+    Title = "Normal Rescue",
+    Default = false,
+    Callback = function(state)
+        if _G.NOTHINGX_Protection.syncingVoidRescueToggles then
+            return
+        end
+        _G.NOTHINGX_Protection.setVoidRescueMode(state and "normal" or "off")
+    end
+})
+_G.NOTHINGX_Protection.ultraVoidRescueToggle = Tabs.TOG:AddToggle("UltraSafeVoidRescue", {
+    Title = "Ultra Rescue",
+    Default = false,
+    Callback = function(state)
+        if _G.NOTHINGX_Protection.syncingVoidRescueToggles then
+            return
+        end
+        _G.NOTHINGX_Protection.setVoidRescueMode(state and "ultra" or "off")
+    end
+})
+_G.NOTHINGX_Protection.antibugEnabled = _G.NOTHINGX_Protection.antibugEnabled == true
+_G.NOTHINGX_Protection.antibugToggle = Tabs.TOG:AddToggle("AntiBugToggle", {
+    Title = "Fix Camera",
+    Default = false,
+    Callback = function(state)
+        _G.NOTHINGX_Protection.antibugEnabled = state == true
+        if state then
+            if Antibug then
+                Antibug()
+            end
+        elseif _G.NOTHINGX_Protection.antibugConnection then
+            _G.NOTHINGX_Protection.antibugConnection:Disconnect()
+            _G.NOTHINGX_Protection.antibugConnection = nil
+        end
+    end
+})
 local ToggleUlt
 local ToggleClass
 local ToggleDetectUlt
@@ -4984,8 +5045,140 @@ function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, 
     return true
 end
 
+local function hasActiveAnimationTrack(character)
+    if not (character and character.Parent) then
+        return false
+    end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        return false
+    end
+    for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+        if track.IsPlaying and track.Animation then
+            return true
+        end
+    end
+    return false
+end
+
+function _G.NOTHINGX_Protection.isPotentialVoidKillAnimator(plr, localRoot)
+    if not (plr and plr ~= Players.LocalPlayer) then
+        return false
+    end
+    local character = plr.Character
+    if not (character and character.Parent) then
+        return false
+    end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = getRootUniversal(character)
+    if not humanoid or humanoid.Health <= 0 or not root then
+        return false
+    end
+    if not hasActiveAnimationTrack(character) then
+        return false
+    end
+    if not localRoot then
+        return true
+    end
+    local distance = (localRoot.Position - root.Position).Magnitude
+    return distance <= 45
+end
+
+function _G.NOTHINGX_Protection.shouldUseVoidAnimationTp()
+    local localPlayer = Players.LocalPlayer
+    local localCharacter = localPlayer and localPlayer.Character
+    if not hasActiveAnimationTrack(localCharacter) then
+        return false
+    end
+    local localRoot = localCharacter and getRootUniversal(localCharacter)
+    local targetPlayer = getPriorityTargetPlayer and getPriorityTargetPlayer() or nil
+    if _G.NOTHINGX_Protection.isPotentialVoidKillAnimator(targetPlayer, localRoot) then
+        return true
+    end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if _G.NOTHINGX_Protection.isPotentialVoidKillAnimator(plr, localRoot) then
+            return true
+        end
+    end
+    return false
+end
+
+function _G.NOTHINGX_Protection.hasNearbyVoidKillAnimator(localRoot)
+    if not localRoot then
+        return false
+    end
+    local targetPlayer = getPriorityTargetPlayer and getPriorityTargetPlayer() or nil
+    if _G.NOTHINGX_Protection.isPotentialVoidKillAnimator(targetPlayer, localRoot) then
+        return true
+    end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if _G.NOTHINGX_Protection.isPotentialVoidKillAnimator(plr, localRoot) then
+            return true
+        end
+    end
+    return false
+end
+
+_G.NOTHINGX_Protection.ultraSafeVoidRescue = _G.NOTHINGX_Protection.ultraSafeVoidRescue == true
+_G.NOTHINGX_Protection.normalVoidRescue = _G.NOTHINGX_Protection.normalVoidRescue == true
+
+function _G.NOTHINGX_Protection.shouldTriggerPreVoidRescue(character, hrp, minY)
+    if not (character and hrp and hrp.Parent) then
+        return false
+    end
+    if not _G.NOTHINGX_Protection.normalVoidRescue and not _G.NOTHINGX_Protection.ultraSafeVoidRescue then
+        return false
+    end
+    local lastSafe = _G.NOTHINGX_Protection.lastSafePosition
+    if not lastSafe then
+        return false
+    end
+    local localHumanoid = character:FindFirstChildOfClass("Humanoid")
+    if localHumanoid and localHumanoid.Health <= 0 then
+        return false
+    end
+    local support = _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
+    local velocity = hrp.AssemblyLinearVelocity or Vector3.zero
+    local distanceFromSafe = (hrp.Position - lastSafe.Position).Magnitude
+    local dropFromSafe = lastSafe.Position.Y - hrp.Position.Y
+    local nearbyAnimator = _G.NOTHINGX_Protection.hasNearbyVoidKillAnimator(hrp)
+    local localAnimating = hasActiveAnimationTrack(character)
+    if _G.NOTHINGX_Protection.ultraSafeVoidRescue then
+        local ultraAirDrag = not support and (
+            distanceFromSafe > 12
+            or dropFromSafe > 5
+            or velocity.Y < -12
+            or nearbyAnimator
+        )
+        local ultraNearVoid = minY and hrp.Position.Y < (minY + 110) and (
+            velocity.Y < -8
+            or nearbyAnimator
+            or localAnimating
+            or not support
+        )
+        return ultraAirDrag or ultraNearVoid
+    end
+    local suspiciousAirDrag = not support and distanceFromSafe > 24 and (
+        velocity.Y < -28
+        or dropFromSafe > 10
+        or nearbyAnimator
+    )
+    local suspiciousForcedDrop = distanceFromSafe > 38 and (
+        velocity.Y < -40
+        or dropFromSafe > 16
+        or (localAnimating and nearbyAnimator)
+    )
+    local nearVoidThreat = minY and hrp.Position.Y < (minY + 65) and (
+        velocity.Y < -22
+        or nearbyAnimator
+        or (localAnimating and not support)
+    )
+    return suspiciousAirDrag or suspiciousForcedDrop or nearVoidThreat
+end
+
 function isProtectionExemptModeActive()
     return inSafe
+        or _G.NOTHINGX_FlyActive == true
         or flingOneOn
         or (flingState and (
             flingState.clickFlingOn
@@ -5218,17 +5411,42 @@ end
 local BUFFER = 211
 local function protect(character)
     local hrp = character:WaitForChild("HumanoidRootPart")
+    local rescueCooldown = _G.NOTHINGX_Protection.ultraSafeVoidRescue and 0.08 or 0.35
+    local lastRescueAt = 0
     while character.Parent do
         task.wait()
         if isProtectionExemptModeActive() then
             continue
         end
-        _G.NOTHINGX_Protection.updateLastSafePosition(hrp, VOID_Y and (VOID_Y + BUFFER) or nil)
-        if VOID_Y and hrp.Position.Y < (VOID_Y + BUFFER) then
-            local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame(nil, VOID_Y and (VOID_Y + BUFFER) or nil)
+        rescueCooldown = _G.NOTHINGX_Protection.ultraSafeVoidRescue and 0.08 or 0.35
+        local minSafeY = VOID_Y and (VOID_Y + BUFFER) or nil
+        _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minSafeY)
+        local now = tick()
+        local shouldRescue = false
+        if VOID_Y and hrp.Position.Y < minSafeY then
+            shouldRescue = true
+        elseif (_G.NOTHINGX_Protection.normalVoidRescue or _G.NOTHINGX_Protection.ultraSafeVoidRescue)
+            and now - lastRescueAt >= rescueCooldown
+            and _G.NOTHINGX_Protection.shouldTriggerPreVoidRescue(character, hrp, minSafeY) then
+            shouldRescue = true
+        end
+        if shouldRescue then
+            lastRescueAt = now
+            local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame(nil, minSafeY)
             if rescueCFrame then
                 local ok, err = pcall(function()
-                    _G.NOTHINGX_Protection.teleportCharacter(character, hrp, rescueCFrame, VOID_Y and (VOID_Y + BUFFER) or nil)
+                    if _G.NOTHINGX_Protection.shouldUseVoidAnimationTp() then
+                        local finalRescue = rescueCFrame + Vector3.new(0, 2, 0)
+                        _G.SafeTeleportLock = true
+                        disableTeleportFeaturesForVoidProtection()
+                        strongPivotCharacter(character, hrp, finalRescue, getTpVariantPauseDuration(), 0.12)
+                        task.wait()
+                        _G.NOTHINGX_Protection.resetVelocity(hrp)
+                        syncRootControllers(hrp, finalRescue)
+                        _G.SafeTeleportLock = false
+                    else
+                        _G.NOTHINGX_Protection.teleportCharacter(character, hrp, rescueCFrame, VOID_Y and (VOID_Y + BUFFER) or nil)
+                    end
                 end)
                 _G.SafeTeleportLock = false
                 if not ok then
@@ -5252,7 +5470,14 @@ function Antibug()
     local RunService = game:GetService("RunService")
     local player = Players.LocalPlayer
     local maxDist = 50
-    RunService.Heartbeat:Connect(function()
+    if _G.NOTHINGX_Protection.antibugConnection then
+        _G.NOTHINGX_Protection.antibugConnection:Disconnect()
+        _G.NOTHINGX_Protection.antibugConnection = nil
+    end
+    _G.NOTHINGX_Protection.antibugConnection = RunService.Heartbeat:Connect(function()
+        if not _G.NOTHINGX_Protection.antibugEnabled then
+            return
+        end
         local char = player.Character
         if not char then return end
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -5273,7 +5498,6 @@ function Antibug()
         end
     end)
 end
-Antibug()
     Fluent:Notify({
         Title = "NOTHING X",
         Content = "_X",
