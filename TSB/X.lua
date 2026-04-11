@@ -1220,6 +1220,23 @@ do
         statusParagraph = nil
     }
     _G.NOTHINGX_FlyActive = false
+    _G.NOTHINGX_StopFlyRuntime = function()
+        if not flying then
+            _G.NOTHINGX_FlyActive = false
+            return
+        end
+        flying = false
+        _G.NOTHINGX_FlyActive = false
+        if hum then
+            hum.PlatformStand = false
+            hum.WalkSpeed = 16
+        end
+        if bv then bv:Destroy() bv = nil end
+        if bg then bg:Destroy() bg = nil end
+        if track then track:Stop(0.3) end
+        velocity = Vector3.new()
+        currentVel = Vector3.new()
+    end
     local function toggleFly()
         flying = not flying
         _G.NOTHINGX_FlyActive = flying
@@ -1249,6 +1266,11 @@ do
             if track then track:Stop(0.3) end
             velocity = Vector3.new()
             currentVel = Vector3.new()
+        end
+    end
+    _G.NOTHINGX_StartFlyRuntime = function()
+        if not flying then
+            toggleFly()
         end
     end
     local function onCharacterAdded(newChar)
@@ -2078,7 +2100,10 @@ local flingState = {
     orbitIncrement = 0.1,
     orbitSpeed = 999999999999999,
     walkflinging = false,
-    walkFlingMode = "Normal",
+    walkFlingUseNormal = false,
+    walkFlingDirections = {
+        Forward = true
+    },
     walkStatusParagraph = UIStatus.walkfling,
     clickFlingConnection = nil,
     clickFlingBusy = false,
@@ -2092,17 +2117,102 @@ local function getRootUniversal(char)
         char:FindFirstChild("UpperTorso")
     )
 end
-local function WalkFlingLoop()
+local setWalkFlingRuntime
+local setClickFlingRuntime
+local function stopWalkAndAreaFlingRuntime()
+    setWalkFlingRuntime(false)
+    flingState.auraFlingOn = false
+    setClickFlingRuntime(false)
+    flingState.flingOn = false
+    flingState.clickFlingBusy = false
+    if flingState.flingAllConn then
+        flingState.flingAllConn:Disconnect()
+        flingState.flingAllConn = nil
+    end
+    VisualFix:Stop()
+end
+local WalkFlingLoop
+local function updateWalkFlingStatus()
+    if not flingState.walkStatusParagraph then
+        flingState.walkStatusParagraph = UIStatus.walkfling
+    end
+    if flingState.walkStatusParagraph then
+        flingState.walkStatusParagraph:SetTitle(
+            flingState.walkflinging and "Walk Fling : ON" or "Walk Fling : OFF"
+        )
+    end
+end
+setWalkFlingRuntime = function(state)
+    local enabled = state == true
+    if flingState.walkflinging == enabled then
+        updateWalkFlingStatus()
+        return
+    end
+    flingState.walkflinging = enabled
+    updateWalkFlingStatus()
+    if enabled then
+        task.spawn(WalkFlingLoop)
+    end
+end
+local function getWalkFlingDirectionVector(root)
+    if not root then
+        return nil
+    end
+    local direction = Vector3.zero
+    local selected = flingState.walkFlingDirections or {}
+    if selected.Forward then
+        direction += root.CFrame.LookVector
+    end
+    if selected.Backward then
+        direction -= root.CFrame.LookVector
+    end
+    if selected.Right then
+        direction += root.CFrame.RightVector
+    end
+    if selected.Left then
+        direction -= root.CFrame.RightVector
+    end
+    if selected.Upward then
+        direction += Vector3.yAxis
+    end
+    if selected.Downward then
+        direction -= Vector3.yAxis
+    end
+    if direction.Magnitude <= 0.001 then
+        return nil
+    end
+    return direction.Unit
+end
+
+local function parseWalkFlingDirections(value)
+    local parsed = {}
+    if type(value) == "table" then
+        for key, enabled in pairs(value) do
+            if enabled == true then
+                parsed[key] = true
+            end
+        end
+    elseif type(value) == "string" and value ~= "" then
+        parsed[value] = true
+    end
+    if next(parsed) == nil then
+        parsed.Forward = true
+    end
+    flingState.walkFlingDirections = parsed
+end
+WalkFlingLoop = function()
     local movel = 0.1
     while flingState.walkflinging do
         RunService.Heartbeat:Wait()
         local char = flingState.localPlayer.Character
         local root = getRootUniversal(char)
 if char and root then
-    if flingState.walkFlingMode == "Forward" then
+    if not flingState.walkFlingUseNormal then
         local vel = root.Velocity
-        local lookVector = char.HumanoidRootPart.CFrame.LookVector
-        root.Velocity = lookVector * flingState.power
+        local direction = getWalkFlingDirectionVector(root)
+        if direction then
+            root.Velocity = direction * flingState.power
+        end
         RunService.RenderStepped:Wait()
         root.Velocity = vel
     else 
@@ -2122,23 +2232,12 @@ Tabs.KEY:AddKeybind("WalkFlingKey", {
     Mode = "Toggle",
     Default = "X",
     Callback = function()
-        flingState.walkflinging = not flingState.walkflinging
-        if not flingState.walkStatusParagraph then
-            flingState.walkStatusParagraph = UIStatus.walkfling
-        end
-        if flingState.walkStatusParagraph then
-            flingState.walkStatusParagraph:SetTitle(
-                flingState.walkflinging and "Walk Fling : ON" or "Walk Fling : OFF"
-            )
-        end
+        setWalkFlingRuntime(not flingState.walkflinging)
         Fluent:Notify({
             Title = "NOTHING X",
             Content = "Walk Fling: " .. (flingState.walkflinging and "ON" or "OFF"),
             Duration = 1.4
         })
-        if flingState.walkflinging then
-            task.spawn(WalkFlingLoop)
-        end
     end
 })
 Tabs.TOG:AddInput("WalkPowerInput", {
@@ -2154,13 +2253,20 @@ Tabs.TOG:AddInput("WalkPowerInput", {
         end
     end
 })
+Tabs.TOG:AddToggle("WalkFlingNormalToggle", {
+    Title = "Noraml Walkfling",
+    Default = false,
+    Callback = function(state)
+        flingState.walkFlingUseNormal = state == true
+    end
+})
 Tabs.TOG:AddDropdown("Dropdown_F_N", {
-    Title = "Mode WalkFling",
-    Values = {"Normal", "Forward"},
-    Multi = false,
-    Default = "Normal",
+    Title = "Direction",
+    Values = {"Forward", "Backward", "Upward", "Downward", "Right", "Left"},
+    Multi = true,
+    Default = {"Forward"},
     Callback = function(value)
-        flingState.walkFlingMode = value
+        parseWalkFlingDirections(value)
     end
 })
 Tabs.TOG:AddInput("FlingAllPowerInput", {
@@ -2251,7 +2357,26 @@ local function getPlayerFromClickedPart(part)
     end
     return nil
 end
-local function clickFlingTarget(targetPlayer)
+local clickFlingTarget
+setClickFlingRuntime = function(state)
+    flingState.clickFlingOn = state == true
+    if flingState.clickFlingConnection then
+        flingState.clickFlingConnection:Disconnect()
+        flingState.clickFlingConnection = nil
+    end
+    if flingState.clickFlingOn then
+        local mouse = flingState.localPlayer:GetMouse()
+        flingState.clickFlingConnection = mouse.Button1Down:Connect(function()
+            if not flingState.clickFlingOn then return end
+            local hitPart = mouse.Target
+            local targetPlayer = hitPart and getPlayerFromClickedPart(hitPart)
+            if targetPlayer then
+                clickFlingTarget(targetPlayer)
+            end
+        end)
+    end
+end
+clickFlingTarget = function(targetPlayer)
     if flingState.clickFlingBusy then return end
     flingState.clickFlingBusy = true
     task.spawn(function()
@@ -2306,22 +2431,7 @@ Tabs.TOG:AddToggle("ClickFlingToggle", {
     Title = "Click Fling",
     Default = false,
     Callback = function(state)
-        flingState.clickFlingOn = state
-        if flingState.clickFlingConnection then
-            flingState.clickFlingConnection:Disconnect()
-            flingState.clickFlingConnection = nil
-        end
-        if state then
-            local mouse = flingState.localPlayer:GetMouse()
-            flingState.clickFlingConnection = mouse.Button1Down:Connect(function()
-                if not flingState.clickFlingOn then return end
-                local hitPart = mouse.Target
-                local targetPlayer = hitPart and getPlayerFromClickedPart(hitPart)
-                if targetPlayer then
-                    clickFlingTarget(targetPlayer)
-                end
-            end)
-        end
+        setClickFlingRuntime(state)
     end
 })
 local function flingAll()
@@ -3109,6 +3219,39 @@ local DashBlockRunning = false
 local DashThread = nil
 local Dashblock
 local communicateConn
+local function setDashBlockRuntime(state)
+    DashBlockRunning = state == true
+    if DashThread then
+        DashThread:Disconnect()
+        DashThread = nil
+    end
+    if not DashBlockRunning then
+        return
+    end
+    if not communicate then
+        DashBlockRunning = false
+        return
+    end
+    DashThread = RunService.Heartbeat:Connect(function()
+        if not DashBlockRunning then
+            if DashThread then DashThread:Disconnect() DashThread = nil end
+            return
+        end
+        if not isSafeTeleportLocked() then
+            if not communicate then
+                DashBlockRunning = false
+                return
+            end
+            for _, dashKey in ipairs(directions) do
+                communicate:FireServer({
+                    Dash = dashKey,
+                    Key  = Enum.KeyCode.Q,
+                    Goal = "KeyPress"
+                })
+            end
+        end
+    end)
+end
 local function createDashToggle()
     if Dashblock then return end
     if not communicate then return end
@@ -3119,29 +3262,7 @@ local function createDashToggle()
             if state and not communicate then
                 return
             end
-            DashBlockRunning = state
-            if state then
-                if DashThread then DashThread:Disconnect() end
-                DashThread = RunService.Heartbeat:Connect(function()
-                    if not DashBlockRunning then
-                        if DashThread then DashThread:Disconnect() DashThread = nil end
-                        return
-                    end
-                    if not isSafeTeleportLocked() then
-                        if not communicate then
-                            DashBlockRunning = false
-                            return
-                        end
-                        for _, dashKey in ipairs(directions) do
-                            communicate:FireServer({
-                                Dash = dashKey,
-                                Key  = Enum.KeyCode.Q,
-                                Goal = "KeyPress"
-                            })
-                        end
-                    end
-                end)
-            end
+            setDashBlockRuntime(state)
         end
     })
 end
@@ -3159,6 +3280,14 @@ local function setupCharacter(char)
             createDashToggle()
         end
     end)
+end
+_G.NOTHINGX_StartDashBlockRuntime = function()
+    if DashBlockRunning then
+        setDashBlockRuntime(true)
+    end
+end
+_G.NOTHINGX_StopDashBlockRuntime = function()
+    setDashBlockRuntime(false)
 end
 if player.Character then
     setupCharacter(player.Character)
@@ -4255,8 +4384,6 @@ function initPlayerTargetUI()
         local myChar = LocalPlayer.Character
         local myRoot = getRootUniversal(myChar)
         if myRoot then
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
             if flingOneSavedCFrame and myRoot.Parent then
                 myRoot.CFrame = flingOneSavedCFrame
             end
@@ -4265,6 +4392,7 @@ function initPlayerTargetUI()
         flingOneT = 0
         VisualFix:Stop()
     end
+    _G.NOTHINGX_StopFlingOneRuntime = stopFlingOne
     local function startFlingOne()
         stopFlingOne()
         local loopId = flingOneLoopId + 1
@@ -4307,6 +4435,11 @@ function initPlayerTargetUI()
                 flingOneT = applyTargetFlingStep(myRoot, targetRoot, dt, FLING_INF_POWER, flingOneT)
             end
         end)
+    end
+    _G.NOTHINGX_StartFlingOneRuntime = function()
+        if flingOneOn then
+            startFlingOne()
+        end
     end
     local function startAutoTp()
         if autoTpConnection then autoTpConnection:Disconnect() end
@@ -4358,6 +4491,18 @@ function initPlayerTargetUI()
                 getTeleportStickyDuration(targetMotion, localMotion)
             )
         end)
+    end
+    _G.NOTHINGX_StopAutoTpRuntime = function()
+        autoTpOn = false
+        if autoTpConnection then
+            autoTpConnection:Disconnect()
+            autoTpConnection = nil
+        end
+    end
+    _G.NOTHINGX_StartAutoTpRuntime = function()
+        if autoTpOn then
+            startAutoTp()
+        end
     end
 
     buildDropdownValues = function()
@@ -4625,7 +4770,8 @@ Tabs.TOG:AddButton({
         if not humanoid then return end
         humanoid.CameraOffset = Vector3.new(0, 0, 0)
     end
-})
+});
+(function()
 local map = workspace:FindFirstChild("Map")
 local mainPart = map and map:FindFirstChild("MainPart")
 if map and mainPart then
@@ -4655,6 +4801,8 @@ if map and mainPart then
         end
     })
 end
+end)();
+(function()
 local backpackHotbar = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("Hotbar"):WaitForChild("Backpack"):WaitForChild("Hotbar")
 local function hasCooldownOnSlot4()
     local slot = backpackHotbar:FindFirstChild("4")
@@ -4865,6 +5013,7 @@ Tabs.TOG:AddButton({
         end
     end
 })
+end)()
 
 Tabs.TOG:AddButton({
     Title = "Save All Settings",
@@ -4893,10 +5042,60 @@ if SaveManager then
     end)
 end
 
+_G.NOTHINGX_Protection = _G.NOTHINGX_Protection or {}
 
-function disableTeleportFeaturesForVoidProtection()
-    -- Protection should only pause teleport behaviour through SafeTeleportLock.
-    -- Do not flip UI toggles/keybind state here.
+function _G.NOTHINGX_Protection.captureRuntimeSuspendState()
+    return {
+        fly = _G.NOTHINGX_FlyActive == true,
+        walkfling = flingState and flingState.walkflinging == true,
+        auraFling = flingState and flingState.auraFlingOn == true,
+        clickFling = flingState and flingState.clickFlingOn == true,
+        flingAll = flingState and flingState.flingOn == true,
+        flingPlayer = flingOneOn == true,
+        autoTp = autoTpOn == true,
+        dashBlock = DashBlockRunning == true
+    }
+end
+
+function _G.NOTHINGX_Protection.restoreRuntimeSuspendState()
+    local snapshot = _G.NOTHINGX_Protection.runtimeSuspendState
+    if not snapshot then
+        return
+    end
+    _G.NOTHINGX_Protection.runtimeSuspendState = nil
+
+    setWalkFlingRuntime(snapshot.walkfling)
+    flingState.auraFlingOn = snapshot.auraFling == true
+    if flingState.auraFlingOn then
+        auraFling()
+    end
+    setClickFlingRuntime(snapshot.clickFling)
+    flingState.flingOn = snapshot.flingAll == true
+    if flingState.flingOn then
+        flingAll()
+    end
+    flingOneOn = snapshot.flingPlayer == true
+    if flingOneOn and _G.NOTHINGX_StartFlingOneRuntime then
+        pcall(_G.NOTHINGX_StartFlingOneRuntime)
+    end
+    autoTpOn = snapshot.autoTp == true
+    if autoTpOn and _G.NOTHINGX_StartAutoTpRuntime then
+        pcall(_G.NOTHINGX_StartAutoTpRuntime)
+    end
+    DashBlockRunning = snapshot.dashBlock == true
+    if DashBlockRunning and _G.NOTHINGX_StartDashBlockRuntime then
+        pcall(_G.NOTHINGX_StartDashBlockRuntime)
+    end
+    if snapshot.fly and _G.NOTHINGX_StartFlyRuntime then
+        pcall(_G.NOTHINGX_StartFlyRuntime)
+    end
+end
+
+function _G.NOTHINGX_Protection.scheduleRuntimeSuspendRestore(delaySeconds)
+    task.delay(delaySeconds or 0.18, _G.NOTHINGX_Protection.restoreRuntimeSuspendState)
+end
+
+function disableTeleportFeaturesForVoidProtection(preserveFly)
     VisualFix:Stop()
 end
 
@@ -4933,6 +5132,35 @@ function _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
     params.FilterDescendantsInstances = {hrp.Parent}
     params.FilterType = Enum.RaycastFilterType.Blacklist
     return workspace:Raycast(hrp.Position, Vector3.new(0, -8, 0), params)
+end
+
+function _G.NOTHINGX_Protection.getExtendedGroundSupportResult(hrp, depth)
+    if not hrp or not hrp.Parent then
+        return nil
+    end
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {hrp.Parent}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    local castDepth = depth or 24
+    local cf = hrp.CFrame
+    local positions = {
+        hrp.Position,
+        hrp.Position + cf.RightVector * 3,
+        hrp.Position - cf.RightVector * 3,
+        hrp.Position + cf.LookVector * 3,
+        hrp.Position - cf.LookVector * 3,
+        hrp.Position + cf.RightVector * 2 + cf.LookVector * 2,
+        hrp.Position + cf.RightVector * 2 - cf.LookVector * 2,
+        hrp.Position - cf.RightVector * 2 + cf.LookVector * 2,
+        hrp.Position - cf.RightVector * 2 - cf.LookVector * 2
+    }
+    for i = 1, #positions do
+        local result = workspace:Raycast(positions[i], Vector3.new(0, -castDepth, 0), params)
+        if result then
+            return result
+        end
+    end
+    return nil
 end
 
 function _G.NOTHINGX_Protection.getSupportResultAt(position, ignoreInstance)
@@ -5028,12 +5256,12 @@ end
 
 function _G.NOTHINGX_Protection.teleportCharacter(character, hrp, targetCFrame, minY)
     _G.SafeTeleportLock = true
-    disableTeleportFeaturesForVoidProtection()
     local rescueCFrame = _G.NOTHINGX_Protection.getRescueCFrame(targetCFrame, minY)
     if not rescueCFrame then
         _G.SafeTeleportLock = false
         return false
     end
+    disableTeleportFeaturesForVoidProtection()
     for _ = 1, 15 do
         _G.NOTHINGX_Protection.resetVelocity(hrp)
         local finalRescue = rescueCFrame + Vector3.new(0, 2, 0)
@@ -5176,6 +5404,43 @@ function _G.NOTHINGX_Protection.shouldTriggerPreVoidRescue(character, hrp, minY)
     return suspiciousAirDrag or suspiciousForcedDrop or nearVoidThreat
 end
 
+function _G.NOTHINGX_Protection.shouldForceDisableForVoidFall(character, hrp, minY)
+    if not (character and hrp and hrp.Parent) then
+        return false
+    end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid and humanoid.Health <= 0 then
+        return false
+    end
+    if humanoid and humanoid.FloorMaterial ~= Enum.Material.Air then
+        return false
+    end
+    local support = _G.NOTHINGX_Protection.getGroundSupportResult(hrp)
+    if support then
+        return false
+    end
+    local extendedSupport = _G.NOTHINGX_Protection.getExtendedGroundSupportResult(hrp, 28)
+    if extendedSupport then
+        return false
+    end
+    local velocity = hrp.AssemblyLinearVelocity or Vector3.zero
+    if velocity.Y > -8 then
+        return false
+    end
+    if minY and hrp.Position.Y < (minY + 150) then
+        return true
+    end
+    local lastSafe = _G.NOTHINGX_Protection.lastSafePosition
+    if lastSafe then
+        local dropFromSafe = lastSafe.Position.Y - hrp.Position.Y
+        local distanceFromSafe = (hrp.Position - lastSafe.Position).Magnitude
+        if dropFromSafe > 8 or distanceFromSafe > 30 then
+            return true
+        end
+    end
+    return false
+end
+
 function isProtectionExemptModeActive()
     return inSafe
         or _G.NOTHINGX_FlyActive == true
@@ -5195,7 +5460,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 local checkTime = 0
 local interval = 0
 RunService.Heartbeat:Connect(function(dt)
-	if (_G.NOTHINGX_Protection and _G.NOTHINGX_Protection.suspendBoundary) or _G.SafeTeleportLock or isProtectionExemptModeActive() then
+	if (_G.NOTHINGX_Protection and _G.NOTHINGX_Protection.suspendBoundary) or _G.SafeTeleportLock then
 		return
 	end
 	checkTime += dt
@@ -5415,11 +5680,11 @@ local function protect(character)
     local lastRescueAt = 0
     while character.Parent do
         task.wait()
-        if isProtectionExemptModeActive() then
-            continue
-        end
         rescueCooldown = _G.NOTHINGX_Protection.ultraSafeVoidRescue and 0.08 or 0.35
         local minSafeY = VOID_Y and (VOID_Y + BUFFER) or nil
+        if inSafe then
+            continue
+        end
         _G.NOTHINGX_Protection.updateLastSafePosition(hrp, minSafeY)
         local now = tick()
         local shouldRescue = false
@@ -5504,5 +5769,3 @@ end
         SubContent = "", 
         Duration = 1.6
     })
-
-
