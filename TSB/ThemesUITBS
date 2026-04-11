@@ -15,7 +15,7 @@ if not scrollingFrame then
     scrollingFrame = screenGui:GetChildren()[2]:GetChildren()[4] 
 end
 
-local ORANGE = Color3.fromRGB(255, 165, 0)
+local ORANGE = Color3.fromRGB(255, 69, 0)
 
 local function setColors()
     if gradient then
