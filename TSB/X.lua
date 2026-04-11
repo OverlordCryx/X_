@@ -3498,7 +3498,7 @@ _G.NOTHINGX_Protection.ultraVoidRescueToggle = Tabs.TOG:AddToggle("UltraSafeVoid
 })
 _G.NOTHINGX_Protection.antibugEnabled = _G.NOTHINGX_Protection.antibugEnabled == true
 _G.NOTHINGX_Protection.antibugToggle = Tabs.TOG:AddToggle("AntiBugToggle", {
-    Title = "Fix Camera",
+    Title = "Fix Camera (auto any dead player distance 50)",
     Default = false,
     Callback = function(state)
         _G.NOTHINGX_Protection.antibugEnabled = state == true
