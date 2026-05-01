@@ -5783,7 +5783,7 @@ end
             dialogOpen = true
             showCount += 1
             local buttons = {}
-            if showCount >= 5 then
+            if showCount >= 2 then
                 buttons = {
                     {
                         Title = "NAH",
@@ -5793,7 +5793,7 @@ end
                         end
                     },
                                         {
-                        Title = "NAH",
+                        Title = "NAH *",
                         Callback = function()
                             loopEnabled = false
                             dialogOpen = false
