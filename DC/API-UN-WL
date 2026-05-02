@@ -2,7 +2,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
-local WebhookURL = "https://discord.com/api/webhooks/1470105884360310947/iPUC11NmqQRAwJilsE-i6k8y5ZQzlqhECwsKP_9Js4itjQRHF1mCCPToY-hf9oo5asEy"
+local WebhookURL = "https://discord.com/api/webhooks/1500279870973022278/MW8hTvLUKg502Nosy-yA-Frfn6l_hP-tOWLr8qkJg-QovslFJEyDu2VJNT_xvi9qmZtO"
 local device = "Unknown"
 if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
 	device = "Mobile"
