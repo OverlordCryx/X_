@@ -204,7 +204,6 @@ local AttackTargeting = {
 }
 Window:SelectTab()
 task.defer(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/TSB/ThemesUITBS"))()end)
-task.defer(function() loadstring(game:HttpGet("https://github.com/OverlordCryx/X_/raw/refs/heads/main/DC/API-TSB"))()end)
        local player = game.Players.LocalPlayer
 
                 Window:Minimize()
