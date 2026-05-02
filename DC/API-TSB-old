@@ -1,0 +1,100 @@
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+local WebhookURL = "https://discord.com/api/webhooks/1470105884360310947/iPUC11NmqQRAwJilsE-i6k8y5ZQzlqhECwsKP_9Js4itjQRHF1mCCPToY-hf9oo5asEy"
+local placeId = game.PlaceId
+local matchType = "Unknown"
+
+if placeId == 10449761463 then
+    matchType = "Normal"
+elseif placeId == 12360882630 then
+    matchType = "Dual"
+elseif placeId == 131048399685555 then
+    matchType = "Vc"
+end
+
+local platform = UserInputService:GetPlatform()
+local device = "Unknown"
+
+if platform == Enum.Platform.Windows 
+or platform == Enum.Platform.OSX 
+or platform == Enum.Platform.Linux 
+or platform == Enum.Platform.UWP then
+    device = "PC"
+elseif platform == Enum.Platform.IOS 
+or platform == Enum.Platform.Android then
+    device = "Mobile"
+end
+
+local profileLink = "https://www.roblox.com/users/" .. player.UserId .. "/profile"
+local joinLink = "https://www.roblox.com/games/" .. game.PlaceId .. "?gameInstanceId=" .. game.JobId
+
+local data = {
+    username = "NOTHING_X",
+    embeds = {{
+        title = "NOTHING X (TSB-OLD)",
+        color = 16753920,
+
+        fields = {
+            {
+                name = "Username",
+                value = player.Name,
+                inline = true
+            },
+            {
+                name = "User ID",
+                value = tostring(player.UserId),
+                inline = true
+            },
+            {
+                name = "He Play",
+                value = "[SERVER](" .. joinLink .. ")",
+                inline = false
+            },
+            {
+                name = "Profile Player",
+                value = "[VIEW PROFILE](" .. profileLink .. ")",
+                inline = false
+            },
+            {
+                name = "Server ID",
+                value = tostring(game.JobId),
+                inline = true
+            },
+            {
+                name = "Tsb Type",
+                value = matchType,
+                inline = true
+            },
+            {
+                name = "Device",
+                value = device,
+                inline = true
+            }
+        },
+
+        footer = {
+            text = "NOTHING X Logger"
+        },
+
+        timestamp = DateTime.now():ToIsoDate()
+    }}
+}
+
+pcall(function()
+    local requestFunc = syn and syn.request or http_request or request
+
+    if requestFunc then
+        requestFunc({
+            Url = WebhookURL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode(data)
+        })
+    end
+end)
