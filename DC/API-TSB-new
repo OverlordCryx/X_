@@ -44,7 +44,7 @@ local joinLink = "https://www.roblox.com/games/" .. game.PlaceId .. "?gameInstan
 local data = {
     username = "NOTHING_X",
     embeds = {{
-        title = "NOTHING X (TSB-New)",
+        title = "NOTHING X (TSB)",
         color = 16711680,
         fields = {
             {name = "Username", value = player.Name, inline = true},
