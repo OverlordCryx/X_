@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local gui = player:WaitForChild("PlayerGui")
 local gameGui = gui:WaitForChild("GameGui")
@@ -73,7 +74,27 @@ local function removeExtraStuff()
         lobby.Environment:Destroy()
     end
 end
+local function blockTransition()
+    local gamemodeComm = ReplicatedStorage:FindFirstChild("__GamemodeComm")
+    if gamemodeComm then
+        local re = gamemodeComm:FindFirstChild("RE")
+        if re then
+            local playTransition = re:FindFirstChild("PlayTransition")
+            if playTransition then
+                playTransition:Destroy()
+            end
+        end
+    end
+end
+local function removeKeybindDisplays()
+    local keybinds = gameGui:FindFirstChild("KeybindDisplays")
+    if keybinds then
+        keybinds:Destroy()
+    end
+end
 removeExtraStuff()
+blockTransition()
+removeKeybindDisplays()
 local guiToRemove = {
     gameGui.LobbyHUD.BottomNavigationBar,
     gameGui.Store,
@@ -87,7 +108,7 @@ for _, guiElement in pairs(guiToRemove) do
 end
 local workspaceToClear = {
     Workspace:FindFirstChild("Stadium") and Workspace.Stadium.Banners,
-    Workspace:FindFirstChild("Environment"),           
+    Workspace:FindFirstChild("Environment"),
     Workspace:FindFirstChild("Stadium") and Workspace.Stadium.Flashes,
     Workspace:FindFirstChild("Stadium") and Workspace.Stadium.Build,
     workspace.Stadium.Teams.Home.Audience,
@@ -138,7 +159,7 @@ local function removeGUIs()
     for _,g in pairs({
         gui:FindFirstChild("StarterPackInterface"),
         gameGui:FindFirstChild("Transition"),
-        gameGui:FindFirstChild("KeybindDisplays"),
+        gameGui:FindFirstChild("KeybindDisplays"),   
         gameGui:FindFirstChild("DailyRewards"),
         gameGui:FindFirstChild("GoalPopup")
     }) do
@@ -190,7 +211,9 @@ while true do
     removeDuplicates("Penalties")
     removeFolderIfExists("Customization")
     removeFolderIfExists("Packs")
-    removeExtraStuff()   
+    removeExtraStuff()
+    blockTransition()
+    removeKeybindDisplays()   
     local trophyParticles = Workspace:FindFirstChild("Lobby")
         and Workspace.Lobby:FindFirstChild("Museum")
         and Workspace.Lobby.Museum:FindFirstChild("Trophy")
