@@ -1,7 +1,4 @@
-wait(2)
-task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/Field"))()
-end)
+wait(10)
 task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/Delete"))()
 end)
@@ -12,9 +9,9 @@ task.spawn(function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/part%20D"))()
 end)
 task.spawn(function()
-wait(6)
+
 local RS=game:GetService("ReplicatedStorage");pcall(function()RS.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.ActionService.RP.Cooldowns:Destroy()end);pcall(function()RS.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.SkillsService.RP.Cooldowns:Destroy()end)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/Data"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/Data"))()
 
 end)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -24,7 +21,7 @@ local Window = Fluent:CreateWindow({
     Title = "NOTHING_X",
     SubTitle = "",
     TabWidth = 30,
-    Size = UDim2.fromOffset(455, 415),
+    Size = UDim2.fromOffset(500, 415),
     Acrylic = false,
     Theme = "Darker",
     MinimizeKey = Enum.KeyCode.LeftAlt
@@ -645,8 +642,10 @@ local tk = Tabs.all:AddToggle("XXTackledToggle", {
         end
     end
 })
+local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local enabled = false
+local running = false
 local RETURN_DELAY = 1
 local ZONE_PART = workspace:WaitForChild("NOTHING XX")
 local SPAWN = workspace:WaitForChild("Spawning"):WaitForChild("SpawnLocation")
@@ -654,21 +653,43 @@ local function isInsidePart(part, position)
     local localPos = part.CFrame:PointToObjectSpace(position)
     local size = part.Size / 2
     return math.abs(localPos.X) <= size.X
-       and math.abs(localPos.Y) <= size.Y
-       and math.abs(localPos.Z) <= size.Z
+        and math.abs(localPos.Y) <= size.Y
+        and math.abs(localPos.Z) <= size.Z
+end
+local function getHRP()
+    local char = player.Character
+    if not char then
+        return nil
+    end
+    return char:FindFirstChild("HumanoidRootPart")
 end
 local function startCheck()
+    if running then
+        return
+    end
+    running = true
     task.spawn(function()
         while enabled do
-            local char = player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
             local team = player.Team and player.Team.Name
+            local hrp = getHRP()
             if hrp and (team == "Home" or team == "Away") then
-                hrp.CFrame = SPAWN.CFrame * CFrame.new(0, 2, 0) 
-                while enabled and hrp do
+                hrp.CFrame = SPAWN.CFrame * CFrame.new(0, 2, 0)
+                while enabled do
+                    hrp = getHRP()
+                    if not hrp then
+                        break
+                    end
+                    team = player.Team and player.Team.Name
+                    if team ~= "Home" and team ~= "Away" then
+                        break
+                    end
                     if not isInsidePart(ZONE_PART, hrp.Position) then
                         task.wait(RETURN_DELAY)
-                        if enabled and hrp and not isInsidePart(ZONE_PART, hrp.Position) then
+                        hrp = getHRP()
+                        if enabled
+                            and hrp
+                            and isInsidePart(ZONE_PART, hrp.Position) == false
+                        then
                             hrp.CFrame = SPAWN.CFrame * CFrame.new(0, 2, 0)
                         end
                     end
@@ -677,6 +698,7 @@ local function startCheck()
             end
             task.wait(0.1)
         end
+        running = false
     end)
 end
 Tabs.all:AddToggle("PartLockToggle", {
@@ -739,6 +761,46 @@ local moveFieldToggle = Tabs.all:AddToggle("MoveFieldToggle", {
         else
             field.Size = Vector3.new(currentSize.X, 81.67, currentSize.Z)
         end
+    end
+})
+local XVXEnabled = false
+local CurrentState = nil
+
+local Event = game:GetService("ReplicatedStorage")
+    .Packages
+    ._Index["sleitnick_knit@1.7.0"]
+    .knit
+    .Services
+    .MatchService
+    .RP
+    .IsMatchActive
+
+Event.OnClientEvent:Connect(function(State)
+    CurrentState = State
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if XVXEnabled then
+            if CurrentState ~= false then
+                firesignal(Event.OnClientEvent, false)
+                CurrentState = false
+            end
+        else
+            if CurrentState ~= true then
+                firesignal(Event.OnClientEvent, true)
+                CurrentState = true
+            end
+        end
+    end
+end)
+
+Tabs.all:AddToggle("XVXToggle", {
+    Title = "Bypass X",
+    Default = false,
+
+    Callback = function(Value)
+        XVXEnabled = Value
     end
 })
 end)
