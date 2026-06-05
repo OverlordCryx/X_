@@ -1,15 +1,15 @@
 wait(2)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/Field"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/Field"))()
 end)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/Delete"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/Delete"))()
 end)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/RJ"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/RJ"))()
 end)
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/part%20D"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/part%20D"))()
 end)
 task.spawn(function()
 wait(6)
@@ -40,7 +40,7 @@ local Tabs = {
 }
 Window:SelectTab()
 task.spawn(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/main/SLS/ThemesUI"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OverlordCryx/X_/refs/heads/XVX/SLS/ThemesUI"))()
 end)
 local proceed = false
 Window:Dialog({
