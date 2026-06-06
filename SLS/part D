@@ -1,4 +1,4 @@
---[[
+
 local grass = workspace.Stadium.Field.Grass
 local partName = "NOTHING X"
 if not workspace:FindFirstChild(partName) then
@@ -14,7 +14,7 @@ if not workspace:FindFirstChild(partName) then
     part.Parent = workspace
 else
 end
-]]
+
 local LB = workspace.Lobby.Build.Floor.SpawnCircle.LogoFIFA
 local partName = "NOTHING XX"
 if not workspace:FindFirstChild(partName) then
